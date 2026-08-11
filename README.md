@@ -6,7 +6,7 @@
 
 **Durable, project-scoped memory and semantic retrieval for AI agents and developer tools.**
 
-[![CI](https://github.com/BlinkStreamTeam/Forge/actions/workflows/ci.yml/badge.svg)](https://github.com/BlinkStreamTeam/Forge/actions/workflows/ci.yml)
+[![CI](https://github.com/ProjForge/Forge/actions/workflows/ci.yml/badge.svg)](https://github.com/ProjForge/Forge/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-336791.svg)](https://www.postgresql.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933.svg)](https://nodejs.org/)
@@ -79,7 +79,7 @@ See [Architecture](docs/ARCHITECTURE.md) and the
 Prerequisites: Node.js 20+ and npm 10+.
 
 ```bash
-git clone https://github.com/BlinkStreamTeam/Forge.git
+git clone https://github.com/ProjForge/Forge.git
 cd Forge
 npm install
 npm run build
