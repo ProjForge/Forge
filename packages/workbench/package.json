@@ -24,7 +24,7 @@
     "forge-semantic-bridge"
   ],
   "devDependencies": {
-    "@types/node": "24.10.13",
+    "@types/node": "26.2.0",
     "@yao-pkg/pkg": "6.22.0",
     "esbuild": "0.28.2",
     "typescript": "5.9.3"
