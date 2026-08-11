@@ -12,9 +12,10 @@
     "packages/*"
   ],
   "scripts": {
+    "check:deployment": "node scripts/validate-aws-object-lock-template.mjs",
     "build": "npm run build -w forge-persistence-gateway && npm run build -w forge-embedding-worker && npm run build -w forge-mcp-server && npm run build -w forge-semantic-bridge && npm run build -w forge-resilience && npm run build -w forge-workbench",
     "test": "npm test -w forge-postgresql-schema && npm test -w forge-persistence-gateway && npm test -w forge-embedding-worker && npm test -w forge-mcp-server && npm test -w forge-semantic-bridge && npm test -w forge-resilience && npm test -w forge-workbench",
-    "check": "npm run build && npm test",
+    "check": "npm run check:deployment && npm run build && npm test",
     "audit:production": "npm audit --omit=dev"
   }
 }

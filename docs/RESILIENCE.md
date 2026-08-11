@@ -59,6 +59,10 @@ replica is only truly off-host when the configured path resides on independent
 storage, and an S3-compatible endpoint is only off-site when its deployment is.
 Provider lifecycle must remove cloud objects only after Object Lock expires.
 
+The optional [AWS reference deployment](../deploy/aws/README.md) makes the
+first provider-backed validation reproducible while keeping Core and recovery
+packages provider-neutral.
+
 Implementation findings and native evidence are recorded in
 [Resilience implementation findings](RESILIENCE-IMPLEMENTATION-FINDINGS.md)
 and the [validation report](RESILIENCE-VALIDATION.md).
