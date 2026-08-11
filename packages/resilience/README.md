@@ -140,6 +140,23 @@ its referenced payload, authenticates both, refuses existing destination files
 and publishes the payload before its manifest. Use the returned local manifest
 path with the normal `restore` command.
 
+Windows operators can run the complete provider acceptance drill with the
+installed DPAPI configuration. It downloads and authenticates the selected
+package, restores it into a random isolated PostgreSQL database, verifies
+migration checksums and table counts, and removes only that generated database
+unless `-KeepDatabase` is supplied:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-s3-native.ps1 `
+  -ObjectManifest 'scheduled-2026-08-11T22-24-36-576Z.forge-backup.json' `
+  -OutputDirectory 'D:\FORGE Recovery' `
+  -KeepDatabase
+```
+
+The PostgreSQL administrative password is requested invisibly and remains only
+in the drill process environment. AWS credentials and the package passphrase
+are decrypted from CurrentUser DPAPI only for the duration of the drill.
+
 On Windows, build the package and register a limited CurrentUser task:
 
 ```powershell

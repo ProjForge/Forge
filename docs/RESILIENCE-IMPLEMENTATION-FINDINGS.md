@@ -158,3 +158,16 @@ Resolution: add `fetch-s3`. It accepts only a safe manifest file name beneath th
 configured prefix, follows the parsed manifest to the payload, downloads both
 through the same SDK adapter, authenticates them, refuses overwrites and
 publishes payload before manifest for subsequent normal restore.
+
+## RES-015: portable restores deliberately omit operational role grants
+
+The provider-backed restore passed every migration and table-count check, but a
+subsequent connection by the source backup role correctly lacked `USAGE` on the
+restored `forge` schema. Logical packages use `--no-owner --no-privileges` so a
+recovery does not depend on source-cluster role OIDs or silently recreate access
+for identities that may not exist or be trusted at the destination.
+
+Resolution: keep the portable dump contract unchanged. Recovery validation runs
+with the explicit target restore identity; operators must recreate runtime and
+backup grants after accepting the restored data. The provider drill records this
+boundary and never treats restored source ACLs as a resilience guarantee.
