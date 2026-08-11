@@ -202,3 +202,17 @@ through a partial file and verifies SHA-256. `restore-wal.ps1` performs the
 inverse verified copy. Production activation remains an explicit DBA operation
 because it changes cluster-wide PostgreSQL settings and requires a replication
 identity, retention capacity and an independently monitored archive target.
+
+Before production activation on Windows, run the non-mutating readiness check:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/preflight-pitr-windows.ps1 `
+  -ArchiveDirectory 'E:\FORGE PITR\wal' `
+  -MinimumFreeGiB 20
+```
+
+It inspects the service command, effective WAL settings, independent-volume
+capacity, required scripts and BitLocker state, then writes non-secret atomic
+status to `%APPDATA%\FORGE\pitr-preflight.json`. It never edits PostgreSQL,
+creates the archive directory or restarts the service. See the
+[production activation plan](../../docs/PITR-PRODUCTION-PLAN.md).
