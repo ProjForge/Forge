@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import pg from 'pg'
 import test from 'node:test'
-import { createBackup } from '../../src/backup.js'
+import { runBackupPolicy } from '../../src/policy.js'
 import { restoreBackup, verifyBackup } from '../../src/restore.js'
 
 const { Client } = pg
@@ -101,14 +101,23 @@ test('backs up, authenticates and restores a native PostgreSQL database', { skip
     } finally {
       await reader.end()
     }
-    const backup = await createBackup({
+    const replicaDirectory = path.join(directory, 'replica')
+    const policyRun = await runBackupPolicy({
       connectionString: backupUrl,
-      outputDirectory: directory,
       passphrase,
-      label: 'native-proof',
+      policy: {
+        version: 1,
+        outputDirectory: path.join(directory, 'primary'),
+        replicas: [{ name: 'native-replica', path: replicaDirectory }],
+        retention: { keepLast: 2, maxAgeHours: 24 },
+        labelPrefix: 'native-proof',
+      },
       ...(process.env.FORGE_POSTGRES_BIN ? { postgresBin: process.env.FORGE_POSTGRES_BIN } : {}),
     })
+    const backup = policyRun.backup
+    assert.equal(policyRun.replicas.length, 1)
     await verifyBackup({ manifestPath: backup.manifestPath, passphrase })
+    await verifyBackup({ manifestPath: policyRun.replicas[0]!.manifestPath, passphrase })
     const blockedTarget = new Client({ connectionString: targetUrl })
     await blockedTarget.connect()
     try {

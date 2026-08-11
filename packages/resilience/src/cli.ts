@@ -3,10 +3,11 @@ import { readFile } from 'node:fs/promises'
 import { createBackup } from './backup.js'
 import { requireDatabaseUrl } from './config.js'
 import { restoreBackup, verifyBackup } from './restore.js'
+import { parseRecoveryPolicyDocument, runBackupPolicy } from './policy.js'
 
 function usage(): never {
   throw new Error(
-    'Usage: forge-resilience <backup|verify|restore> --manifest PATH | --output DIRECTORY [--label LABEL] [--postgres-bin DIRECTORY]',
+    'Usage: forge-resilience <backup|verify|restore|run-policy> [--manifest PATH | --output DIRECTORY | --config PATH] [--label LABEL] [--postgres-bin DIRECTORY]',
   )
 }
 
@@ -73,6 +74,18 @@ async function main(): Promise<void> {
         ...(postgresBin ? { postgresBin } : {}),
       })
       process.stdout.write(`${JSON.stringify({ restored: true, ...result })}\n`)
+      return
+    }
+    if (parsed.command === 'run-policy') {
+      const postgresBin = parsed.options.get('postgres-bin')
+      const policy = parseRecoveryPolicyDocument(await readFile(required(parsed.options, 'config'), 'utf8'))
+      const result = await runBackupPolicy({
+        connectionString: requireDatabaseUrl(process.env.FORGE_DATABASE_URL, 'FORGE_DATABASE_URL'),
+        passphrase: secret,
+        policy,
+        ...(postgresBin ? { postgresBin } : {}),
+      })
+      process.stdout.write(`${JSON.stringify({ completed: true, ...result })}\n`)
       return
     }
     usage()

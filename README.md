@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/forge-brand-preview.png" width="760" alt="FORGE — linked context, durable memory">
+</p>
+
 # FORGE
 
 **Durable, project-scoped memory and semantic retrieval for AI agents and developer tools.**
@@ -14,6 +18,9 @@ retrieval through pgvector.
 
 FORGE is not an agent framework and does not call an embedding model from its
 core. Model providers remain replaceable external workers.
+
+The official geometric identity and usage rules live in the
+[brand pack](assets/brand/BRAND_GUIDE.md).
 
 > **Project status:** alpha. The schema and local Workbench are validated on
 > PostgreSQL 18.4 with pgvector 0.8.2; PostgreSQL 14+ is the compatibility

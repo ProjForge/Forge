@@ -55,3 +55,43 @@ The automated drill passed on PostgreSQL 18.4:
 
 The administrative password was requested interactively, held for the process
 lifetime and was not stored in the repository, status file or test log.
+
+## RES-005: Windows WAL hashing must allow PostgreSQL file sharing
+
+The first physical drill archived one segment and then repeatedly failed because
+`Get-FileHash` reopened later WAL files with sharing flags incompatible with the
+running server, even though copying was permitted.
+
+Resolution: hash WAL through a read-only .NET stream that explicitly allows
+`FileShare.ReadWrite` and `FileShare.Delete`. Source and copied bytes remain
+SHA-256 compared without requiring PostgreSQL to release the segment first.
+
+## RES-006: server readiness is not recovery completion
+
+`pg_ctl -w start` returned as soon as the recovery cluster accepted read-only
+connections. The initial test could observe base-backup data before WAL replay
+reached the named target and promotion completed.
+
+Resolution: poll `pg_is_in_recovery()` until false, then validate recovered
+application rows. The final PostgreSQL 18.4 drill verified the base-backup
+manifest, archived required WAL, recovered to `forge_safe_point`, preserved the
+safe row, excluded both later mutations and removed the temporary clusters.
+
+## RES-007: scheduled-task scripts must target Windows PowerShell 5.1
+
+The first schedule installation used `.NET Path.IsPathFullyQualified`, available
+to PowerShell 7 but absent from Windows PowerShell 5.1, which is the stable
+in-box runtime used by the registered task.
+
+Resolution: validate absolute Windows paths with `Path.IsPathRooted`, parse every
+script with the Windows PowerShell grammar and keep the scheduled action pinned
+to the in-box executable rather than depending on a user's `pwsh` installation.
+
+## RES-008: Windows PowerShell 5.1 emits a UTF-8 BOM
+
+The first real scheduled run reached Node but failed before policy status because
+Windows PowerShell 5.1 wrote `resilience-policy.json` with a leading UTF-8 BOM,
+which raw `JSON.parse` rejects.
+
+Resolution: the CLI removes exactly one leading Unicode BOM before strict JSON
+parsing. Other leading garbage and malformed JSON still fail closed.

@@ -7,7 +7,21 @@ import type { ForgeWorkbenchService } from './service.js'
 
 const jsonLimit = 64 * 1024
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const publicFiles = new Set(['/index.html', '/app.js', '/styles.css', '/workspace.css'])
+const publicFiles = new Set([
+  '/index.html', '/app.js', '/styles.css', '/workspace.css', '/brand.css',
+  '/brand/forge-favicon.svg', '/brand/forge-favicon-256.png', '/brand/forge-mark-color.svg',
+])
+
+function contentType(file: string): string {
+  switch (extname(file)) {
+    case '.html': return 'text/html; charset=utf-8'
+    case '.css': return 'text/css; charset=utf-8'
+    case '.js': return 'text/javascript; charset=utf-8'
+    case '.svg': return 'image/svg+xml'
+    case '.png': return 'image/png'
+    default: return 'application/octet-stream'
+  }
+}
 
 function securityHeaders(response: ServerResponse): void {
   response.setHeader('x-content-type-options', 'nosniff')
@@ -81,7 +95,7 @@ async function staticFile(response: ServerResponse, publicDir: string, pathname:
   await stat(path)
   securityHeaders(response)
   response.statusCode = 200
-  response.setHeader('content-type', extname(path) === '.html' ? 'text/html; charset=utf-8' : extname(path) === '.css' ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8')
+  response.setHeader('content-type', contentType(path))
   createReadStream(path).pipe(response)
 }
 

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "outputDirectory": "D:\\FORGE Backups\\logical",
+  "replicas": [
+    {
+      "name": "filesystem-primary",
+      "path": "\\\\backup-server\\FORGE\\logical"
+    }
+  ],
+  "retention": {
+    "keepLast": 14,
+    "maxAgeHours": 720
+  },
+  "labelPrefix": "scheduled",
+  "lockPath": "C:\\ProgramData\\FORGE\\resilience.lock",
+  "statusPath": "C:\\ProgramData\\FORGE\\resilience-status.json"
+}

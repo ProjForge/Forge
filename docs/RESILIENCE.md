@@ -18,6 +18,13 @@ Status: Resilience 0.2, recovery-package slice
   all FORGE table counts afterwards.
 - Backup preflight enumerates relations from PostgreSQL catalogs and fails if
   the dedicated read-only role cannot select any current table or sequence.
+- A policy run prevents overlap, verifies the source package, atomically
+  publishes complete package pairs to every configured filesystem replica and
+  applies retention only after all replicas verify successfully.
+- Windows can run the policy periodically with database and package secrets
+  protected by CurrentUser DPAPI and atomic non-secret health status.
+- The native PITR drill verifies a SHA-256 `pg_basebackup`, continuous WAL
+  archiving and recovery to a named restore point in an isolated cluster.
 
 PostgreSQL documents custom archives as portable and flexible, and confirms
 that `pg_dump` creates consistent exports while a database remains in use:
@@ -36,17 +43,19 @@ restore drills demonstrate it.
 
 ## Not yet claimed
 
-This slice is not point-in-time recovery. PITR requires a physical base backup,
-continuous WAL archiving, separate retention and a cluster-level restore drill.
-PostgreSQL describes that distinct mechanism here:
+Logical packages are not point-in-time recovery. FORGE now includes a validated
+isolated PITR drill and safe WAL archive/restore commands, but it does not
+silently enable physical archiving on an installed production cluster.
+PostgreSQL describes the distinct base-backup/WAL mechanism here:
 <https://www.postgresql.org/docs/18/continuous-archiving.html>.
 
-High availability, automatic failover and off-host storage adapters also remain
-future slices. They must not be represented as implemented by the logical
-backup commands.
+High availability, automatic failover and provider-specific cloud storage
+adapters remain future slices. A filesystem replica is only truly off-host when
+the configured path resides on independent storage.
 
 Implementation findings and native evidence are recorded in
-[Resilience 0.2 implementation findings](RESILIENCE-IMPLEMENTATION-FINDINGS.md).
+[Resilience 0.2 implementation findings](RESILIENCE-IMPLEMENTATION-FINDINGS.md)
+and the [validation report](RESILIENCE-VALIDATION.md).
 
 ## Threat model
 

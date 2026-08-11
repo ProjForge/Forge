@@ -80,3 +80,45 @@ export interface RestoreResult {
   readonly targetServerVersion: string
   readonly tableCounts: Readonly<Record<string, string>>
 }
+
+export interface ReplicationTarget {
+  readonly name: string
+  readonly path: string
+}
+
+export interface RetentionPolicy {
+  readonly keepLast: number
+  readonly maxAgeHours?: number
+}
+
+export interface RecoveryPolicy {
+  readonly version: 1
+  readonly outputDirectory: string
+  readonly replicas: readonly ReplicationTarget[]
+  readonly retention: RetentionPolicy
+  readonly labelPrefix?: string
+  readonly lockPath?: string
+  readonly statusPath?: string
+}
+
+export interface PolicyRunOptions {
+  readonly connectionString: string
+  readonly passphrase: Uint8Array | string
+  readonly policy: RecoveryPolicy
+  readonly postgresBin?: string
+  readonly now?: Date
+}
+
+export interface ReplicatedPackage {
+  readonly target: string
+  readonly manifestPath: string
+  readonly payloadPath: string
+}
+
+export interface PolicyRunResult {
+  readonly startedAt: string
+  readonly completedAt: string
+  readonly backup: BackupResult
+  readonly replicas: readonly ReplicatedPackage[]
+  readonly prunedFiles: readonly string[]
+}

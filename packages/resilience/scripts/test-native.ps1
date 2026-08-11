@@ -44,7 +44,7 @@ try {
     try {
         & $npm run test:integration 2>&1 | Tee-Object -FilePath $logPath
         if ($LASTEXITCODE -ne 0) { throw "Native recovery drill failed with exit code $LASTEXITCODE." }
-        Set-DrillStatus -Status 'PASS' -Detail 'Encrypted backup, authentication, transactional restore and data verification passed.'
+        Set-DrillStatus -Status 'PASS' -Detail 'Encrypted backup, verified replica, non-destructive transactional restore and data verification passed.'
         $exitCode = 0
     }
     finally {

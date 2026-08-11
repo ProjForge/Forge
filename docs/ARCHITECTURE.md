@@ -27,6 +27,8 @@ Resilience CLI ───────────── PostgreSQL ⇄ encrypted 
   HTTP boundary.
 - **Resilience** creates authenticated, encrypted logical recovery packages and
   restores them transactionally into an empty compatible PostgreSQL database.
+  Its policy runner verifies replicas before retention; cluster-level scripts
+  separately exercise PostgreSQL base backups and WAL point-in-time recovery.
 
 ## Core invariants
 
@@ -40,6 +42,8 @@ Resilience CLI ───────────── PostgreSQL ⇄ encrypted 
 - Core never calls an embedding or reranking provider.
 - Recovery never overwrites a non-empty target and verifies migrations and
   snapshot table counts after restore.
+- Retention runs only after every configured replica authenticates successfully;
+  malformed or foreign files are not deletion candidates.
 
 ## Trust boundaries
 

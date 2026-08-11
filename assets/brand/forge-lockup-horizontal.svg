@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" role="img" aria-labelledby="title desc">
+  <title id="title">FORGE horizontal logo</title>
+  <desc id="desc">FORGE geometric mark with a custom uppercase wordmark.</desc>
+  <g transform="translate(16 16) scale(.875)">
+    <path fill="#F0A83A" d="M24 24h108v40H64v128h68v40H24z"/>
+    <path fill="#F2F0EA" d="M124 24h108v208H104V104h72v40h-32v48h48V64h-68z"/>
+  </g>
+  <g fill="#F2F0EA">
+    <path d="M280 72h84v20h-64v28h52v20h-52v44h-20z"/>
+    <path fill-rule="evenodd" d="M392 72h84v112h-84zm20 20v72h44V92z"/>
+    <path fill-rule="evenodd" d="M504 72h84v68h-23l27 44h-24l-27-44h-17v44h-20zm20 20v28h44V92z"/>
+    <path d="M616 72h84v20h-64v72h44v-24h-22v-20h42v64h-84z"/>
+    <path d="M728 72h84v20h-64v26h52v20h-52v26h64v20h-84z"/>
+  </g>
+</svg>

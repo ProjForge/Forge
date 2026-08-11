@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createWorkbenchServer } from '../src/server.js'
 import type { ForgeWorkbenchService } from '../src/service.js'
@@ -13,7 +13,7 @@ test('serves the loopback API with token and origin protections', async (context
     projects: async () => [],
     catalog: async () => ({ memories: [], decisions: [] }),
   } as unknown as ForgeWorkbenchService
-  const publicDir = fileURLToPath(new URL('../public/', import.meta.url))
+  const publicDir = path.resolve(process.cwd(), 'public')
   const server = createWorkbenchServer(service, { publicDir, token: 'test-token' })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
@@ -33,12 +33,20 @@ test('serves the loopback API with token and origin protections', async (context
   const allowed = await fetch(`${base}/api/projects`, { headers: { origin: base, 'x-forge-token': 'test-token' } })
   assert.equal(allowed.status, 200)
   assert.deepEqual(await allowed.json(), { result: [] })
+
+  const favicon = await fetch(`${base}/brand/forge-favicon.svg`)
+  assert.equal(favicon.status, 200)
+  assert.equal(favicon.headers.get('content-type'), 'image/svg+xml')
+  assert.match(await favicon.text(), /FORGE favicon/)
+
+  const unapproved = await fetch(`${base}/brand/not-approved.svg`)
+  assert.equal(unapproved.status, 404)
 })
 
 test('rejects malformed project scope before invoking search', async (context) => {
   let called = false
   const service = { search: async () => { called = true; return [] } } as unknown as ForgeWorkbenchService
-  const publicDir = fileURLToPath(new URL('../public/', import.meta.url))
+  const publicDir = path.resolve(process.cwd(), 'public')
   const server = createWorkbenchServer(service, { publicDir, token: 'test-token' })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))

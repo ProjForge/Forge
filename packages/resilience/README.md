@@ -74,3 +74,50 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-native.ps1
 
 The administrative password is requested interactively, held only for the
 process lifetime and never written to disk or passed as a child-process argument.
+
+## Scheduled verified policy
+
+`run-policy` executes one complete recovery cycle:
+
+1. acquire a local single-run lock;
+2. create and authenticate the logical package;
+3. publish payload then manifest to every replica and authenticate each copy;
+4. apply retention only after every target succeeds;
+5. atomically write sanitized status JSON.
+
+```powershell
+node dist/cli.js run-policy --config recovery-policy.example.json
+```
+
+Policy files contain no credentials. Paths must be absolute, replica names and
+paths must be unique, and at least one replica is required. Unknown or malformed
+files are ignored by retention.
+
+On Windows, build the package and register a limited CurrentUser task:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-windows-schedule.ps1 `
+  -OutputDirectory 'D:\FORGE Backups\logical' `
+  -ReplicaDirectory '\\backup-server\FORGE\logical'
+```
+
+The installer requests the dedicated backup-role password and package
+passphrase interactively and stores each with CurrentUser DPAPI. The scheduled
+task uses `IgnoreNew`, retries failures, runs missed cycles when possible and
+never places a secret in its action arguments or JSON configuration.
+
+## Physical WAL/PITR drill
+
+The isolated Windows drill creates a disposable PostgreSQL cluster, enables WAL
+archiving, verifies a SHA-256 base-backup manifest, creates a named restore
+point, applies later destructive changes and proves recovery excludes them:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-pitr-native.ps1
+```
+
+`archive-wal.ps1` rejects unsafe names and different-content collisions, copies
+through a partial file and verifies SHA-256. `restore-wal.ps1` performs the
+inverse verified copy. Production activation remains an explicit DBA operation
+because it changes cluster-wide PostgreSQL settings and requires a replication
+identity, retention capacity and an independently monitored archive target.
