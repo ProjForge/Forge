@@ -121,6 +121,10 @@ payload first, uploads its manifest as the publication marker, downloads both
 and performs full SHA-256 plus AES-GCM verification. FORGE does not delete cloud
 objects: configure provider lifecycle to expire them only after Object Lock.
 
+The optional [AWS reference deployment](../../deploy/aws/README.md) provisions
+a private Object-Lock bucket and least-privilege identity without embedding an
+access key in CloudFormation state.
+
 Fetch a selected package back into a new local directory before restore:
 
 ```powershell

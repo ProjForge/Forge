@@ -1,0 +1,149 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "FORGE immutable off-site recovery target with 30-day S3 Object Lock compliance retention.",
+  "Parameters": {
+    "BucketName": {
+      "Type": "String",
+      "Description": "Globally unique private bucket name.",
+      "AllowedPattern": "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
+      "ConstraintDescription": "Use 3-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit."
+    }
+  },
+  "Resources": {
+    "RecoveryBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": { "Ref": "BucketName" },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "expire-forge-recovery-objects",
+              "Prefix": "logical/",
+              "Status": "Enabled",
+              "ExpirationInDays": 45,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+              },
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              }
+            }
+          ]
+        },
+        "ObjectLockEnabled": true,
+        "ObjectLockConfiguration": {
+          "ObjectLockEnabled": "Enabled",
+          "Rule": {
+            "DefaultRetention": {
+              "Mode": "COMPLIANCE",
+              "Days": 30
+            }
+          }
+        },
+        "OwnershipControls": {
+          "Rules": [
+            { "ObjectOwnership": "BucketOwnerEnforced" }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "Tags": [
+          { "Key": "Application", "Value": "FORGE" },
+          { "Key": "DataClass", "Value": "EncryptedRecovery" }
+        ]
+      }
+    },
+    "RecoveryBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "RecoveryBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyInsecureTransport",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                { "Fn::GetAtt": ["RecoveryBucket", "Arn"] },
+                { "Fn::Sub": "${RecoveryBucket.Arn}/*" }
+              ],
+              "Condition": {
+                "Bool": { "aws:SecureTransport": "false" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "RecoveryUser": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "Path": "/forge/",
+        "Policies": [
+          {
+            "PolicyName": "ForgeRecoveryObjectAccess",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "BucketLocation",
+                  "Effect": "Allow",
+                  "Action": "s3:GetBucketLocation",
+                  "Resource": { "Fn::GetAtt": ["RecoveryBucket", "Arn"] }
+                },
+                {
+                  "Sid": "WriteAndRecoverImmutablePackages",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectRetention",
+                    "s3:PutObject",
+                    "s3:PutObjectRetention"
+                  ],
+                  "Resource": { "Fn::Sub": "${RecoveryBucket.Arn}/logical/*" }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          { "Key": "Application", "Value": "FORGE" }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BucketName": {
+      "Value": { "Ref": "RecoveryBucket" }
+    },
+    "BucketRegion": {
+      "Value": { "Ref": "AWS::Region" }
+    },
+    "ObjectPrefix": {
+      "Value": "logical"
+    },
+    "RecoveryUserName": {
+      "Value": { "Ref": "RecoveryUser" }
+    }
+  }
+}
