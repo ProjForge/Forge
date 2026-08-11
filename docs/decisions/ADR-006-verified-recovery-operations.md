@@ -31,7 +31,8 @@ is installed, monitored and repeatedly drilled in its deployment environment.
 - Retention cannot erase the previous recovery set after a failed copy.
 - Unknown or malformed files are never deleted by automated retention.
 - A filesystem target can be a removable disk, mounted volume or network share;
-  provider-specific cloud adapters remain replaceable future additions.
+  ADR-007 adds a replaceable S3-compatible cloud target without changing the
+  recovery package.
 - PITR remains a cluster administration feature and is never silently enabled on
   a user's production PostgreSQL instance.
 - Windows user-level scheduling requires an interactive user session for network

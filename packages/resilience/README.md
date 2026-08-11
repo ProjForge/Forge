@@ -1,4 +1,4 @@
-# FORGE Resilience 0.2
+# FORGE Resilience 0.3
 
 Creates authenticated encrypted recovery packages and restores them into an
 empty PostgreSQL database without writing a plaintext dump to disk.
@@ -81,7 +81,7 @@ process lifetime and never written to disk or passed as a child-process argument
 
 1. acquire a local single-run lock;
 2. create and authenticate the logical package;
-3. publish payload then manifest to every replica and authenticate each copy;
+3. publish payload then manifest to every filesystem or S3 replica and authenticate each copy;
 4. apply retention only after every target succeeds;
 5. atomically write sanitized status JSON.
 
@@ -90,8 +90,51 @@ node dist/cli.js run-policy --config recovery-policy.example.json
 ```
 
 Policy files contain no credentials. Paths must be absolute, replica names and
-paths must be unique, and at least one replica is required. Unknown or malformed
-files are ignored by retention.
+locations must be unique, and at least one replica is required. Existing targets
+without a `type` remain filesystem targets. Unknown or malformed local files are
+ignored by retention.
+
+### Immutable S3 replica
+
+Use an Object-Lock-enabled S3-compatible bucket. Credentials are resolved by the
+AWS SDK credential chain (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional
+session token, shared credentials or workload identity); never add them to the
+policy file.
+
+```json
+{
+  "name": "offsite-worm",
+  "type": "s3",
+  "bucket": "forge-recovery-prod",
+  "prefix": "logical",
+  "region": "eu-west-1",
+  "objectLock": {
+    "mode": "COMPLIANCE",
+    "retentionDays": 30
+  }
+}
+```
+
+`endpoint` and `forcePathStyle` support compatible providers and loopback test
+servers. Non-loopback endpoints must use HTTPS. Each run uploads the encrypted
+payload first, uploads its manifest as the publication marker, downloads both
+and performs full SHA-256 plus AES-GCM verification. FORGE does not delete cloud
+objects: configure provider lifecycle to expire them only after Object Lock.
+
+Fetch a selected package back into a new local directory before restore:
+
+```powershell
+node dist/cli.js fetch-s3 `
+  --config recovery-policy.json `
+  --target offsite-worm `
+  --object-manifest scheduled-2026-08-11T19-51-37-499Z.forge-backup.json `
+  --output 'D:\FORGE Recovery\incoming'
+```
+
+Only a safe manifest file name is accepted. FORGE downloads the manifest and
+its referenced payload, authenticates both, refuses existing destination files
+and publishes the payload before its manifest. Use the returned local manifest
+path with the normal `restore` command.
 
 On Windows, build the package and register a limited CurrentUser task:
 
