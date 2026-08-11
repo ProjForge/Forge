@@ -1,0 +1,9 @@
+.brand .brand-mark {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  filter: drop-shadow(0 0 12px #f0a83a25);
+}

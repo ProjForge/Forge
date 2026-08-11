@@ -4,6 +4,9 @@ dist/
 .run/
 coverage/
 *.log
+*.forge-backup
+*.forge-backup.json
+*.partial
 *.tgz
 *.zip
 *.exe

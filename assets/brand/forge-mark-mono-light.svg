@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">FORGE geometric mark, light monochrome</title>
+  <desc id="desc">Monochrome light version of the FORGE geometric mark.</desc>
+  <g fill="#F2F0EA">
+    <path d="M24 24h108v40H64v128h68v40H24z"/>
+    <path d="M124 24h108v208H104V104h72v40h-32v48h48V64h-68z"/>
+  </g>
+</svg>

@@ -1,0 +1,69 @@
+# Resilience 0.2 validation
+
+Date: 2026-08-11
+
+## Environment
+
+- Windows 11
+- PostgreSQL server and client tools 18.4
+- pgvector 0.8.2
+- Node.js 20+
+- two physical NVMe devices for the installed logical package replica
+
+## Automated results
+
+| Gate | Result |
+|---|---|
+| Resilience unit tests | 10/10 passed |
+| Complete monorepo tests | 58/58 passed |
+| Production dependency audit | 0 vulnerabilities |
+| PowerShell syntax | all Resilience scripts passed Windows PowerShell parsing |
+| Git diff whitespace | passed |
+
+## Logical recovery drill
+
+The native PostgreSQL drill passed with random temporary databases and a random
+temporary backup role. It proved:
+
+- the backup role can read but cannot write;
+- source and replica packages authenticate independently;
+- restore refuses a non-empty target and preserves its blocker relation;
+- empty-target restore is transactional;
+- migration checksums, all FORGE table counts and a sentinel project match;
+- temporary databases, role and package directories are removed.
+
+## Installed scheduled policy
+
+`FORGE Verified Recovery Backup` runs at logon and every six hours under the
+limited interactive CurrentUser principal with `IgnoreNew`, three retries and
+`StartWhenAvailable`. Database and package secrets are separate CurrentUser
+DPAPI blobs; task arguments and JSON files contain no secret.
+
+The real scheduled smoke test returned `LastTaskResult = 0`. It created and
+authenticated a logical package on the primary backup volume, copied it to a
+different physical NVMe, authenticated that replica and wrote atomic `ok`
+health. Retention is 14 newest packages plus packages younger than 720 hours and
+only runs after every configured copy verifies.
+
+## Physical WAL/PITR drill
+
+The isolated drill passed without changing the installed FORGE cluster:
+
+1. initialized a disposable PostgreSQL cluster with checksums and WAL archive;
+2. created safe application state;
+3. took `pg_basebackup -X stream` with SHA-256 manifest;
+4. passed `pg_verifybackup`;
+5. created a named restore point and committed later destructive mutations;
+6. archived the required WAL through verified collision-safe copies;
+7. recovered a second cluster to the named target and waited for promotion;
+8. proved the safe row remained and both later mutations disappeared;
+9. removed both clusters and their WAL archive.
+
+## Remaining deployment limits
+
+- The installed replica is on an independent disk in the same computer. It
+  protects against primary-disk loss, not theft, fire or total machine loss.
+- Production WAL archiving is not silently enabled. It needs explicit capacity,
+  retention, replication credentials and monitoring for the actual cluster.
+- Exact PostgreSQL 14 binary execution remains a compatibility-matrix gap; all
+  used commands and options are documented in PostgreSQL 14.

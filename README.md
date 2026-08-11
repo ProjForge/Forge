@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/forge-brand-preview.png" width="760" alt="FORGE — linked context, durable memory">
+</p>
+
 # FORGE
 
 **Durable, project-scoped memory and semantic retrieval for AI agents and developer tools.**
@@ -15,6 +19,9 @@ retrieval through pgvector.
 FORGE is not an agent framework and does not call an embedding model from its
 core. Model providers remain replaceable external workers.
 
+The official geometric identity and usage rules live in the
+[brand pack](assets/brand/BRAND_GUIDE.md).
+
 > **Project status:** alpha. The schema and local Workbench are validated on
 > PostgreSQL 18.4 with pgvector 0.8.2; PostgreSQL 14+ is the compatibility
 > target. APIs may evolve before 1.0.
@@ -29,6 +36,8 @@ core. Model providers remain replaceable external workers.
   the same Gateway contracts.
 - **Reproducible evolution:** transactional, checksum-aware migrations and
   idempotent write contracts.
+- **Verified recovery:** authenticated encrypted backups restore only into an
+  empty database and prove migration checksums and table counts afterwards.
 
 ## Components
 
@@ -39,6 +48,7 @@ core. Model providers remain replaceable external workers.
 | `mcp-server` | 0.1.5 | Strict stdio MCP adapter |
 | `embedding-worker` | 0.1.6 | Provider-pluggable indexing worker |
 | `semantic-bridge` | 0.1.4 | Natural-language search and optional reranking |
+| `resilience` | 0.2.0 | Encrypted backup, verification and safe restore |
 | `workbench` | 0.1.1 | Local human-facing web application |
 
 ## Architecture
@@ -55,6 +65,8 @@ flowchart LR
     Worker --> Provider["External model provider"]
     SB --> Provider
     GW --> DB["PostgreSQL + optional pgvector"]
+    Recovery["Resilience CLI"] --> DB
+    Recovery --> Backup["Authenticated encrypted recovery package"]
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) and the
@@ -81,6 +93,7 @@ Studio validation are opt-in; see each package README:
 - [MCP Server](packages/mcp-server/README.md)
 - [Embedding Worker](packages/embedding-worker/README.md)
 - [Semantic Bridge](packages/semantic-bridge/README.md)
+- [Resilience](packages/resilience/README.md)
 - [Workbench](packages/workbench/README.md)
 
 ## Security model
