@@ -1,0 +1,161 @@
+{
+  "status": "FAIL",
+  "corpusVersion": "2.0",
+  "profileKey": "qwen3-embedding-0.6b-q8-1024-forge-eval-v2",
+  "queryPrefix": "Instruct: Given a question about FORGE architecture, retrieve the single project fact that directly answers it. Prefer the exact component, invariant, version, or operational detail over broadly related facts.\nQuery:",
+  "facts": 30,
+  "indexed": {
+    "profile": {
+      "id": "b4d81923-da47-436d-9fe8-bf23a2cead2d",
+      "profileKey": "qwen3-embedding-0.6b-q8-1024-forge-eval-v2",
+      "provider": "lmstudio-local",
+      "model": "text-embedding-qwen3-embedding-0.6b",
+      "dimensions": 1024,
+      "distanceMetric": "cosine",
+      "status": "active",
+      "metadata": {
+        "forge_embedding_query_prefix": "Instruct: Given a question about FORGE architecture, retrieve the single project fact that directly answers it. Prefer the exact component, invariant, version, or operational detail over broadly related facts.\nQuery:"
+      },
+      "version": 1,
+      "createdAt": "2026-08-10T23:40:29.190Z",
+      "updatedAt": "2026-08-10T23:40:29.190Z"
+    },
+    "pages": 1,
+    "discovered": 0,
+    "embedded": 0,
+    "skippedSourceChanged": 0,
+    "skippedTruncated": 0,
+    "truncatedEmbedded": 0,
+    "providerAttempts": 0,
+    "inputTokens": null,
+    "nextCursor": null,
+    "complete": true
+  },
+  "thresholds": {
+    "top1": 0.9,
+    "top3": 0.98,
+    "mrr": 0.94,
+    "maxProjectLeaks": 0,
+    "maxStale": 0
+  },
+  "metrics": {
+    "total": 60,
+    "top1": 0.8166666666666667,
+    "top3": 0.9666666666666667,
+    "mrr": 0.8861111111111112,
+    "projectLeaks": 0,
+    "stale": 0
+  },
+  "failures": [
+    {
+      "key": "append-only-ledgers",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Deferred historical revisions",
+        "Append-only ledgers",
+        "Migration checksums"
+      ]
+    },
+    {
+      "key": "append-only-ledgers",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Deferred historical revisions",
+        "Append-only ledgers",
+        "Migration checksums"
+      ]
+    },
+    {
+      "key": "embedding-history",
+      "language": "es",
+      "rank": 3,
+      "returned": [
+        "Validated pgvector runtime",
+        "Optional vector migration",
+        "Immutable embedding history"
+      ]
+    },
+    {
+      "key": "embedding-history",
+      "language": "en",
+      "rank": null,
+      "returned": [
+        "Validated pgvector runtime",
+        "Optional vector migration",
+        "Optimistic locking"
+      ]
+    },
+    {
+      "key": "nomic-baseline",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Recommended multilingual model",
+        "Nomic baseline",
+        "Provider-agnostic Core MCP"
+      ]
+    },
+    {
+      "key": "provider-boundary",
+      "language": "es",
+      "rank": null,
+      "returned": [
+        "Immutable embedding history",
+        "Embedding dimensions",
+        "Recommended multilingual model"
+      ]
+    },
+    {
+      "key": "semantic-bridge",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Provider-agnostic Core MCP",
+        "Semantic text bridge",
+        "Qwen query transform"
+      ]
+    },
+    {
+      "key": "worker-pagination",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Worker idempotency",
+        "Bounded candidate pagination",
+        "Least-privilege runtime"
+      ]
+    },
+    {
+      "key": "worker-pagination",
+      "language": "en",
+      "rank": 3,
+      "returned": [
+        "Worker idempotency",
+        "Atomic worker health",
+        "Bounded candidate pagination"
+      ]
+    },
+    {
+      "key": "least-privilege",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Validated PostgreSQL runtime",
+        "Least-privilege runtime",
+        "Managed document identity"
+      ]
+    },
+    {
+      "key": "historical-revisions",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Managed document identity",
+        "Deferred historical revisions",
+        "Optimistic locking"
+      ]
+    }
+  ]
+}

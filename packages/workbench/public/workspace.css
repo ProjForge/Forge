@@ -1,0 +1,27 @@
+.project-filter {
+  display: block;
+  margin: 0 7px 10px;
+}
+
+.project-filter input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #101216;
+  color: var(--text);
+  padding: 9px 10px;
+  font-size: 11px;
+  outline: 0;
+}
+
+.project-filter input:focus { border-color: #7d5728; }
+.shell, .rail, main { min-width: 0; }
+.projects { overflow-y: auto; overflow-x: hidden; }
+.project-button { width: 100%; min-width: 0; }
+
+@media (max-width: 900px) {
+  .rail { width: 100%; overflow: hidden; }
+  .project-filter { max-width: 320px; }
+  .projects { width: 100%; max-width: 100%; overflow-x: auto; }
+  .project-button { width: 170px; min-width: 170px; }
+}

@@ -1,0 +1,131 @@
+{
+  "status": "FAIL",
+  "corpusVersion": "2.0",
+  "profileKey": "qwen3-embedding-4b-q4-k-m-2560-forge-eval-v2",
+  "queryPrefix": "Instruct: Given a user question about a software project, retrieve the most relevant project decision or memory that answers the question\nQuery:",
+  "facts": 30,
+  "indexed": {
+    "profile": {
+      "id": "2920f3f3-c90f-43e6-90fb-4074c06fff78",
+      "profileKey": "qwen3-embedding-4b-q4-k-m-2560-forge-eval-v2",
+      "provider": "lmstudio-local",
+      "model": "text-embedding-qwen3-embedding-4b",
+      "dimensions": 2560,
+      "distanceMetric": "cosine",
+      "status": "active",
+      "metadata": {
+        "forge_embedding_query_prefix": "Instruct: Given a user question about a software project, retrieve the most relevant project decision or memory that answers the question\nQuery:"
+      },
+      "version": 1,
+      "createdAt": "2026-08-10T23:47:20.434Z",
+      "updatedAt": "2026-08-10T23:47:20.434Z"
+    },
+    "pages": 1,
+    "discovered": 30,
+    "embedded": 30,
+    "skippedSourceChanged": 0,
+    "skippedTruncated": 0,
+    "truncatedEmbedded": 0,
+    "providerAttempts": 1,
+    "inputTokens": 0,
+    "nextCursor": null,
+    "complete": true
+  },
+  "thresholds": {
+    "top1": 0.9,
+    "top3": 0.98,
+    "mrr": 0.94,
+    "maxProjectLeaks": 0,
+    "maxStale": 0
+  },
+  "metrics": {
+    "total": 60,
+    "top1": 0.8666666666666667,
+    "top3": 0.9666666666666667,
+    "mrr": 0.9166666666666666,
+    "projectLeaks": 0,
+    "stale": 0
+  },
+  "failures": [
+    {
+      "key": "append-only-ledgers",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Deferred historical revisions",
+        "Append-only ledgers",
+        "Migration checksums"
+      ]
+    },
+    {
+      "key": "append-only-ledgers",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Deferred historical revisions",
+        "Append-only ledgers",
+        "Optimistic locking"
+      ]
+    },
+    {
+      "key": "embedding-history",
+      "language": "es",
+      "rank": null,
+      "returned": [
+        "Validated pgvector runtime",
+        "Optional vector migration",
+        "Embedding dimensions"
+      ]
+    },
+    {
+      "key": "embedding-history",
+      "language": "en",
+      "rank": null,
+      "returned": [
+        "Validated pgvector runtime",
+        "Optional vector migration",
+        "Embedding dimensions"
+      ]
+    },
+    {
+      "key": "nomic-baseline",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Recommended multilingual model",
+        "Nomic baseline",
+        "LM Studio loopback endpoint"
+      ]
+    },
+    {
+      "key": "core-mcp",
+      "language": "en",
+      "rank": 2,
+      "returned": [
+        "Semantic text bridge",
+        "Provider-agnostic Core MCP",
+        "Exact semantic search"
+      ]
+    },
+    {
+      "key": "worker-pagination",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Worker idempotency",
+        "Bounded candidate pagination",
+        "Transient provider retries"
+      ]
+    },
+    {
+      "key": "least-privilege",
+      "language": "es",
+      "rank": 2,
+      "returned": [
+        "Validated PostgreSQL runtime",
+        "Least-privilege runtime",
+        "External provider boundary"
+      ]
+    }
+  ]
+}

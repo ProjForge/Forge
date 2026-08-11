@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.test-dist/
+.run/
+coverage/
+*.log
+*.tgz
+*.zip
+*.exe
+*.dpapi
+.env
+.env.*
+!.env.example
+packages/forge-workbench-windows-*/
+artifacts/
