@@ -14,6 +14,7 @@ Clients
              └── Semantic Bridge ┘             └──────── pgvector (optional)
                        │
 Embedding Worker ──────┴── External model providers
+Resilience CLI ───────────── PostgreSQL ⇄ encrypted recovery package
 ```
 
 - **Schema** owns relational truth and invariants.
@@ -24,6 +25,8 @@ Embedding Worker ──────┴── External model providers
   vector searches and optionally reranks hydrated candidates.
 - **Workbench** is a loopback-only human client behind a token-protected local
   HTTP boundary.
+- **Resilience** creates authenticated, encrypted logical recovery packages and
+  restores them transactionally into an empty compatible PostgreSQL database.
 
 ## Core invariants
 
@@ -35,6 +38,8 @@ Embedding Worker ──────┴── External model providers
 - Embeddings match their registered profile dimensions and active source version.
 - Migrations are transactional, checksum-verified and idempotent.
 - Core never calls an embedding or reranking provider.
+- Recovery never overwrites a non-empty target and verifies migrations and
+  snapshot table counts after restore.
 
 ## Trust boundaries
 
