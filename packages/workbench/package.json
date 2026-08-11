@@ -27,7 +27,7 @@
     "@types/node": "24.10.13",
     "@yao-pkg/pkg": "6.22.0",
     "esbuild": "0.28.2",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "pkg": {
     "scripts": ["dist/**/*.js"],
