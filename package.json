@@ -1,0 +1,20 @@
+{
+  "name": "forge-monorepo",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Durable, project-scoped memory and semantic retrieval for AI agents and developer tools.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w forge-persistence-gateway && npm run build -w forge-embedding-worker && npm run build -w forge-mcp-server && npm run build -w forge-semantic-bridge && npm run build -w forge-workbench",
+    "test": "npm test -w forge-postgresql-schema && npm test -w forge-persistence-gateway && npm test -w forge-embedding-worker && npm test -w forge-mcp-server && npm test -w forge-semantic-bridge && npm test -w forge-workbench",
+    "check": "npm run build && npm test",
+    "audit:production": "npm audit --omit=dev"
+  }
+}

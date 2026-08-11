@@ -1,0 +1,95 @@
+{
+  "status": "PASS",
+  "corpusVersion": "2.0",
+  "embeddingProfile": "qwen3-embedding-0.6b-q8-1024-forge-retrieval-v1",
+  "rerankerModel": "forge-reranker-qwen35-9b",
+  "candidates": 5,
+  "metrics": {
+    "total": 60,
+    "semanticTop1": 0.8333333333333334,
+    "candidateRecall5": 0.9833333333333333,
+    "rerankedTop1": 0.9,
+    "projectLeaks": 0,
+    "stale": 0,
+    "parseErrors": 0,
+    "latencyMs": {
+      "mean": 621.9393933333332,
+      "p50": 615.1900000000005,
+      "p95": 674.629200000003
+    }
+  },
+  "failures": [
+    {
+      "key": "document-transform",
+      "language": "es",
+      "selected": "Qwen query transform",
+      "candidates": [
+        "Document input transform",
+        "Exact semantic search",
+        "Qwen query transform",
+        "External provider boundary",
+        "Nomic baseline"
+      ]
+    },
+    {
+      "key": "provider-boundary",
+      "language": "es",
+      "selected": "LM Studio loopback endpoint",
+      "candidates": [
+        "Immutable embedding history",
+        "Embedding dimensions",
+        "Recommended multilingual model",
+        "LM Studio loopback endpoint",
+        "Nomic baseline"
+      ]
+    },
+    {
+      "key": "worker-health",
+      "language": "es",
+      "selected": "Windows incremental schedule",
+      "candidates": [
+        "Atomic worker health",
+        "Exact semantic search",
+        "Immutable embedding history",
+        "Windows incremental schedule",
+        "Qwen query transform"
+      ]
+    },
+    {
+      "key": "least-privilege",
+      "language": "es",
+      "selected": "Validated PostgreSQL runtime",
+      "candidates": [
+        "Validated PostgreSQL runtime",
+        "Least-privilege runtime",
+        "Managed document identity",
+        "External provider boundary",
+        "DPAPI credential storage"
+      ]
+    },
+    {
+      "key": "historical-revisions",
+      "language": "es",
+      "selected": "Append-only ledgers",
+      "candidates": [
+        "Deferred historical revisions",
+        "Managed document identity",
+        "Optimistic locking",
+        "Least-privilege runtime",
+        "Append-only ledgers"
+      ]
+    },
+    {
+      "key": "historical-revisions",
+      "language": "en",
+      "selected": "Append-only ledgers",
+      "candidates": [
+        "Deferred historical revisions",
+        "Managed document identity",
+        "Optimistic locking",
+        "Append-only ledgers",
+        "Least-privilege runtime"
+      ]
+    }
+  ]
+}

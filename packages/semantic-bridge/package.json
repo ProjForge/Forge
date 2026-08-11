@@ -1,0 +1,55 @@
+{
+  "name": "forge-semantic-bridge",
+  "version": "0.1.4",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "forge-semantic-bridge": "./dist/stdio.js",
+    "forge-semantic-bridge-codex": "./dist/codex.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./workbench": {
+      "types": "./dist/workbench.d.ts",
+      "import": "./dist/workbench.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "scripts"
+  ],
+  "bundledDependencies": [
+    "forge-embedding-worker",
+    "forge-persistence-gateway"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:compile": "tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && node --test .test-dist/tests/bridge.test.js .test-dist/tests/config.test.js .test-dist/tests/reranker.test.js .test-dist/tests/server.test.js",
+    "test:all": "npm run build && npm test",
+    "smoke:live": "node scripts/live-smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "forge-embedding-worker": "0.1.6",
+    "forge-persistence-gateway": "0.1.5",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.13",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bundleDependencies": [
+    "forge-embedding-worker",
+    "forge-persistence-gateway"
+  ]
+}

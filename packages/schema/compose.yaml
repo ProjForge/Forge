@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg14
+    environment:
+      POSTGRES_DB: forge_test
+      POSTGRES_USER: forge_test
+      POSTGRES_PASSWORD: forge_test_local_only
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge_test -d forge_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - forge_pg14_data:/var/lib/postgresql/data
+
+volumes:
+  forge_pg14_data:

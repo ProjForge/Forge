@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FORGE Workbench</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/workspace.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <a class="brand" href="/" aria-label="FORGE Workbench">
+        <span class="brand-mark">F</span>
+        <span><strong>FORGE</strong><small>Workbench</small></span>
+      </a>
+      <div class="rail-heading"><span>Proyectos</span><button id="new-project" class="icon-button" title="Crear proyecto">+</button></div>
+      <label class="project-filter"><span class="sr-only">Filtrar proyectos</span><input id="project-filter" placeholder="Filtrar proyectos…" autocomplete="off"></label>
+      <nav id="projects" class="projects" aria-label="Proyectos"></nav>
+      <div class="rail-footer">
+        <span id="health-dot" class="health-dot"></span>
+        <span id="health">Conectando…</span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Memoria operativa</p>
+          <h1 id="project-name">Selecciona un proyecto</h1>
+          <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
+        </div>
+        <div class="top-actions">
+          <button id="add-memory" class="secondary" disabled>+ Memoria</button>
+          <button id="add-decision" class="primary" disabled>+ Decisión</button>
+        </div>
+      </header>
+
+      <section class="search-panel" aria-labelledby="search-title">
+        <div class="search-copy">
+          <p class="eyebrow">Recuperación semántica</p>
+          <h2 id="search-title">Pregunta a la memoria del proyecto</h2>
+        </div>
+        <form id="search-form" class="search-form">
+          <label class="search-box">
+            <span class="sr-only">Consulta</span>
+            <input id="query" name="query" placeholder="¿Qué decidimos sobre…?" autocomplete="off" disabled required>
+            <button class="primary" type="submit" disabled id="search-button">Buscar</button>
+          </label>
+          <label class="precision"><input id="rerank" type="checkbox"> Precisión local <span>Qwen 9B</span></label>
+        </form>
+        <div id="search-message" class="message" role="status"></div>
+        <div id="results" class="results"></div>
+      </section>
+
+      <section class="catalog-grid">
+        <article class="catalog-panel">
+          <div class="section-heading"><div><p class="eyebrow">Conocimiento</p><h2>Memorias</h2></div><span id="memory-count" class="count">0</span></div>
+          <div id="memories" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+        <article class="catalog-panel">
+          <div class="section-heading"><div><p class="eyebrow">Dirección</p><h2>Decisiones</h2></div><span id="decision-count" class="count">0</span></div>
+          <div id="decisions" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="project-dialog"><form id="project-form" method="dialog"><header><h2>Nuevo proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="projectKey" maxlength="200" placeholder="mi-proyecto" required></label><label>Nombre<input name="name" maxlength="500" required></label><label>Descripción<textarea name="description" maxlength="4000" rows="3"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Crear proyecto</button></footer><p class="form-error" role="alert"></p></form></dialog>
+  <dialog id="memory-dialog"><form id="memory-form" method="dialog"><header><h2>Nueva memoria</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Título<input name="title" maxlength="500"></label><label>Contenido<textarea name="content" maxlength="32000" rows="8" required></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Guardar memoria</button></footer><p class="form-error" role="alert"></p></form></dialog>
+  <dialog id="decision-dialog"><form id="decision-form" method="dialog"><header><h2>Nueva decisión</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="decisionKey" maxlength="200" placeholder="DEC-001" required></label><label>Título<input name="title" maxlength="500" required></label><label>Decisión<textarea name="decisionText" maxlength="32000" rows="6" required></textarea></label><label>Razonamiento<textarea name="rationale" maxlength="32000" rows="4"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Guardar decisión</button></footer><p class="form-error" role="alert"></p></form></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
