@@ -9,7 +9,7 @@ import { sourceMetadata, connectDatabase } from './postgres.js'
 import { commandVersion, spawnPostgres } from './process.js'
 import type { BackupManifest, BackupManifestCore, BackupOptions, BackupResult } from './types.js'
 
-const PACKAGE_VERSION = '0.2.0'
+const PACKAGE_VERSION = '0.3.0'
 
 export async function createBackup(options: BackupOptions): Promise<BackupResult> {
   const label = backupLabel(options.label)

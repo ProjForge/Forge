@@ -7,8 +7,10 @@ import { createBackup } from './backup.js'
 import { backupLabel } from './config.js'
 import { parseManifest } from './manifest.js'
 import { verifyBackup } from './restore.js'
+import { replicateBackupToS3 } from './s3.js'
 import type {
   BackupResult,
+  FilesystemReplicationTarget,
   PolicyRunOptions,
   PolicyRunResult,
   RecoveryPolicy,
@@ -52,6 +54,32 @@ function integer(value: unknown, field: string, minimum: number): number {
   return Number(value)
 }
 
+function boolean(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`Invalid recovery policy field: ${field}`)
+  return value
+}
+
+function s3Prefix(value: unknown, field: string): string {
+  if (value === undefined || value === '') return ''
+  const result = string(value, field)
+  if (result.startsWith('/') || result.endsWith('/') || result.includes('\\') || result.includes('//')) {
+    throw new Error(`Invalid S3 prefix: ${field}`)
+  }
+  if (result.split('/').some((part) => part === '.' || part === '..' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(part))) {
+    throw new Error(`Invalid S3 prefix: ${field}`)
+  }
+  return result
+}
+
+function s3Endpoint(value: unknown, field: string): string {
+  const result = string(value, field)
+  const parsed = new URL(result)
+  const localHttp = parsed.protocol === 'http:' && (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost')
+  if (parsed.protocol !== 'https:' && !localHttp) throw new Error(`${field} must use HTTPS or local loopback HTTP`)
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error(`Invalid S3 endpoint: ${field}`)
+  return parsed.toString().replace(/\/$/, '')
+}
+
 export function parseRecoveryPolicy(value: unknown): RecoveryPolicy {
   const root = object(value, 'root')
   if (root.version !== 1) throw new Error('Unsupported recovery policy version')
@@ -62,19 +90,60 @@ export function parseRecoveryPolicy(value: unknown): RecoveryPolicy {
   const normalizedOutput = process.platform === 'win32' ? outputDirectory.toLowerCase() : outputDirectory
   const names = new Set<string>()
   const paths = new Set<string>()
+  const s3Locations = new Set<string>()
   const replicas: ReplicationTarget[] = root.replicas.map((entry, index) => {
     const target = object(entry, `replicas[${index}]`)
     const name = string(target.name, `replicas[${index}].name`)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name) || names.has(name)) {
       throw new Error(`Invalid or duplicate recovery replica name: ${name}`)
     }
-    const targetPath = absolute(target.path, `replicas[${index}].path`)
-    const normalized = process.platform === 'win32' ? targetPath.toLowerCase() : targetPath
-    if (normalized === normalizedOutput) throw new Error('Recovery replica path must differ from outputDirectory')
-    if (paths.has(normalized)) throw new Error(`Duplicate recovery replica path: ${targetPath}`)
     names.add(name)
-    paths.add(normalized)
-    return { name, path: targetPath }
+    const type = target.type === undefined ? 'filesystem' : string(target.type, `replicas[${index}].type`)
+    if (type === 'filesystem') {
+      const targetPath = absolute(target.path, `replicas[${index}].path`)
+      const normalized = process.platform === 'win32' ? targetPath.toLowerCase() : targetPath
+      if (normalized === normalizedOutput) throw new Error('Recovery replica path must differ from outputDirectory')
+      if (paths.has(normalized)) throw new Error(`Duplicate recovery replica path: ${targetPath}`)
+      paths.add(normalized)
+      return { name, type: 'filesystem', path: targetPath }
+    }
+    if (type !== 's3') throw new Error(`Unsupported recovery replica type: ${type}`)
+    const allowedS3Fields = new Set(['name', 'type', 'bucket', 'prefix', 'region', 'endpoint', 'forcePathStyle', 'objectLock'])
+    const unsupportedField = Object.keys(target).find((field) => !allowedS3Fields.has(field))
+    if (unsupportedField) {
+      throw new Error(`Unsupported S3 recovery policy field (credentials must remain external): ${unsupportedField}`)
+    }
+    const bucket = string(target.bucket, `replicas[${index}].bucket`)
+    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) || bucket.includes('..')) {
+      throw new Error(`Invalid S3 bucket: ${bucket}`)
+    }
+    const prefix = s3Prefix(target.prefix, `replicas[${index}].prefix`)
+    const region = string(target.region, `replicas[${index}].region`)
+    if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(region)) throw new Error(`Invalid S3 region: ${region}`)
+    const lock = object(target.objectLock, `replicas[${index}].objectLock`)
+    const unsupportedLockField = Object.keys(lock).find((field) => field !== 'mode' && field !== 'retentionDays')
+    if (unsupportedLockField) throw new Error(`Unsupported S3 Object Lock field: ${unsupportedLockField}`)
+    const mode = string(lock.mode, `replicas[${index}].objectLock.mode`).toUpperCase()
+    if (mode !== 'GOVERNANCE' && mode !== 'COMPLIANCE') throw new Error(`Invalid S3 Object Lock mode: ${mode}`)
+    const endpoint = target.endpoint === undefined ? undefined : s3Endpoint(target.endpoint, `replicas[${index}].endpoint`)
+    const location = `${endpoint ?? 'aws'}|${bucket}|${prefix}`.toLowerCase()
+    if (s3Locations.has(location)) throw new Error(`Duplicate S3 recovery replica location: ${bucket}/${prefix}`)
+    s3Locations.add(location)
+    return {
+      name,
+      type: 's3',
+      bucket,
+      prefix,
+      region,
+      objectLock: {
+        mode,
+        retentionDays: integer(lock.retentionDays, `replicas[${index}].objectLock.retentionDays`, 1),
+      },
+      ...(endpoint ? { endpoint } : {}),
+      ...(target.forcePathStyle === undefined
+        ? {}
+        : { forcePathStyle: boolean(target.forcePathStyle, `replicas[${index}].forcePathStyle`) }),
+    }
   })
   const retentionValue = object(root.retention, 'retention')
   const retention: RetentionPolicy = {
@@ -154,7 +223,7 @@ async function copyExclusive(source: string, destination: string): Promise<void>
 
 export async function replicateBackup(
   backup: BackupResult,
-  target: ReplicationTarget,
+  target: FilesystemReplicationTarget,
   passphrase: Uint8Array | string,
 ): Promise<ReplicatedPackage> {
   const directory = path.resolve(target.path)
@@ -176,7 +245,14 @@ export async function replicateBackup(
     await rename(partialManifest, manifestPath)
     manifestPublished = true
     await verifyBackup({ manifestPath, passphrase })
-    return { target: target.name, manifestPath, payloadPath }
+    return {
+      target: target.name,
+      type: 'filesystem',
+      manifestLocation: manifestPath,
+      payloadLocation: payloadPath,
+      manifestPath,
+      payloadPath,
+    }
   } catch (error) {
     if (manifestPublished) await rm(manifestPath, { force: true }).catch(() => undefined)
     if (payloadPublished) await rm(payloadPath, { force: true }).catch(() => undefined)
@@ -230,6 +306,15 @@ export async function pruneBackups(
   return removed
 }
 
+export async function settleReplicaOperations(
+  operations: readonly Promise<ReplicatedPackage>[],
+): Promise<ReplicatedPackage[]> {
+  const settled = await Promise.allSettled(operations)
+  const failure = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (failure) throw failure.reason
+  return settled.map((result) => (result as PromiseFulfilledResult<ReplicatedPackage>).value)
+}
+
 export async function runBackupPolicy(options: PolicyRunOptions): Promise<PolicyRunResult> {
   const policy = parseRecoveryPolicy(options.policy)
   const now = options.now ?? new Date()
@@ -248,9 +333,14 @@ export async function runBackupPolicy(options: PolicyRunOptions): Promise<Policy
       ...(options.postgresBin ? { postgresBin: options.postgresBin } : {}),
     })
     await verifyBackup({ manifestPath: backup.manifestPath, passphrase: options.passphrase })
-    const replicas = await Promise.all(policy.replicas.map((target) => replicateBackup(backup, target, options.passphrase)))
+    const replicas = await settleReplicaOperations(policy.replicas.map((target) => target.type === 's3'
+      ? replicateBackupToS3(backup, target, options.passphrase, now)
+      : replicateBackup(backup, target, options.passphrase)))
     const prunedFiles: string[] = []
-    for (const directory of [policy.outputDirectory, ...policy.replicas.map((target) => target.path)]) {
+    const filesystemDirectories = policy.replicas
+      .filter((target): target is FilesystemReplicationTarget => target.type !== 's3')
+      .map((target) => target.path)
+    for (const directory of [policy.outputDirectory, ...filesystemDirectories]) {
       prunedFiles.push(...await pruneBackups(directory, policy.retention, now))
     }
     const result: PolicyRunResult = {
@@ -265,7 +355,11 @@ export async function runBackupPolicy(options: PolicyRunOptions): Promise<Policy
       startedAt: result.startedAt,
       completedAt: result.completedAt,
       manifestPath: backup.manifestPath,
-      replicas: replicas.map((replica) => ({ target: replica.target, manifestPath: replica.manifestPath })),
+      replicas: replicas.map((replica) => ({
+        target: replica.target,
+        type: replica.type,
+        manifestLocation: replica.manifestLocation,
+      })),
       prunedFiles,
     })
     return result

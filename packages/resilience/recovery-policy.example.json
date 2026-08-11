@@ -4,7 +4,19 @@
   "replicas": [
     {
       "name": "filesystem-primary",
+      "type": "filesystem",
       "path": "\\\\backup-server\\FORGE\\logical"
+    },
+    {
+      "name": "offsite-worm",
+      "type": "s3",
+      "bucket": "forge-recovery-prod",
+      "prefix": "logical",
+      "region": "eu-west-1",
+      "objectLock": {
+        "mode": "COMPLIANCE",
+        "retentionDays": 30
+      }
     }
   ],
   "retention": {
