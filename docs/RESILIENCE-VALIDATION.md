@@ -1,6 +1,6 @@
 # Resilience 0.3 validation
 
-Date: 2026-08-11
+Date: 2026-08-12
 
 ## Environment
 
@@ -18,7 +18,7 @@ Date: 2026-08-11
 | S3 SDK loopback integration | 1/1 passed and included in default CI gate |
 | Complete monorepo tests | 64/64 passed |
 | Production dependency audit | 0 vulnerabilities |
-| PowerShell syntax | all Resilience scripts passed Windows PowerShell parsing |
+| PowerShell syntax | all 10 Resilience scripts passed Windows PowerShell parsing |
 | Git diff whitespace | passed |
 
 ## Logical recovery drill
@@ -61,9 +61,19 @@ It then fetched the published package through the recovery API and byte-compared
 both local files. Unit coverage separately proves corrupted remote payloads fail
 closed and unsafe manifest names never reach the client.
 
-No real cloud bucket or credential was available during this validation. A
-provider-backed upload and restore drill remains required before FORGE claims
-operational off-site recovery for this installation.
+The AWS reference stack was then provisioned in `eu-west-1` with 30-day
+COMPLIANCE Object Lock. The installed limited task created a 1,253,458-byte
+encrypted package from the active FORGE database, authenticated independent D:
+and E:\ copies, uploaded payload then manifest under `logical/`, downloaded both
+through the provider API and completed with `LastTaskResult = 0` and policy
+status `ok`.
+
+The recovery path fetched that named manifest and payload into a new directory,
+matched SHA-256 and AES-GCM authentication, created a random isolated PostgreSQL
+18.4 database and restored it transactionally. All seven migration checksums and
+all 20 FORGE table counts matched. The database was retained for post-drill
+inspection. A limited-role follow-up confirmed the portable `--no-privileges`
+contract: destination operational grants must be recreated separately.
 
 ## Physical WAL/PITR drill
 
@@ -81,10 +91,10 @@ The isolated drill passed without changing the installed FORGE cluster:
 
 ## Remaining deployment limits
 
-- The installed replica is on an independent disk in the same computer. It
-  protects against primary-disk loss, not theft, fire or total machine loss.
-- The S3-compatible implementation is validated through the real SDK boundary,
-  but no off-site bucket is configured yet.
+- The local replica remains on an independent disk in the same computer, while
+  the validated immutable AWS replica covers total-machine loss.
+- Recovery identity rotation and periodic provider-backed restore drills remain
+  ongoing operational responsibilities.
 - Production WAL archiving is not silently enabled. It needs explicit capacity,
   retention, replication credentials and monitoring for the actual cluster.
 - Exact PostgreSQL 14 binary execution remains a compatibility-matrix gap; all

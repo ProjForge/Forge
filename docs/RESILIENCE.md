@@ -16,6 +16,8 @@ Status: Resilience 0.3, filesystem and immutable S3 recovery targets
 - Restore refuses non-empty targets, refuses older PostgreSQL majors, uses one
   transaction, omits source ownership/ACLs and verifies migration checksums and
   all FORGE table counts afterwards.
+- Runtime, worker and backup-role grants are destination configuration and must
+  be recreated after accepting a portable restore; source ACLs are not restored.
 - Backup preflight enumerates relations from PostgreSQL catalogs and fails if
   the dedicated read-only role cannot select any current table or sequence.
 - A policy run prevents overlap, verifies the source package, publishes complete
