@@ -1,4 +1,4 @@
-# Resilience 0.2 implementation findings
+# Resilience 0.3 implementation findings
 
 Date: 2026-08-11
 Environment: PostgreSQL 18.4 on Windows, Node.js 20+
@@ -95,3 +95,66 @@ which raw `JSON.parse` rejects.
 
 Resolution: the CLI removes exactly one leading Unicode BOM before strict JSON
 parsing. Other leading garbage and malformed JSON still fail closed.
+
+## RES-009: object stores do not provide filesystem rename semantics
+
+An S3 upload cannot reproduce the local partial-file plus atomic-rename
+publication sequence. Treating two successful `PUT` responses as a verified
+backup would also leave transport or provider corruption undetected.
+
+Resolution: upload the encrypted payload first and its manifest last as the
+publication marker, then download both into an isolated temporary directory and
+run the normal SHA-256 and AES-GCM verifier. A policy failure prevents every
+retention pass. A payload orphaned before manifest publication is safe and may
+remain WORM-protected until provider lifecycle removes it.
+
+## RES-010: application retention must not weaken Object Lock
+
+Deleting expired cloud packages from the same runtime would require delete
+permissions and creates pressure to grant Object Lock bypass capability.
+
+Resolution: FORGE requires a positive Object Lock policy on every S3 target and
+never deletes cloud objects. Provider lifecycle owns deletion after retention
+expires. Backup credentials should receive only the object operations required
+for upload and verification, without governance-bypass permission.
+
+## RES-011: typed targets must preserve version-1 filesystem policies
+
+Making `type` mandatory on every target compiled the new S3 design but broke the
+existing native test and would have rejected installed policy objects created by
+older code.
+
+Resolution: absence of `type` continues to mean `filesystem`; parsed policies
+are normalized to the explicit value. Existing JSON, programmatic callers and
+the installed Windows task remain compatible.
+
+## RES-012: Object Lock uploads require an integrity header
+
+Object-Lock-enabled S3 uploads require a supported content checksum. Relying on
+SDK defaults would make compatibility dependent on a specific SDK version or
+provider behavior.
+
+Resolution: calculate SHA-256 for both payload and manifest and send explicit
+`ChecksumAlgorithm: SHA256` plus the base64 checksum. The SDK integration test
+observes both Object Lock and checksum headers on the real HTTP requests.
+
+## RES-013: replica failure must not release the policy lock early
+
+`Promise.all` reports the first rejected target immediately while other replica
+operations continue. With a slower network target, the policy could write error
+status and release its single-run lock while another upload was still active.
+
+Resolution: settle every concurrent replica operation before propagating the
+first failure. Retention still does not run after any failure, and a regression
+test proves a slow successful replica finishes before the policy reports a
+simultaneous failed target.
+
+## RES-014: off-site backup without a native fetch path is incomplete
+
+The first S3 slice could upload and verify remote objects, but disaster recovery
+would still depend on a provider CLI and manual pairing of payload and manifest.
+
+Resolution: add `fetch-s3`. It accepts only a safe manifest file name beneath the
+configured prefix, follows the parsed manifest to the payload, downloads both
+through the same SDK adapter, authenticates them, refuses overwrites and
+publishes payload before manifest for subsequent normal restore.

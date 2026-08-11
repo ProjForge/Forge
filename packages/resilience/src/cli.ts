@@ -4,10 +4,11 @@ import { createBackup } from './backup.js'
 import { requireDatabaseUrl } from './config.js'
 import { restoreBackup, verifyBackup } from './restore.js'
 import { parseRecoveryPolicyDocument, runBackupPolicy } from './policy.js'
+import { fetchBackupFromS3 } from './s3.js'
 
 function usage(): never {
   throw new Error(
-    'Usage: forge-resilience <backup|verify|restore|run-policy> [--manifest PATH | --output DIRECTORY | --config PATH] [--label LABEL] [--postgres-bin DIRECTORY]',
+    'Usage: forge-resilience <backup|verify|restore|run-policy|fetch-s3> [--manifest PATH | --object-manifest NAME | --output DIRECTORY | --config PATH] [--target NAME] [--label LABEL] [--postgres-bin DIRECTORY]',
   )
 }
 
@@ -86,6 +87,20 @@ async function main(): Promise<void> {
         ...(postgresBin ? { postgresBin } : {}),
       })
       process.stdout.write(`${JSON.stringify({ completed: true, ...result })}\n`)
+      return
+    }
+    if (parsed.command === 'fetch-s3') {
+      const policy = parseRecoveryPolicyDocument(await readFile(required(parsed.options, 'config'), 'utf8'))
+      const targetName = required(parsed.options, 'target')
+      const target = policy.replicas.find((candidate) => candidate.name === targetName)
+      if (target?.type !== 's3') throw new Error(`S3 recovery target was not found: ${targetName}`)
+      const result = await fetchBackupFromS3(
+        target,
+        required(parsed.options, 'object-manifest'),
+        required(parsed.options, 'output'),
+        secret,
+      )
+      process.stdout.write(`${JSON.stringify({ fetched: true, ...result })}\n`)
       return
     }
     usage()

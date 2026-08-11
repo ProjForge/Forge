@@ -1,6 +1,6 @@
 # FORGE resilience contract
 
-Status: Resilience 0.2, recovery-package slice
+Status: Resilience 0.3, filesystem and immutable S3 recovery targets
 
 ## Guarantees in this slice
 
@@ -18,9 +18,14 @@ Status: Resilience 0.2, recovery-package slice
   all FORGE table counts afterwards.
 - Backup preflight enumerates relations from PostgreSQL catalogs and fails if
   the dedicated read-only role cannot select any current table or sequence.
-- A policy run prevents overlap, verifies the source package, atomically
-  publishes complete package pairs to every configured filesystem replica and
-  applies retention only after all replicas verify successfully.
+- A policy run prevents overlap, verifies the source package, publishes complete
+  package pairs to every configured filesystem or S3 replica and applies local
+  retention only after all replicas verify successfully.
+- S3 replication requires Object Lock, publishes payload before manifest,
+  downloads both objects and authenticates the complete remote package. Cloud
+  credentials are never accepted in policy JSON.
+- S3 recovery fetches only a safe named manifest and its referenced payload,
+  authenticates the package before local publication and refuses overwrites.
 - Windows can run the policy periodically with database and package secrets
   protected by CurrentUser DPAPI and atomic non-secret health status.
 - The native PITR drill verifies a SHA-256 `pg_basebackup`, continuous WAL
@@ -49,12 +54,13 @@ silently enable physical archiving on an installed production cluster.
 PostgreSQL describes the distinct base-backup/WAL mechanism here:
 <https://www.postgresql.org/docs/18/continuous-archiving.html>.
 
-High availability, automatic failover and provider-specific cloud storage
-adapters remain future slices. A filesystem replica is only truly off-host when
-the configured path resides on independent storage.
+High availability and automatic failover remain future slices. A filesystem
+replica is only truly off-host when the configured path resides on independent
+storage, and an S3-compatible endpoint is only off-site when its deployment is.
+Provider lifecycle must remove cloud objects only after Object Lock expires.
 
 Implementation findings and native evidence are recorded in
-[Resilience 0.2 implementation findings](RESILIENCE-IMPLEMENTATION-FINDINGS.md)
+[Resilience implementation findings](RESILIENCE-IMPLEMENTATION-FINDINGS.md)
 and the [validation report](RESILIENCE-VALIDATION.md).
 
 ## Threat model

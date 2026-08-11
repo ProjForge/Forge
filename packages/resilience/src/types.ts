@@ -81,10 +81,29 @@ export interface RestoreResult {
   readonly tableCounts: Readonly<Record<string, string>>
 }
 
-export interface ReplicationTarget {
+export interface FilesystemReplicationTarget {
   readonly name: string
+  readonly type?: 'filesystem'
   readonly path: string
 }
+
+export interface S3ObjectLockPolicy {
+  readonly mode: 'GOVERNANCE' | 'COMPLIANCE'
+  readonly retentionDays: number
+}
+
+export interface S3ReplicationTarget {
+  readonly name: string
+  readonly type: 's3'
+  readonly bucket: string
+  readonly prefix: string
+  readonly region: string
+  readonly endpoint?: string
+  readonly forcePathStyle?: boolean
+  readonly objectLock: S3ObjectLockPolicy
+}
+
+export type ReplicationTarget = FilesystemReplicationTarget | S3ReplicationTarget
 
 export interface RetentionPolicy {
   readonly keepLast: number
@@ -111,6 +130,9 @@ export interface PolicyRunOptions {
 
 export interface ReplicatedPackage {
   readonly target: string
+  readonly type: 'filesystem' | 's3'
+  readonly manifestLocation: string
+  readonly payloadLocation: string
   readonly manifestPath: string
   readonly payloadPath: string
 }

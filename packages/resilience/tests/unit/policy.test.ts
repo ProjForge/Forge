@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { parseRecoveryPolicy, parseRecoveryPolicyDocument, pruneBackups } from '../../src/policy.js'
+import { parseRecoveryPolicy, parseRecoveryPolicyDocument, pruneBackups, settleReplicaOperations } from '../../src/policy.js'
+import type { ReplicatedPackage } from '../../src/types.js'
 
 function manifest(createdAt: string, label: string): unknown {
   return {
@@ -32,6 +33,7 @@ test('parses absolute, unique and bounded recovery policy values', () => {
     labelPrefix: 'nightly',
   })
   assert.equal(parsed.retention.keepLast, 3)
+  assert.equal(parsed.replicas[0]?.type, 'filesystem')
   assert.equal(parsed.replicas[0]?.name, 'offline-a')
   assert.throws(() => parseRecoveryPolicy({ ...parsed, replicas: [] }), /at least one/)
   assert.throws(() => parseRecoveryPolicy({ ...parsed, outputDirectory: 'relative' }), /absolute/)
@@ -42,6 +44,43 @@ test('parses absolute, unique and bounded recovery policy values', () => {
   }), /must differ/)
   assert.equal(parseRecoveryPolicyDocument(`\uFEFF${JSON.stringify(parsed)}`).version, 1)
   assert.throws(() => parseRecoveryPolicyDocument(`garbage${JSON.stringify(parsed)}`), /Unexpected token/)
+})
+
+test('parses immutable S3 targets without accepting credentials in policy JSON', () => {
+  const root = path.resolve(os.tmpdir(), 'forge-policy-s3')
+  const source = {
+    version: 1,
+    outputDirectory: path.join(root, 'primary'),
+    replicas: [{
+      name: 'offsite',
+      type: 's3',
+      bucket: 'forge-recovery-prod',
+      prefix: 'logical/eu-west-1',
+      region: 'eu-west-1',
+      endpoint: 'https://s3.example.invalid',
+      forcePathStyle: true,
+      objectLock: { mode: 'compliance', retentionDays: 30 },
+    }],
+    retention: { keepLast: 3 },
+  }
+  const parsed = parseRecoveryPolicy(source)
+  const target = parsed.replicas[0]
+  assert.equal(target?.type, 's3')
+  if (target?.type !== 's3') throw new Error('Expected S3 target')
+  assert.equal(target.objectLock.mode, 'COMPLIANCE')
+  assert.equal(target.prefix, 'logical/eu-west-1')
+  assert.throws(() => parseRecoveryPolicy({
+    ...source,
+    replicas: [{ ...source.replicas[0], credentials: { secretAccessKey: 'must-not-live-here' } }],
+  }), /credentials must remain external/i)
+  assert.throws(() => parseRecoveryPolicy({
+    ...source,
+    replicas: [{ ...source.replicas[0], endpoint: 'http://storage.example.com' }],
+  }), /HTTPS/)
+  assert.throws(() => parseRecoveryPolicy({
+    ...source,
+    replicas: [{ ...source.replicas[0], prefix: '../escape' }],
+  }), /prefix/)
 })
 
 test('retention keeps the newest floor and recent packages while ignoring malformed files', async () => {
@@ -63,4 +102,20 @@ test('retention keeps the newest floor and recent packages while ignoring malfor
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('waits for every concurrent replica before reporting a failure', async () => {
+  let slowReplicaFinished = false
+  const slowReplica = new Promise<ReplicatedPackage>((resolve) => {
+    setTimeout(() => {
+      slowReplicaFinished = true
+      resolve({
+        target: 'slow', type: 'filesystem', manifestLocation: 'slow.json', payloadLocation: 'slow',
+        manifestPath: 'slow.json', payloadPath: 'slow',
+      })
+    }, 20)
+  })
+  const failedReplica = Promise.reject<ReplicatedPackage>(new Error('replica failed'))
+  await assert.rejects(settleReplicaOperations([slowReplica, failedReplica]), /replica failed/)
+  assert.equal(slowReplicaFinished, true)
 })
