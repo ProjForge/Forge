@@ -153,6 +153,23 @@ passphrase interactively and stores each with CurrentUser DPAPI. The scheduled
 task uses `IgnoreNew`, retries failures, runs missed cycles when possible and
 never places a secret in its action arguments or JSON configuration.
 
+After provisioning the AWS reference target, add it to an existing Windows
+schedule without replacing its database or passphrase configuration:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/configure-s3-windows.ps1 `
+  -Bucket 'your-globally-unique-bucket-name' `
+  -Region 'eu-west-1' `
+  -Prefix 'logical'
+```
+
+The command requests the recovery identity's access key and secret invisibly,
+protects both with CurrentUser DPAPI and atomically adds the S3 target to the
+existing policy. The scheduled runner exposes the decrypted values only to its
+process environment and removes them after each run. It fails closed if only
+one credential file exists. Never paste either value into policy JSON, source,
+logs or support conversations.
+
 ## Physical WAL/PITR drill
 
 The isolated Windows drill creates a disposable PostgreSQL cluster, enables WAL
