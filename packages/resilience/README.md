@@ -265,3 +265,11 @@ The script generates 48 CSPRNG bytes, protects the operational copy with
 CurrentUser DPAPI, verifies the offline copy and updates `SHA256SUMS.txt`. It
 refuses to overwrite either copy. Disconnect the recovery media after copying
 the passphrase into a separate trusted password manager.
+
+`run-physical-uploader-windows.ps1` processes only strict PostgreSQL WAL file
+names in bounded batches. It creates or reuses an authenticated physical
+package, verifies it locally, uploads through the named immutable S3 target and
+writes an atomic receipt only after provider re-download and authentication.
+Replay is idempotent, and raw WAL is never deleted by the uploader. The
+`-PackageOnly` mode exists for isolated acceptance tests and performs no network
+operation.

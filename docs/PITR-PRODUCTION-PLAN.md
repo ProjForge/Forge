@@ -89,6 +89,9 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
 - The distinct physical passphrase is now generated, DPAPI-protected and
   checksum-verified against its offline recovery copy. A dedicated replication
   role and scheduled physical workers remain pending.
+- The bounded WAL uploader is implemented and passes isolated package,
+  authentication and idempotent-replay tests without AWS. Production runtime
+  configuration, scheduling and a real spool receipt remain pending.
 
 ## Provider acceptance evidence
 

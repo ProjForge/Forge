@@ -36,4 +36,7 @@ jobs:
       - if: runner.os == 'Windows'
         shell: powershell
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/resilience/scripts/test-powershell-syntax.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/resilience/scripts/test-physical-uploader-windows.ps1
       - run: npm run audit:production
