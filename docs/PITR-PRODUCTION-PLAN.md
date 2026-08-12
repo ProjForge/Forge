@@ -75,10 +75,11 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
 
 ## Current blockers
 
-- The elevated non-mutating preflight passes seven readiness checks and leaves
-  PostgreSQL running, but fails closed because BitLocker protection is `Off` on
-  both C: and E:. Encryption and recovery-key custody require an explicit
-  operator decision before activation.
+- The elevated non-mutating preflight is `READY`: nine checks pass with zero
+  failures or blockers. C: and E: are fully encrypted with XTS-AES-256;
+  recovery keys were checksum-verified on offline media and copied to separate
+  custody. A real reboot proved TPM unlock for C: and automatic unlock for E:,
+  followed by healthy PostgreSQL, FORGE reads and scheduled tasks.
 - Encrypted physical manifests, CLI packaging, local authentication and S3
   upload/fetch are implemented in Resilience 0.4. The real provider-backed
   acceptance drill passed; production scheduling remains pending.

@@ -109,8 +109,8 @@ long-running service and replication slot lifecycle.
 1. [x] Measure cluster size, WAL rate, segment size and disk capacity.
 2. [x] Add a non-mutating Windows readiness preflight and prove the live service
    remains running after it.
-3. [ ] Enable BitLocker on C: and E: with an explicit recovery-key custody plan,
-   then prepare least-privilege E: spool ACLs elevated.
+3. [x] Enable and reboot-validate BitLocker on C: and E: with offline recovery
+   key custody. Least-privilege E: spool ACL creation remains part of item 6.
 4. [x] Implement encrypted physical manifests, uploader and authenticated fetch.
 5. [ ] Create a dedicated replication role and DPAPI configuration flow.
 6. [ ] Install archiver, daily base-backup and five-minute monitor tasks.
