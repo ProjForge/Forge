@@ -38,7 +38,7 @@ export interface S3ReplicationClient {
   close?(): void
 }
 
-class AwsS3ReplicationClient implements S3ReplicationClient {
+export class AwsS3ReplicationClient implements S3ReplicationClient {
   readonly #client: S3Client
 
   constructor(target: S3ReplicationTarget) {

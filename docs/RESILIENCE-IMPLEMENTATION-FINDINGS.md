@@ -187,3 +187,17 @@ effective settings through `current_setting()` over `psql` with the limited
 backup role. The credential is cleared immediately, and the regression check
 requires both a successful FORGE query and the Windows service to remain
 `Running` after preflight.
+
+## RES-017: physical recovery artifacts need a distinct authenticated format
+
+Logical backup manifests describe a portable `pg_dump` and FORGE schema state.
+Reusing that contract for WAL or base backups would falsely imply selective
+restore compatibility and would not bind an artifact to a PostgreSQL cluster,
+timeline or original plaintext checksum.
+
+Resolution: Resilience 0.4 defines `forge-resilience-physical` independently.
+Its AES-256-GCM authenticated core binds artifact kind, system identifier,
+timeline, server version and original SHA-256. Packaging fails if the source
+changes between hashing and encryption. S3 publication verifies the local
+package first, uploads payload before manifest under Object Lock, re-downloads
+both and authenticates the decrypted plaintext before emitting a receipt.

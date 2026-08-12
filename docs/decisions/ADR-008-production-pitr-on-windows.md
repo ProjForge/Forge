@@ -111,7 +111,7 @@ long-running service and replication slot lifecycle.
    remains running after it.
 3. [ ] Enable BitLocker on C: and E: with an explicit recovery-key custody plan,
    then prepare least-privilege E: spool ACLs elevated.
-4. [ ] Implement encrypted physical manifests, uploader and authenticated fetch.
+4. [x] Implement encrypted physical manifests, uploader and authenticated fetch.
 5. [ ] Create a dedicated replication role and DPAPI configuration flow.
 6. [ ] Install archiver, daily base-backup and five-minute monitor tasks.
 7. [ ] Restart once, force a WAL switch and pass an isolated named-target drill.

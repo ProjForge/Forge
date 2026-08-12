@@ -4,6 +4,8 @@ export { backupLabel, requireDatabaseUrl, resolvePostgresTool, safeConnection, v
 export { authenticatedCore, canonicalJson, parseManifest } from './manifest.js'
 export { parseRecoveryPolicy, parseRecoveryPolicyDocument, pruneBackups, replicateBackup, runBackupPolicy } from './policy.js'
 export { fetchBackupFromS3, replicateBackupToS3 } from './s3.js'
+export { createPhysicalPackage, parsePhysicalManifest, physicalAuthenticatedCore, verifyPhysicalPackage } from './physical.js'
+export { fetchPhysicalPackageFromS3, replicatePhysicalPackageToS3 } from './physical-s3.js'
 export type { S3DownloadRequest, S3PutRequest, S3ReplicationClient } from './s3.js'
 export type {
   BackupManifest,
@@ -21,4 +23,9 @@ export type {
   RetentionPolicy,
   S3ObjectLockPolicy,
   S3ReplicationTarget,
+  CreatePhysicalPackageOptions,
+  PhysicalArtifactKind,
+  PhysicalClusterIdentity,
+  PhysicalManifest,
+  PhysicalPackageResult,
 } from './types.js'

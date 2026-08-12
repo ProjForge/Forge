@@ -79,6 +79,9 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   PostgreSQL running, but fails closed because BitLocker protection is `Off` on
   both C: and E:. Encryption and recovery-key custody require an explicit
   operator decision before activation.
-- Encrypted physical manifests/uploader are not implemented yet.
-- The AWS reference identity currently targets `logical/`, not `physical/`.
+- Encrypted physical manifests, CLI packaging, local authentication and S3
+  upload/fetch are implemented in Resilience 0.4; production scheduling and a
+  real provider-backed acceptance drill remain pending.
+- The AWS reference template now scopes the recovery identity and lifecycle to
+  both `logical/` and `physical/`; the deployed stack still needs this update.
 - No production replication role or physical DPAPI passphrase exists yet.

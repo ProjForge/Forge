@@ -144,3 +144,51 @@ export interface PolicyRunResult {
   readonly replicas: readonly ReplicatedPackage[]
   readonly prunedFiles: readonly string[]
 }
+
+export type PhysicalArtifactKind = 'wal' | 'base-backup'
+
+export interface PhysicalClusterIdentity {
+  readonly systemIdentifier: string
+  readonly serverVersion: string
+  readonly serverVersionNumber: number
+  readonly timeline: number
+}
+
+export interface PhysicalManifestCore {
+  readonly format: 'forge-resilience-physical'
+  readonly formatVersion: 1
+  readonly createdAt: string
+  readonly kind: PhysicalArtifactKind
+  readonly cluster: PhysicalClusterIdentity
+  readonly source: {
+    readonly file: string
+    readonly sha256: string
+    readonly bytes: number
+  }
+  readonly tool: { readonly forgeResilienceVersion: string }
+  readonly encryption: BackupManifestCore['encryption']
+}
+
+export interface PhysicalManifest extends PhysicalManifestCore {
+  readonly encryption: PhysicalManifestCore['encryption'] & { readonly authTag: string }
+  readonly payload: {
+    readonly file: string
+    readonly sha256: string
+    readonly bytes: number
+  }
+}
+
+export interface PhysicalPackageResult {
+  readonly manifestPath: string
+  readonly payloadPath: string
+  readonly manifest: PhysicalManifest
+}
+
+export interface CreatePhysicalPackageOptions {
+  readonly sourcePath: string
+  readonly outputDirectory: string
+  readonly passphrase: Uint8Array | string
+  readonly kind: PhysicalArtifactKind
+  readonly cluster: PhysicalClusterIdentity
+  readonly label?: string
+}
