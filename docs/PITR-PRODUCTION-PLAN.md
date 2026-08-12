@@ -80,8 +80,23 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   both C: and E:. Encryption and recovery-key custody require an explicit
   operator decision before activation.
 - Encrypted physical manifests, CLI packaging, local authentication and S3
-  upload/fetch are implemented in Resilience 0.4; production scheduling and a
-  real provider-backed acceptance drill remain pending.
+  upload/fetch are implemented in Resilience 0.4. The real provider-backed
+  acceptance drill passed; production scheduling remains pending.
 - The AWS reference template now scopes the recovery identity and lifecycle to
-  both `logical/` and `physical/`; the deployed stack still needs this update.
+  both `logical/` and `physical/`; the deployed stack is updated and validated.
 - No production replication role or physical DPAPI passphrase exists yet.
+
+## Provider acceptance evidence
+
+On 2026-08-12, stack `forge-recovery` reached `UPDATE_COMPLETE` without resource
+replacement. The deployed identity retains only Get/Put/GetRetention/
+PutRetention on `logical/*` and `physical/*`, with no delete or bypass action.
+Both prefixes have 45-day lifecycle rules and the bucket remains under 30-day
+COMPLIANCE Object Lock.
+
+A 4 KiB synthetic WAL artifact bound to system identifier
+`7671751305680226476`, timeline 1 and PostgreSQL 18.4 was encrypted with an
+ephemeral physical passphrase, uploaded beneath the cluster-scoped `physical/`
+prefix, re-downloaded and authenticated through the limited recovery identity.
+Independent S3 reads confirmed SHA-256 checksums and COMPLIANCE retention on
+both payload and manifest through 2026-09-11. No production data was used.
