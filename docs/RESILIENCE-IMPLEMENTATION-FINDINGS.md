@@ -201,3 +201,30 @@ timeline, server version and original SHA-256. Packaging fails if the source
 changes between hashing and encryption. S3 publication verifies the local
 package first, uploads payload before manifest under Object Lock, re-downloads
 both and authenticates the decrypted plaintext before emitting a receipt.
+
+## RES-018: localized Windows account names are not stable ACL identifiers
+
+The first production spool setup removed inherited permissions successfully but
+then failed while granting access to localized names such as `Administrators`
+and `NETWORK SERVICE`. This temporarily left an empty PITR directory accessible
+only through elevated ownership; PostgreSQL remained unchanged and WAL
+archiving was still disabled.
+
+Resolution: the setup is idempotent and grants ACLs using invariant well-known
+SIDs. SYSTEM, Administrators and the installing user receive full control at the
+root; NetworkService receives Modify only on `wal`. The production repair and
+an independent effective-ACL audit passed before any data or archive command was
+introduced.
+
+## RES-019: Windows PowerShell 5.1 lacks modern static crypto helpers
+
+The first physical-secret configurator passed syntax validation but failed at
+runtime because Windows PowerShell 5.1 does not expose the modern static
+`RandomNumberGenerator.GetBytes(int)` or `CryptographicOperations.FixedTimeEquals`
+APIs. Both failures occurred inside a rollback-protected flow and left no
+partial DPAPI or offline secret.
+
+Resolution: use `RandomNumberGenerator.Create().GetBytes(byte[])` and an
+equal-length accumulated-XOR comparison. The final run generated 48 random
+bytes, round-tripped CurrentUser DPAPI, matched the offline copy and regenerated
+valid SHA-256 records for every recovery file without printing the secret.

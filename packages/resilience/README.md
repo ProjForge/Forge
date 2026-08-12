@@ -241,3 +241,27 @@ passphrase; the plaintext-file example above is illustrative and is not the
 Windows deployment contract. Upload verifies locally first, publishes payload
 before manifest under Object Lock, re-downloads both and authenticates the
 plaintext before reporting success.
+
+On Windows, prepare the BitLocker-protected spool from an elevated terminal:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-pitr-spool-windows.ps1 `
+  -Root 'E:\FORGE PITR' -MinimumFreeGiB 20
+```
+
+The setup uses invariant Windows SIDs. SYSTEM, Administrators and the installing
+user control the PITR root; PostgreSQL's NetworkService identity receives
+`Modify` only on `wal`. The command is idempotent and does not edit PostgreSQL.
+
+Create a distinct physical passphrase only while trusted offline media is
+connected:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/configure-physical-secret-windows.ps1 `
+  -RecoveryDirectory 'G:\FORGE-Recovery-Keys'
+```
+
+The script generates 48 CSPRNG bytes, protects the operational copy with
+CurrentUser DPAPI, verifies the offline copy and updates `SHA256SUMS.txt`. It
+refuses to overwrite either copy. Disconnect the recovery media after copying
+the passphrase into a separate trusted password manager.

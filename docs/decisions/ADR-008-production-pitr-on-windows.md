@@ -110,7 +110,8 @@ long-running service and replication slot lifecycle.
 2. [x] Add a non-mutating Windows readiness preflight and prove the live service
    remains running after it.
 3. [x] Enable and reboot-validate BitLocker on C: and E: with offline recovery
-   key custody. Least-privilege E: spool ACL creation remains part of item 6.
+   key custody; create the least-privilege E: spool and distinct DPAPI/offline
+   physical passphrase.
 4. [x] Implement encrypted physical manifests, uploader and authenticated fetch.
 5. [ ] Create a dedicated replication role and DPAPI configuration flow.
 6. [ ] Install archiver, daily base-backup and five-minute monitor tasks.
