@@ -26,9 +26,11 @@ assert.deepEqual(properties.PublicAccessBlockConfiguration, {
   RestrictPublicBuckets: true,
 })
 
-const lifecycle = properties.LifecycleConfiguration.Rules[0]
-assert.equal(lifecycle.Prefix, 'logical/')
-assert.ok(lifecycle.ExpirationInDays > properties.ObjectLockConfiguration.Rule.DefaultRetention.Days)
+const lifecycleRules = properties.LifecycleConfiguration.Rules
+assert.deepEqual(lifecycleRules.map((rule) => rule.Prefix).sort(), ['logical/', 'physical/'])
+for (const lifecycle of lifecycleRules) {
+  assert.ok(lifecycle.ExpirationInDays > properties.ObjectLockConfiguration.Rule.DefaultRetention.Days)
+}
 
 const userActions = resources.RecoveryUser.Properties.Policies
   .flatMap((policy) => policy.PolicyDocument.Statement)
@@ -38,8 +40,12 @@ for (const action of requiredActions) assert.ok(userActions.includes(action), `m
 for (const forbidden of ['s3:*', 's3:DeleteObject', 's3:BypassGovernanceRetention']) {
   assert.ok(!userActions.includes(forbidden), `forbidden IAM action: ${forbidden}`)
 }
-assert.equal(resources.RecoveryUser.Properties.Policies[0].PolicyDocument.Statement[1]
-  .Resource['Fn::Sub'], '${RecoveryBucket.Arn}/logical/*')
+assert.deepEqual(resources.RecoveryUser.Properties.Policies[0].PolicyDocument.Statement[1]
+  .Resource.map((resource) => resource['Fn::Sub']).sort(), [
+  '${RecoveryBucket.Arn}/logical/*',
+  '${RecoveryBucket.Arn}/physical/*',
+])
+assert.equal(template.Outputs.PhysicalObjectPrefix.Value, 'physical')
 assert.ok(!Object.values(resources).some((resource) => resource.Type === 'AWS::IAM::AccessKey'))
 
 const transportDeny = resources.RecoveryBucketPolicy.Properties.PolicyDocument.Statement[0]

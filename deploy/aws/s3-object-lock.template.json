@@ -28,8 +28,20 @@
         "LifecycleConfiguration": {
           "Rules": [
             {
-              "Id": "expire-forge-recovery-objects",
+              "Id": "expire-forge-logical-recovery-objects",
               "Prefix": "logical/",
+              "Status": "Enabled",
+              "ExpirationInDays": 45,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+              },
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              }
+            },
+            {
+              "Id": "expire-forge-physical-recovery-objects",
+              "Prefix": "physical/",
               "Status": "Enabled",
               "ExpirationInDays": 45,
               "NoncurrentVersionExpiration": {
@@ -120,7 +132,10 @@
                     "s3:PutObject",
                     "s3:PutObjectRetention"
                   ],
-                  "Resource": { "Fn::Sub": "${RecoveryBucket.Arn}/logical/*" }
+                  "Resource": [
+                    { "Fn::Sub": "${RecoveryBucket.Arn}/logical/*" },
+                    { "Fn::Sub": "${RecoveryBucket.Arn}/physical/*" }
+                  ]
                 }
               ]
             }
@@ -141,6 +156,9 @@
     },
     "ObjectPrefix": {
       "Value": "logical"
+    },
+    "PhysicalObjectPrefix": {
+      "Value": "physical"
     },
     "RecoveryUserName": {
       "Value": { "Ref": "RecoveryUser" }

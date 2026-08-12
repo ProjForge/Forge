@@ -216,3 +216,28 @@ capacity, required scripts and BitLocker state, then writes non-secret atomic
 status to `%APPDATA%\FORGE\pitr-preflight.json`. It never edits PostgreSQL,
 creates the archive directory or restarts the service. See the
 [production activation plan](../../docs/PITR-PRODUCTION-PLAN.md).
+
+## Encrypted physical packages (0.4)
+
+Physical WAL segments and base-backup archives use a separate, cluster-bound
+format. The manifest authenticates the PostgreSQL system identifier, timeline,
+server version, artifact kind, original plaintext SHA-256 and encryption
+parameters. Creation reads the source twice and fails if it changes between the
+initial hash and encryption. Verification authenticates AES-256-GCM and hashes
+the decrypted plaintext without publishing it.
+
+```powershell
+$env:FORGE_BACKUP_PASSPHRASE_FILE = 'C:\secure\physical-passphrase.txt'
+forge-resilience physical-pack --kind wal --source 'E:\FORGE PITR\wal\000000010000000000000001' `
+  --output 'E:\FORGE PITR\encrypted' --label 'wal-000000010000000000000001' `
+  --system-identifier '7548123456789012345' --timeline 1 `
+  --server-version '18.4' --server-version-number 180004
+forge-resilience physical-verify --manifest 'E:\FORGE PITR\encrypted\wal-000000010000000000000001.forge-physical.json'
+```
+
+`physical-upload-s3` and `physical-fetch-s3` accept the existing recovery policy
+and named S3 target. Production must use a distinct DPAPI-protected physical
+passphrase; the plaintext-file example above is illustrative and is not the
+Windows deployment contract. Upload verifies locally first, publishes payload
+before manifest under Object Lock, re-downloads both and authenticates the
+plaintext before reporting success.
