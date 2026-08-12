@@ -85,7 +85,10 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   acceptance drill passed; production scheduling remains pending.
 - The AWS reference template now scopes the recovery identity and lifecycle to
   both `logical/` and `physical/`; the deployed stack is updated and validated.
-- No production replication role or physical DPAPI passphrase exists yet.
+- No production replication role exists yet.
+- The distinct physical passphrase is now generated, DPAPI-protected and
+  checksum-verified against its offline recovery copy. A dedicated replication
+  role and scheduled physical workers remain pending.
 
 ## Provider acceptance evidence
 
