@@ -75,9 +75,10 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
 
 ## Current blockers
 
-- The non-mutating preflight passes seven checks and leaves PostgreSQL running;
-  its only current blocked checks are the two elevated BitLocker reads.
-- BitLocker state could not be read without elevation and is therefore unknown.
+- The elevated non-mutating preflight passes seven readiness checks and leaves
+  PostgreSQL running, but fails closed because BitLocker protection is `Off` on
+  both C: and E:. Encryption and recovery-key custody require an explicit
+  operator decision before activation.
 - Encrypted physical manifests/uploader are not implemented yet.
 - The AWS reference identity currently targets `logical/`, not `physical/`.
 - No production replication role or physical DPAPI passphrase exists yet.
