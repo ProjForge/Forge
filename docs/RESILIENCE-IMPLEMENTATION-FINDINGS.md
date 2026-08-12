@@ -171,3 +171,19 @@ Resolution: keep the portable dump contract unchanged. Recovery validation runs
 with the explicit target restore identity; operators must recreate runtime and
 backup grants after accepting the restored data. The provider drill records this
 boundary and never treats restored source ACLs as a resilience guarantee.
+
+## RES-016: `postgres -C` is not a live-cluster preflight interface
+
+The first Windows PITR preflight invoked `postgres.exe -D <data> -C` for several
+settings, including `wal_segment_size`, while the PostgreSQL 18.4 service was
+running. Two executions correlated with an unclean service termination; the
+server recovered on restart, but its log correctly reported an interrupted
+shutdown. PostgreSQL documents `wal_segment_size` as a runtime-computed setting
+that requires the server to be shut down when queried through `postgres -C`.
+
+Resolution: live preflight never invokes the server binary. It decrypts the
+existing CurrentUser-DPAPI recovery credential only in memory and reads the
+effective settings through `current_setting()` over `psql` with the limited
+backup role. The credential is cleared immediately, and the regression check
+requires both a successful FORGE query and the Windows service to remain
+`Running` after preflight.
