@@ -317,3 +317,24 @@ base backup runs daily at 03:00 and catches up after downtime. Installation is
 refused after activation, uses `IgnoreNew` concurrency and does not modify or
 restart PostgreSQL. `-PlanOnly` emits the exact non-secret task plan without
 registering it.
+
+Activation is a separate elevated, explicit operation. Always inspect its exact
+paths and quoting first:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/activate-pitr-windows.ps1 -PlanOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/activate-pitr-windows.ps1 -Activate
+```
+
+The guarded activation requires a fresh elevated preflight, recent remotely
+authenticated base backup and all limited tasks. It checksum-backs up the exact
+PostgreSQL configuration, deploys only the non-secret archive publisher into a
+NetworkService-readable ProgramData boundary, enables the settings, performs
+one restart, validates FORGE, forces a WAL switch, requires its immutable remote
+receipt and then runs the fail-closed monitor. Any failure after configuration
+change attempts automatic restoration and restart. Explicit rollback uses the
+same checksummed record:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/activate-pitr-windows.ps1 -Rollback
+```

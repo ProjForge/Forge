@@ -242,3 +242,18 @@ normal process streams. The production base-backup worker never starts or stops
 PostgreSQL and was not affected. Tests now record their current phase so a
 future timeout distinguishes server lifecycle, native verification, archiving,
 encryption and remote authentication without exposing secrets.
+
+## RES-021: the PostgreSQL service cannot depend on a user-profile script path
+
+The first activation plan referenced `archive-wal.ps1` directly from the source
+checkout beneath the installing user's Documents tree. PostgreSQL runs as
+NetworkService, so successful interactive access to that path does not prove
+the service can execute it after restart. Granting the service broad access to
+the repository would also cross the intended privilege boundary.
+
+Resolution: guarded activation deploys only the non-secret local WAL publisher
+to `C:\ProgramData\FORGE\resilience`. Its ACL grants full control to SYSTEM and
+Administrators and read/execute to NetworkService. AWS credentials, DPAPI
+secrets and asynchronous workers remain in the limited interactive-user
+boundary. A forced WAL switch must prove the effective service path before
+activation can pass.

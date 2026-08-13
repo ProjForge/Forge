@@ -107,6 +107,11 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   Uploader and monitor returned zero through Task Scheduler; the real base
   package was authenticated under the cluster-scoped AWS Object Lock prefix and
   has a local receipt. PITR remains explicitly disabled.
+- Guarded activation and rollback are implemented but not yet executed. The
+  plan requires fresh preflight, checksummed exact configuration backup,
+  NetworkService-readable non-secret archiver deployment, one restart, FORGE
+  read validation, forced WAL local publication, immutable remote receipt and
+  a passing monitor. Failure after mutation triggers checked restoration.
 
 ## Provider acceptance evidence
 
