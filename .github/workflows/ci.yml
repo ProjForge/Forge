@@ -82,7 +82,9 @@ jobs:
       - name: Validate MCP continuity
         env:
           FORGE_DATABASE_URL: postgresql://forge_test:forge_test_local_only@127.0.0.1:55432/forge_test
-        run: npm run test:integration -w forge-mcp-server
+        run: |
+          npm run build -w forge-persistence-gateway
+          npm run test:integration -w forge-mcp-server
       - name: Stop PostgreSQL 14
         if: always()
         run: docker compose -f packages/schema/compose.yaml down -v
