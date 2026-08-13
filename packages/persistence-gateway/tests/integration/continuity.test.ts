@@ -131,6 +131,15 @@ test('persists and reconstructs a complete task continuation flow', {
       metadata: { environment: 'local' },
       idempotencyKey: `execution-start-${suffix}`,
     } as const
+    await assert.rejects(
+      gateway.startExecution({
+        ...executionInput,
+        agentId: secondaryAgent.id,
+        executionKey: `EXEC-WRONG-AGENT-${suffix}`,
+        idempotencyKey: `execution-wrong-agent-${suffix}`,
+      }),
+      ConflictError,
+    )
     const execution = await gateway.startExecution(executionInput)
     assert.equal(execution.status, 'running')
 

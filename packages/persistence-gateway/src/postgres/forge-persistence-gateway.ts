@@ -601,6 +601,20 @@ export class ForgePersistenceGateway {
       key: nonEmpty('idempotencyKey', input.idempotencyKey),
       request,
     }, async () => {
+      const taskResult = await client.query<DatabaseRow>(
+        `SELECT assigned_agent_id, status
+           FROM forge.tasks
+          WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL`,
+        [request.taskId, request.projectId],
+      )
+      if (taskResult.rowCount === 0) throw new NotFoundError('Task', request.taskId)
+      const task = firstRow(taskResult.rows, 'task')
+      if (task.assigned_agent_id !== request.agentId) {
+        throw new ConflictError('Execution agent must match the agent assigned to the task')
+      }
+      if (task.status === 'done' || task.status === 'cancelled') {
+        throw new ConflictError('Cannot start an execution for a completed task')
+      }
       const result = await client.query<DatabaseRow>(
         `INSERT INTO forge.executions(
            project_id, task_id, agent_id, execution_key, status,

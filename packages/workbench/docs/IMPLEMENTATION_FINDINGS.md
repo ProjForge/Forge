@@ -63,3 +63,18 @@ Adding the agent action exposed an intrinsic-width overflow at 390 px, and the
 intercepted form submit made cancel controls unreliable in the live browser.
 Mobile actions and task controls now wrap, while cancel submissions use native
 `method="dialog"` behavior before application form handling.
+
+## FINDING-WORKBENCH-10 — Execution start trusted an independently assigned agent
+
+Tasks and executions were each project-scoped, but the Gateway did not verify
+that the execution agent matched `tasks.assigned_agent_id`. A caller could
+therefore start work under another project agent. `startExecution` now checks
+the task assignment and rejects completed tasks inside the idempotent
+transaction before creating any execution, event or audit row.
+
+## FINDING-WORKBENCH-11 — Successful completion needs a visible durability gate
+
+Workbench now exposes the complete human execution lifecycle. The successful
+final state remains disabled until the execution has a continuation package;
+failed and cancelled outcomes remain available. Core stays generic and does
+not force every non-human execution to compile a package.

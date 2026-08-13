@@ -69,3 +69,15 @@ dialog select { width: 100%; max-width: none; }
 .context-detail p,
 .context-detail ul { margin: 0; }
 .package-hash { overflow-wrap: anywhere; color: var(--forge-cyan); }
+
+.workflow-button { margin-top: 12px; padding: 8px 11px; font-size: 11px; }
+.execution-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.execution-actions .workflow-button { margin-top: 0; }
+.execution-actions select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0b0d10;
+  color: var(--text);
+  padding: 8px;
+  font-size: 11px;
+}

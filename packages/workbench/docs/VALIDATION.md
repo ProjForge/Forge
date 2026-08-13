@@ -4,11 +4,13 @@ Validated on 2026-08-14 with Node.js 24, PostgreSQL 18.4, Schema 0.1.3,
 pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 
 - TypeScript strict production build: PASS
-- Unit/HTTP/configuration tests: 9/9 PASS
+- Unit/HTTP/configuration tests: 11/11 PASS
 - Gateway native continuation integration: PASS
 - Assigned-agent catalog and registration/assignment: PASS
 - Optimistic task reassignment and stale-version rejection: PASS
 - Continuation package catalog/load and cross-project rejection: PASS
+- Human start/compile/finish execution lifecycle: PASS
+- Wrong-agent and completed-task execution start rejection: PASS
 - Loopback token enforcement: PASS
 - Cross-origin rejection: PASS
 - Invalid project scope rejected before service invocation: PASS
