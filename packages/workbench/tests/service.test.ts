@@ -27,6 +27,9 @@ test('composes bounded project catalogs without bypassing the gateway', async ()
     updateTaskStatus: async () => { throw new Error('unused') },
     updateTaskAssignment: async () => { throw new Error('unused') },
     loadContinuationContext: async () => { throw new Error('unused') },
+    startExecution: async () => { throw new Error('unused') },
+    compileContinuationContext: async () => { throw new Error('unused') },
+    finishExecution: async () => { throw new Error('unused') },
   } satisfies WorkbenchGateway
   const searchPort: TextSearchPort = { search: async () => [] }
   const service = new ForgeWorkbenchService(gateway, searchPort)
@@ -60,8 +63,30 @@ test('forwards precision mode to the semantic bridge unchanged', async () => {
     updateTaskStatus: async () => { throw new Error('unused') },
     updateTaskAssignment: async () => { throw new Error('unused') },
     loadContinuationContext: async () => { throw new Error('unused') },
+    startExecution: async () => { throw new Error('unused') },
+    compileContinuationContext: async () => { throw new Error('unused') },
+    finishExecution: async () => { throw new Error('unused') },
   } satisfies WorkbenchGateway
   const service = new ForgeWorkbenchService(gateway, { search: async (input) => { observed = input; return [] } })
   await service.search({ projectId: project.id, query: 'decisión', sourceKinds: ['decision'], limit: 10, rerank: true })
   assert.deepEqual(observed, { projectId: project.id, query: 'decisión', sourceKinds: ['decision'], limit: 10, rerank: true })
+})
+
+test('forwards the execution lifecycle through the gateway contracts', async () => {
+  const calls: unknown[] = []
+  const execution = { id: '22222222-2222-4222-8222-222222222222', status: 'running' as const }
+  const contextPackage = { packageId: '33333333-3333-4333-8333-333333333333' }
+  const gateway = {
+    startExecution: async (input: unknown) => { calls.push(input); return execution },
+    compileContinuationContext: async (input: unknown) => { calls.push(input); return contextPackage },
+    finishExecution: async (input: unknown) => { calls.push(input); return { ...execution, status: 'succeeded' as const } },
+  } as unknown as WorkbenchGateway
+  const service = new ForgeWorkbenchService(gateway, { search: async () => [] })
+  const start = { projectId: project.id, taskId: '44444444-4444-4444-8444-444444444444', agentId: '55555555-5555-4555-8555-555555555555', executionKey: 'human:TASK-1:request', idempotencyKey: 'request' }
+  await service.startExecution(start)
+  const compile = { ...start, executionId: execution.id }
+  await service.compileContinuation(compile)
+  const finish = { projectId: project.id, executionId: execution.id, agentId: start.agentId, expectedVersion: 1, status: 'succeeded' as const }
+  await service.finishExecution(finish)
+  assert.deepEqual(calls, [start, compile, finish])
 })

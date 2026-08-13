@@ -4,7 +4,9 @@ The local human-facing client for FORGE. It runs locally, exposes an operational
 task board, assigned-agent catalog and execution history, lists memories and
 decisions, supports idempotent creation plus optimistic task assignment/status
 transitions, inspects immutable continuation packages, and offers fast or
-optional precision semantic search.
+optional precision semantic search. Assigned tasks can now complete the human
+execution lifecycle: start, compile a durable continuation snapshot, then
+finish with version-checked status.
 
 ## Install on Windows
 

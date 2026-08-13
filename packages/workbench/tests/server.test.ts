@@ -104,6 +104,43 @@ test('validates agent assignment and project-scoped continuation inspection', as
   assert.equal(rejected.status, 400)
 })
 
+test('validates and forwards the complete human execution lifecycle', async (context) => {
+  const calls: unknown[] = []
+  const taskId = '22222222-2222-4222-8222-222222222222'
+  const agentId = '33333333-3333-4333-8333-333333333333'
+  const executionId = '44444444-4444-4444-8444-444444444444'
+  const service = {
+    startExecution: async (input: unknown) => { calls.push(input); return { id: executionId, version: 1, status: 'running' } },
+    compileContinuation: async (input: unknown) => { calls.push(input); return { packageId: '55555555-5555-4555-8555-555555555555' } },
+    finishExecution: async (input: unknown) => { calls.push(input); return { id: executionId, version: 2, status: 'succeeded' } },
+  } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve(process.cwd(), 'public'), token: 'test-token' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const headers = { 'content-type': 'application/json', 'x-forge-token': 'test-token' }
+
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/tasks/${taskId}/executions`, {
+    method: 'POST', headers, body: JSON.stringify({ agentId, executionKey: 'human:TASK-1:request', policyVersion: 'workbench-human-v1', idempotencyKey: 'request' }),
+  })).status, 201)
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/executions/${executionId}/continuation`, {
+    method: 'POST', headers, body: JSON.stringify({ taskId, agentId, idempotencyKey: 'context-request' }),
+  })).status, 201)
+  assert.equal((await fetch(`${base}/api/projects/${projectId}/executions/${executionId}/status`, {
+    method: 'PATCH', headers, body: JSON.stringify({ agentId, expectedVersion: 1, status: 'succeeded' }),
+  })).status, 200)
+  assert.deepEqual(calls, [
+    { projectId, taskId, agentId, executionKey: 'human:TASK-1:request', policyVersion: 'workbench-human-v1', idempotencyKey: 'request' },
+    { projectId, executionId, taskId, agentId, idempotencyKey: 'context-request' },
+    { projectId, executionId, agentId, expectedVersion: 1, status: 'succeeded' },
+  ])
+
+  const invalid = await fetch(`${base}/api/projects/${projectId}/executions/${executionId}/status`, {
+    method: 'PATCH', headers, body: JSON.stringify({ agentId, expectedVersion: 1, status: 'running' }),
+  })
+  assert.equal(invalid.status, 400)
+})
+
 test('rejects malformed project scope before invoking search', async (context) => {
   let called = false
   const service = { search: async () => { called = true; return [] } } as unknown as ForgeWorkbenchService

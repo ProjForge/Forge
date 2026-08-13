@@ -1,4 +1,4 @@
-const state = { token: '', projects: [], project: null, agents: [] }
+const state = { token: '', projects: [], project: null, agents: [], tasks: [], executions: [], contextPackages: [] }
 const $ = (selector) => document.querySelector(selector)
 
 async function api(path, options = {}) {
@@ -94,6 +94,30 @@ function renderTasks(tasks) {
     })
     controls.append(meta, agentSelect, statusSelect)
     card.append(controls)
+    if (task.assignedAgentId) {
+      const running = state.executions.some((execution) => execution.taskId === task.id && execution.status === 'running')
+      const start = item('button', 'secondary workflow-button', running ? 'Ejecución activa' : 'Iniciar ejecución')
+      start.type = 'button'
+      start.disabled = running || task.status !== 'in_progress'
+      start.title = task.status === 'in_progress' ? '' : 'Pon la tarea en curso antes de iniciar una ejecución.'
+      start.addEventListener('click', async () => {
+        start.disabled = true
+        try {
+          const requestId = crypto.randomUUID()
+          await api(`/api/projects/${state.project.id}/tasks/${task.id}/executions`, {
+            method: 'POST',
+            body: JSON.stringify({
+              agentId: task.assignedAgentId,
+              executionKey: `human:${task.taskKey.slice(0, 100)}:${requestId}`,
+              policyVersion: 'workbench-human-v1',
+              idempotencyKey: requestId,
+            }),
+          })
+          await selectProject(state.project)
+        } catch (error) { showMessage(error.message, true); start.disabled = false }
+      })
+      card.append(start)
+    }
     container.append(card)
   }
 }
@@ -173,6 +197,44 @@ function renderExecutions(executions) {
     const meta = item('div', 'meta', '')
     meta.append(item('span', '', execution.status), item('span', '', execution.taskId ? 'vinculada a tarea' : 'sin tarea'), item('span', '', new Date(execution.updatedAt).toLocaleString()))
     card.append(meta)
+    if (execution.status === 'running' && execution.taskId && execution.agentId) {
+      const actions = item('div', 'execution-actions', '')
+      const hasContext = state.contextPackages.some((contextPackage) => contextPackage.executionId === execution.id)
+      const compile = item('button', 'secondary workflow-button', hasContext ? 'Continuidad lista' : 'Compilar continuidad')
+      compile.type = 'button'
+      compile.disabled = hasContext
+      compile.addEventListener('click', async () => {
+        compile.disabled = true
+        try {
+          await api(`/api/projects/${state.project.id}/executions/${execution.id}/continuation`, {
+            method: 'POST',
+            body: JSON.stringify({ taskId: execution.taskId, agentId: execution.agentId, idempotencyKey: crypto.randomUUID() }),
+          })
+          await selectProject(state.project)
+        } catch (error) { showMessage(error.message, true); compile.disabled = false }
+      })
+      const finish = document.createElement('select')
+      finish.setAttribute('aria-label', `Finalizar ${execution.executionKey || 'ejecución'}`)
+      finish.add(new Option('Finalizar…', ''))
+      const success = new Option('Completada', 'succeeded')
+      success.disabled = !hasContext
+      finish.add(success)
+      finish.add(new Option('Fallida', 'failed'))
+      finish.add(new Option('Cancelada', 'cancelled'))
+      finish.addEventListener('change', async () => {
+        if (!finish.value) return
+        finish.disabled = true
+        try {
+          await api(`/api/projects/${state.project.id}/executions/${execution.id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ agentId: execution.agentId, expectedVersion: execution.version, status: finish.value }),
+          })
+          await selectProject(state.project)
+        } catch (error) { showMessage(error.message, true); finish.value = ''; finish.disabled = false }
+      })
+      actions.append(compile, finish)
+      card.append(actions)
+    }
     container.append(card)
   }
 }
@@ -198,6 +260,9 @@ async function selectProject(project) {
     $('#agent-count').textContent = String(catalog.agents.length)
     $('#context-count').textContent = String(catalog.contextPackages.length)
     state.agents = catalog.agents
+    state.tasks = catalog.tasks
+    state.executions = catalog.executions
+    state.contextPackages = catalog.contextPackages
     populateAgentOptions()
     renderCatalog('#memories', catalog.memories, 'memory')
     renderCatalog('#decisions', catalog.decisions, 'decision')

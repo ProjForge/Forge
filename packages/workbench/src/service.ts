@@ -3,10 +3,12 @@ import type {
   Agent,
   ContinuationPackage,
   ContinuationPackageCatalogItem,
+  CompileContinuationInput,
   CreateTaskInput,
   Decision,
   DecisionCatalogItem,
   Execution,
+  ExecutionStatus,
   Memory,
   MemoryCatalogItem,
   Project,
@@ -17,6 +19,7 @@ import type {
   RememberInput,
   SaveDecisionInput,
   SemanticSearchResult,
+  StartExecutionInput,
   Task,
   TaskStatus,
   TextSearchInput,
@@ -40,6 +43,9 @@ export interface WorkbenchGateway {
   updateTaskStatus(input: { projectId: string; taskId: string; expectedVersion: number; status: TaskStatus }): Promise<Task>
   updateTaskAssignment(input: { projectId: string; taskId: string; expectedVersion: number; assignedAgentId: string | null }): Promise<Task>
   loadContinuationContext(projectId: string, packageId: string): Promise<ContinuationPackage>
+  startExecution(input: StartExecutionInput): Promise<Execution>
+  compileContinuationContext(input: CompileContinuationInput): Promise<ContinuationPackage>
+  finishExecution(input: { projectId: string; executionId: string; agentId: string; expectedVersion: number; status: Extract<ExecutionStatus, 'succeeded' | 'failed' | 'cancelled'> }): Promise<Execution>
 }
 
 export interface TextSearchPort {
@@ -118,6 +124,18 @@ export class ForgeWorkbenchService {
 
   continuation(projectId: string, packageId: string) {
     return this.gateway.loadContinuationContext(projectId, packageId)
+  }
+
+  startExecution(input: StartExecutionInput) {
+    return this.gateway.startExecution(input)
+  }
+
+  compileContinuation(input: CompileContinuationInput) {
+    return this.gateway.compileContinuationContext(input)
+  }
+
+  finishExecution(input: { projectId: string; executionId: string; agentId: string; expectedVersion: number; status: Extract<ExecutionStatus, 'succeeded' | 'failed' | 'cancelled'> }) {
+    return this.gateway.finishExecution(input)
   }
 
   search(input: TextSearchInput) {

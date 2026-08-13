@@ -216,6 +216,46 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
         return
       }
 
+      const startExecutionMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/executions$/)
+      if (request.method === 'POST' && startExecutionMatch) {
+        const input = await body(request)
+        json(response, 201, { result: await service.startExecution({
+          projectId: projectId(startExecutionMatch[1]),
+          taskId: entityId(startExecutionMatch[2], 'taskId'),
+          agentId: entityId(text(input, 'agentId', 100), 'agentId'),
+          executionKey: text(input, 'executionKey', 200)!,
+          ...(text(input, 'policyVersion', 200, true) ? { policyVersion: text(input, 'policyVersion', 200, true)! } : {}),
+          idempotencyKey: text(input, 'idempotencyKey', 500)!,
+        }) })
+        return
+      }
+
+      const compileContextMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/executions\/([^/]+)\/continuation$/)
+      if (request.method === 'POST' && compileContextMatch) {
+        const input = await body(request)
+        json(response, 201, { result: await service.compileContinuation({
+          projectId: projectId(compileContextMatch[1]),
+          executionId: entityId(compileContextMatch[2], 'executionId'),
+          taskId: entityId(text(input, 'taskId', 100), 'taskId'),
+          agentId: entityId(text(input, 'agentId', 100), 'agentId'),
+          idempotencyKey: text(input, 'idempotencyKey', 500)!,
+        }) })
+        return
+      }
+
+      const finishExecutionMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/executions\/([^/]+)\/status$/)
+      if (request.method === 'PATCH' && finishExecutionMatch) {
+        const input = await body(request)
+        json(response, 200, { result: await service.finishExecution({
+          projectId: projectId(finishExecutionMatch[1]),
+          executionId: entityId(finishExecutionMatch[2], 'executionId'),
+          agentId: entityId(text(input, 'agentId', 100), 'agentId'),
+          expectedVersion: positiveInteger(input, 'expectedVersion'),
+          status: choice(input, 'status', ['succeeded', 'failed', 'cancelled'] as const),
+        }) })
+        return
+      }
+
       const contextMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context-packages\/([^/]+)$/)
       if (request.method === 'GET' && contextMatch) {
         json(response, 200, { result: await service.continuation(
