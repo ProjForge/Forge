@@ -113,11 +113,10 @@ long-running service and replication slot lifecycle.
    key custody; create the least-privilege E: spool and distinct DPAPI/offline
    physical passphrase.
 4. [x] Implement encrypted physical manifests, uploader and authenticated fetch.
-5. [ ] Create the production dedicated replication role. The DPAPI setup flow
-   and isolated least-privilege/SCRAM acceptance test are complete.
-6. [ ] Install archiver, daily base-backup and five-minute monitor tasks. The
-   base-backup worker and native isolated acceptance test are complete; task
-   registration and the monitor remain pending.
+5. [x] Create the production dedicated replication role with DPAPI custody and
+   pass isolated SCRAM plus real-cluster base-backup acceptance.
+6. [x] Install limited hidden uploader, daily base-backup and five-minute
+   monitor tasks; prove scheduler exit zero before activation.
 7. [ ] Restart once, force a WAL switch and pass an isolated named-target drill.
 
 ## References
