@@ -11,7 +11,7 @@ test('serves the loopback API with token and origin protections', async (context
   const service = {
     status: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2' }),
     projects: async () => [],
-    catalog: async () => ({ memories: [], decisions: [], tasks: [], executions: [] }),
+    catalog: async () => ({ memories: [], decisions: [], tasks: [], executions: [], agents: [], contextPackages: [] }),
   } as unknown as ForgeWorkbenchService
   const publicDir = path.resolve(process.cwd(), 'public')
   const server = createWorkbenchServer(service, { publicDir, token: 'test-token' })
@@ -64,6 +64,44 @@ test('validates and forwards project-scoped human task workflow', async (context
     { projectId, taskKey: 'TASK-1', title: 'Ship flow', status: 'ready', priority: 'high', idempotencyKey: 'request-1' },
     { projectId, taskId, expectedVersion: 1, status: 'in_progress' },
   ])
+})
+
+test('validates agent assignment and project-scoped continuation inspection', async (context) => {
+  const calls: unknown[] = []
+  const taskId = '22222222-2222-4222-8222-222222222222'
+  const agentId = '33333333-3333-4333-8333-333333333333'
+  const packageId = '44444444-4444-4444-8444-444444444444'
+  const service = {
+    registerAndAssignAgent: async (input: unknown) => { calls.push(input); return { agent: { id: agentId }, assignment: { projectId, agentId } } },
+    updateTaskAssignment: async (input: unknown) => { calls.push(input); return { id: taskId, assignedAgentId: agentId, version: 2 } },
+    continuation: async (scope: string, id: string) => { calls.push({ projectId: scope, packageId: id }); return { packageId: id, projectId: scope } },
+  } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve(process.cwd(), 'public'), token: 'test-token' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const headers = { 'content-type': 'application/json', 'x-forge-token': 'test-token' }
+
+  const assigned = await fetch(`${base}/api/projects/${projectId}/agents`, {
+    method: 'POST', headers, body: JSON.stringify({ agentKey: 'codex-main', name: 'Codex', role: 'engineer', assignmentRole: 'maintainer' }),
+  })
+  assert.equal(assigned.status, 201)
+  const taskAssignment = await fetch(`${base}/api/projects/${projectId}/tasks/${taskId}/assignment`, {
+    method: 'PATCH', headers, body: JSON.stringify({ expectedVersion: 1, assignedAgentId: agentId }),
+  })
+  assert.equal(taskAssignment.status, 200)
+  const inspected = await fetch(`${base}/api/projects/${projectId}/context-packages/${packageId}`, { headers })
+  assert.equal(inspected.status, 200)
+  assert.deepEqual(calls, [
+    { projectId, agentKey: 'codex-main', name: 'Codex', role: 'engineer', assignmentRole: 'maintainer' },
+    { projectId, taskId, expectedVersion: 1, assignedAgentId: agentId },
+    { projectId, packageId },
+  ])
+
+  const rejected = await fetch(`${base}/api/projects/${projectId}/tasks/${taskId}/assignment`, {
+    method: 'PATCH', headers, body: JSON.stringify({ expectedVersion: 1, assignedAgentId: 'not-a-uuid' }),
+  })
+  assert.equal(rejected.status, 400)
 })
 
 test('rejects malformed project scope before invoking search', async (context) => {

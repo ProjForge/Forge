@@ -13,6 +13,7 @@ import type {
   CatalogPage,
   CompileContinuationInput,
   ContinuationPackage,
+  ContinuationPackageCatalogItem,
   CreateTaskInput,
   Decision,
   DecisionCatalogItem,
@@ -30,11 +31,14 @@ import type {
   ListExecutionsInput,
   ListMemoriesInput,
   ListProjectsInput,
+  ListProjectAgentsInput,
+  ListContinuationPackagesInput,
   ListTasksInput,
   Memory,
   MemoryCatalogItem,
   Project,
   ProjectAgentAssignment,
+  ProjectAgentCatalogItem,
   PutEmbeddingInput,
   RegisterAgentInput,
   RegisterEmbeddingProfileInput,
@@ -52,6 +56,8 @@ import { runIdempotent } from './idempotency.js'
 import {
   mapAgent,
   mapAssignment,
+  mapProjectAgentCatalogItem,
+  mapContinuationPackageCatalogItem,
   mapAuditRecord,
   mapDecision,
   mapDecisionCatalogItem,
@@ -440,6 +446,32 @@ export class ForgePersistenceGateway {
     })
   }
 
+  async listProjectAgents(input: ListProjectAgentsInput): Promise<CatalogPage<ProjectAgentCatalogItem>> {
+    const limit = catalogLimit(input.limit)
+    const result = await this.pool.query<DatabaseRow>(
+      `SELECT agent.*,
+              assignment.assignment_role,
+              assignment.status AS assignment_status,
+              assignment.version AS assignment_version,
+              assignment.assigned_at
+         FROM forge.project_agents AS assignment
+         JOIN forge.agents AS agent ON agent.id = assignment.agent_id
+        WHERE assignment.project_id = $1
+          AND ($2::text IS NULL OR assignment.status = $2)
+          AND ($3::timestamptz IS NULL OR (agent.created_at, agent.id) < ($3::timestamptz, $4::uuid))
+        ORDER BY agent.created_at DESC, agent.id DESC
+        LIMIT $5`,
+      [
+        input.projectId,
+        input.status ?? null,
+        input.cursor?.createdAt ?? null,
+        input.cursor?.id ?? null,
+        limit + 1,
+      ],
+    )
+    return catalogPage(result.rows, limit, mapProjectAgentCatalogItem)
+  }
+
   async createTask(input: CreateTaskInput): Promise<Task> {
     const request = {
       projectId: input.projectId,
@@ -528,6 +560,25 @@ export class ForgePersistenceGateway {
         WHERE id = $1 AND project_id = $2 AND version = $3 AND deleted_at IS NULL
         RETURNING *`,
       [input.taskId, input.projectId, input.expectedVersion, input.status],
+    )
+    if (result.rowCount === 0) {
+      throw new OptimisticLockError('Task', input.taskId, input.expectedVersion)
+    }
+    return mapTask(firstRow(result.rows, 'task'))
+  }
+
+  async updateTaskAssignment(input: {
+    projectId: string
+    taskId: string
+    expectedVersion: number
+    assignedAgentId: string | null
+  }): Promise<Task> {
+    const result = await this.pool.query<DatabaseRow>(
+      `UPDATE forge.tasks
+          SET assigned_agent_id = $4
+        WHERE id = $1 AND project_id = $2 AND version = $3 AND deleted_at IS NULL
+        RETURNING *`,
+      [input.taskId, input.projectId, input.expectedVersion, input.assignedAgentId],
     )
     if (result.rowCount === 0) {
       throw new OptimisticLockError('Task', input.taskId, input.expectedVersion)
@@ -1546,6 +1597,39 @@ export class ForgePersistenceGateway {
       decisions: orderedDecisions,
       staleSources,
     }
+  }
+
+  async listContinuationPackages(
+    input: ListContinuationPackagesInput,
+  ): Promise<CatalogPage<ContinuationPackageCatalogItem>> {
+    const limit = catalogLimit(input.limit)
+    const result = await this.pool.query<DatabaseRow>(
+      `SELECT package.id,
+              package.project_id,
+              package.execution_id,
+              package.package_hash,
+              package.created_at,
+              NULLIF(package.metadata->>'task_id', '') AS task_id,
+              count(item.id)::integer AS item_count
+         FROM forge.context_packages AS package
+         LEFT JOIN forge.context_package_items AS item
+           ON item.context_package_id = package.id
+          AND item.project_id = package.project_id
+        WHERE package.project_id = $1
+          AND ($2::uuid IS NULL OR package.execution_id = $2)
+          AND ($3::timestamptz IS NULL OR (package.created_at, package.id) < ($3::timestamptz, $4::uuid))
+        GROUP BY package.id
+        ORDER BY package.created_at DESC, package.id DESC
+        LIMIT $5`,
+      [
+        input.projectId,
+        input.executionId ?? null,
+        input.cursor?.createdAt ?? null,
+        input.cursor?.id ?? null,
+        limit + 1,
+      ],
+    )
+    return catalogPage(result.rows, limit, mapContinuationPackageCatalogItem)
   }
 
   async finishExecution(input: {

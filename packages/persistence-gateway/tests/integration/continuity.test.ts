@@ -99,6 +99,28 @@ test('persists and reconstructs a complete task continuation flow', {
       priority: 'normal',
       idempotencyKey: `catalog-task-${suffix}`,
     })
+    const secondaryAgent = await gateway.registerAgent({
+      agentKey: `gateway-secondary-agent-${suffix}`,
+      name: 'Gateway secondary agent',
+      role: 'reviewer',
+    })
+    await gateway.assignAgent(project.id, secondaryAgent.id, 'reviewer')
+    const reassignedCatalogTask = await gateway.updateTaskAssignment({
+      projectId: project.id,
+      taskId: catalogTask.id,
+      expectedVersion: catalogTask.version,
+      assignedAgentId: secondaryAgent.id,
+    })
+    assert.equal(reassignedCatalogTask.assignedAgentId, secondaryAgent.id)
+    await assert.rejects(
+      gateway.updateTaskAssignment({
+        projectId: project.id,
+        taskId: catalogTask.id,
+        expectedVersion: catalogTask.version,
+        assignedAgentId: agent.id,
+      }),
+      OptimisticLockError,
+    )
 
     const executionInput = {
       projectId: project.id,
@@ -310,6 +332,13 @@ test('persists and reconstructs a complete task continuation flow', {
     const projectCatalog = await gateway.listProjects({ status: 'active', limit: 100 })
     assert.ok(projectCatalog.items.some((item) => item.id === project.id))
 
+    const agentCatalog = await gateway.listProjectAgents({ projectId: project.id, status: 'active' })
+    assert.deepEqual(
+      new Set(agentCatalog.items.map((item) => item.id)),
+      new Set([agent.id, secondaryAgent.id]),
+    )
+    assert.equal(agentCatalog.items.find((item) => item.id === agent.id)?.assignmentRole, 'developer')
+
     const completeTaskCatalog = await gateway.listTasks({ projectId: project.id, limit: 10 })
     assert.deepEqual(
       new Set(completeTaskCatalog.items.map((item) => item.id)),
@@ -445,6 +474,10 @@ test('persists and reconstructs a complete task continuation flow', {
     assert.equal(loaded.memories[0]?.content, memory.content)
     assert.equal(loaded.decisions[0]?.decisionText, decision.decisionText)
     assert.deepEqual(loaded.staleSources, [])
+    const contextCatalog = await gateway.listContinuationPackages({ projectId: project.id })
+    assert.deepEqual(contextCatalog.items.map((item) => item.id), [packageId])
+    assert.equal(contextCatalog.items[0]?.taskId, task.id)
+    assert.equal(contextCatalog.items[0]?.itemCount, 3)
 
     const completedTask = await gateway.updateTaskStatus({
       projectId: project.id,
@@ -502,6 +535,8 @@ test('persists and reconstructs a complete task continuation flow', {
     assert.deepEqual((await gateway.listExecutions({ projectId: otherProject.id })).items, [])
     assert.deepEqual((await gateway.listMemories({ projectId: otherProject.id })).items, [])
     assert.deepEqual((await gateway.listDecisions({ projectId: otherProject.id })).items, [])
+    assert.deepEqual((await gateway.listProjectAgents({ projectId: otherProject.id })).items, [])
+    assert.deepEqual((await gateway.listContinuationPackages({ projectId: otherProject.id })).items, [])
     assert.deepEqual((await gateway.listEmbeddingCandidates({
       projectId: otherProject.id,
       profileKey: profile.profileKey,

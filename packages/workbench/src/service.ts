@@ -1,5 +1,8 @@
 import type {
   CatalogPage,
+  Agent,
+  ContinuationPackage,
+  ContinuationPackageCatalogItem,
   CreateTaskInput,
   Decision,
   DecisionCatalogItem,
@@ -7,6 +10,9 @@ import type {
   Memory,
   MemoryCatalogItem,
   Project,
+  ProjectAgentAssignment,
+  ProjectAgentCatalogItem,
+  RegisterAgentInput,
   RegisterProjectInput,
   RememberInput,
   SaveDecisionInput,
@@ -23,11 +29,17 @@ export interface WorkbenchGateway {
   listDecisions(input: { projectId: string; limit?: number }): Promise<CatalogPage<DecisionCatalogItem>>
   listTasks(input: { projectId: string; limit?: number }): Promise<CatalogPage<Task>>
   listExecutions(input: { projectId: string; limit?: number }): Promise<CatalogPage<Execution>>
+  listProjectAgents(input: { projectId: string; limit?: number; status?: 'active' | 'inactive' }): Promise<CatalogPage<ProjectAgentCatalogItem>>
+  listContinuationPackages(input: { projectId: string; limit?: number }): Promise<CatalogPage<ContinuationPackageCatalogItem>>
   registerProject(input: RegisterProjectInput): Promise<Project>
+  registerAgent(input: RegisterAgentInput): Promise<Agent>
+  assignAgent(projectId: string, agentId: string, assignmentRole?: string): Promise<ProjectAgentAssignment>
   remember(input: RememberInput): Promise<Memory>
   saveDecision(input: SaveDecisionInput): Promise<Decision>
   createTask(input: CreateTaskInput): Promise<Task>
   updateTaskStatus(input: { projectId: string; taskId: string; expectedVersion: number; status: TaskStatus }): Promise<Task>
+  updateTaskAssignment(input: { projectId: string; taskId: string; expectedVersion: number; assignedAgentId: string | null }): Promise<Task>
+  loadContinuationContext(projectId: string, packageId: string): Promise<ContinuationPackage>
 }
 
 export interface TextSearchPort {
@@ -53,18 +65,35 @@ export class ForgeWorkbenchService {
     decisions: DecisionCatalogItem[]
     tasks: Task[]
     executions: Execution[]
+    agents: ProjectAgentCatalogItem[]
+    contextPackages: ContinuationPackageCatalogItem[]
   }> {
-    const [memories, decisions, tasks, executions] = await Promise.all([
+    const [memories, decisions, tasks, executions, agents, contextPackages] = await Promise.all([
       this.gateway.listMemories({ projectId, limit: 50 }),
       this.gateway.listDecisions({ projectId, limit: 50 }),
       this.gateway.listTasks({ projectId, limit: 50 }),
       this.gateway.listExecutions({ projectId, limit: 50 }),
+      this.gateway.listProjectAgents({ projectId, status: 'active', limit: 50 }),
+      this.gateway.listContinuationPackages({ projectId, limit: 50 }),
     ])
-    return { memories: memories.items, decisions: decisions.items, tasks: tasks.items, executions: executions.items }
+    return {
+      memories: memories.items,
+      decisions: decisions.items,
+      tasks: tasks.items,
+      executions: executions.items,
+      agents: agents.items,
+      contextPackages: contextPackages.items,
+    }
   }
 
   registerProject(input: RegisterProjectInput) {
     return this.gateway.registerProject(input)
+  }
+
+  async registerAndAssignAgent(input: RegisterAgentInput & { projectId: string; assignmentRole?: string }) {
+    const agent = await this.gateway.registerAgent(input)
+    const assignment = await this.gateway.assignAgent(input.projectId, agent.id, input.assignmentRole)
+    return { agent, assignment }
   }
 
   remember(input: RememberInput) {
@@ -81,6 +110,14 @@ export class ForgeWorkbenchService {
 
   updateTaskStatus(input: { projectId: string; taskId: string; expectedVersion: number; status: TaskStatus }) {
     return this.gateway.updateTaskStatus(input)
+  }
+
+  updateTaskAssignment(input: { projectId: string; taskId: string; expectedVersion: number; assignedAgentId: string | null }) {
+    return this.gateway.updateTaskAssignment(input)
+  }
+
+  continuation(projectId: string, packageId: string) {
+    return this.gateway.loadContinuationContext(projectId, packageId)
   }
 
   search(input: TextSearchInput) {

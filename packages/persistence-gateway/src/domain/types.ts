@@ -50,6 +50,13 @@ export interface ProjectAgentAssignment {
   updatedAt: string
 }
 
+export interface ProjectAgentCatalogItem extends Agent {
+  assignmentRole: string | null
+  assignmentStatus: ProjectAgentAssignment['status']
+  assignmentVersion: number
+  assignedAt: string
+}
+
 export interface Task {
   id: string
   projectId: string
@@ -207,6 +214,16 @@ export interface CatalogPage<T> {
   nextCursor: CatalogCursor | null
 }
 
+export interface ContinuationPackageCatalogItem {
+  id: string
+  projectId: string
+  executionId: string | null
+  taskId: string | null
+  packageHash: string
+  itemCount: number
+  createdAt: string
+}
+
 export interface MemoryCatalogItem {
   id: string
   projectId: string
@@ -246,6 +263,16 @@ interface CatalogPaginationInput {
 
 export interface ListProjectsInput extends CatalogPaginationInput {
   status?: ProjectStatus
+}
+
+export interface ListProjectAgentsInput extends CatalogPaginationInput {
+  projectId: string
+  status?: ProjectAgentAssignment['status']
+}
+
+export interface ListContinuationPackagesInput extends CatalogPaginationInput {
+  projectId: string
+  executionId?: string
 }
 
 export interface ListTasksInput extends CatalogPaginationInput {

@@ -10,6 +10,8 @@ import type {
   MemoryCatalogItem,
   Project,
   ProjectAgentAssignment,
+  ProjectAgentCatalogItem,
+  ContinuationPackageCatalogItem,
   SemanticSearchResult,
   Task,
 } from '../domain/types.js'
@@ -74,6 +76,28 @@ export function mapAssignment(row: DatabaseRow): ProjectAgentAssignment {
     version: Number(row.version),
     assignedAt: iso(row.assigned_at),
     updatedAt: iso(row.updated_at),
+  }
+}
+
+export function mapProjectAgentCatalogItem(row: DatabaseRow): ProjectAgentCatalogItem {
+  return {
+    ...mapAgent(row),
+    assignmentRole: row.assignment_role === null ? null : String(row.assignment_role),
+    assignmentStatus: row.assignment_status as ProjectAgentAssignment['status'],
+    assignmentVersion: Number(row.assignment_version),
+    assignedAt: iso(row.assigned_at),
+  }
+}
+
+export function mapContinuationPackageCatalogItem(row: DatabaseRow): ContinuationPackageCatalogItem {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    executionId: row.execution_id === null ? null : String(row.execution_id),
+    taskId: row.task_id === null ? null : String(row.task_id),
+    packageHash: String(row.package_hash),
+    itemCount: Number(row.item_count),
+    createdAt: iso(row.created_at),
   }
 }
 

@@ -71,6 +71,12 @@ function entityId(value: string | undefined, name: string): string {
   return value
 }
 
+function nullableEntityId(value: unknown, name: string): string | null {
+  if (value === null || value === '') return null
+  if (typeof value !== 'string' || !uuid.test(value)) throw new TypeError(`${name} must be a UUID or null`)
+  return value
+}
+
 function choice<const T extends readonly string[]>(input: Record<string, unknown>, key: string, allowed: T, fallback?: T[number]): T[number] {
   const value = input[key] ?? fallback
   if (typeof value !== 'string' || !allowed.includes(value)) throw new TypeError(`${key} is unsupported`)
@@ -146,6 +152,19 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
         return
       }
 
+      const agentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/agents$/)
+      if (request.method === 'POST' && agentMatch) {
+        const input = await body(request)
+        json(response, 201, { result: await service.registerAndAssignAgent({
+          projectId: projectId(agentMatch[1]),
+          agentKey: text(input, 'agentKey', 200)!,
+          name: text(input, 'name', 500)!,
+          ...(text(input, 'role', 200, true) ? { role: text(input, 'role', 200, true)! } : {}),
+          ...(text(input, 'assignmentRole', 200, true) ? { assignmentRole: text(input, 'assignmentRole', 200, true)! } : {}),
+        }) })
+        return
+      }
+
       const memoryMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/memories$/)
       if (request.method === 'POST' && memoryMatch) {
         const input = await body(request)
@@ -179,8 +198,30 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
           ...(text(input, 'objective', 4_000, true) ? { objective: text(input, 'objective', 4_000, true)! } : {}),
           status: choice(input, 'status', ['proposed', 'ready', 'in_progress', 'blocked', 'done', 'cancelled'] as const, 'ready'),
           priority: choice(input, 'priority', ['low', 'normal', 'high', 'critical'] as const, 'normal'),
+          ...(input.assignedAgentId ? { assignedAgentId: entityId(String(input.assignedAgentId), 'assignedAgentId') } : {}),
           idempotencyKey: text(input, 'idempotencyKey', 500)!,
         }) })
+        return
+      }
+
+      const taskAssignmentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/assignment$/)
+      if (request.method === 'PATCH' && taskAssignmentMatch) {
+        const input = await body(request)
+        json(response, 200, { result: await service.updateTaskAssignment({
+          projectId: projectId(taskAssignmentMatch[1]),
+          taskId: entityId(taskAssignmentMatch[2], 'taskId'),
+          expectedVersion: positiveInteger(input, 'expectedVersion'),
+          assignedAgentId: nullableEntityId(input.assignedAgentId, 'assignedAgentId'),
+        }) })
+        return
+      }
+
+      const contextMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context-packages\/([^/]+)$/)
+      if (request.method === 'GET' && contextMatch) {
+        json(response, 200, { result: await service.continuation(
+          projectId(contextMatch[1]),
+          entityId(contextMatch[2], 'packageId'),
+        ) })
         return
       }
 
