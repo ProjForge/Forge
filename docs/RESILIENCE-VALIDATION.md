@@ -116,5 +116,5 @@ SHA-256 API, with a regression that runs under an empty `PSModulePath`.
   the validated immutable AWS replica covers total-machine loss.
 - Recovery identity rotation and periodic provider-backed restore drills remain
   ongoing operational responsibilities.
-- Exact PostgreSQL 14 binary execution remains a compatibility-matrix gap; all
-  used commands and options are documented in PostgreSQL 14.
+- PostgreSQL 14.23 + pgvector 0.8.2 CI passes schema migration, invariant and
+  restart persistence checks plus native Gateway and MCP continuity.

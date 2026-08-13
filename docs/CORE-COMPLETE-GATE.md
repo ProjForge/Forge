@@ -15,7 +15,7 @@ failover, every model provider or unlimited-scale vector search.
 | Agent continuity | Register, assign, create task, execute, remember, decide, compile/load context and finish | PASS | Gateway/MCP native continuity and Workbench lifecycle tests |
 | Human operation | The same principal workflow is available through the loopback-only Workbench | PASS | 11 HTTP/service tests plus desktop/mobile QA |
 | Semantic retrieval | Provider-independent indexing, exact project-scoped search and optional reranking | PASS WITH LIMIT | Top-3 98.33%; optional reranker reaches the 90% top-1 gate. Fast top-1 remains 83.33% |
-| PostgreSQL compatibility | Core schema and continuity run on the declared PostgreSQL 14+ floor and current 18 | IN PROGRESS | PostgreSQL 18.4 passed locally; CI now executes schema/restart/Gateway/MCP on PostgreSQL 14 + pgvector 0.8.2 |
+| PostgreSQL compatibility | Core schema and continuity run on the declared PostgreSQL 14+ floor and current 18 | PASS | PostgreSQL 18.4 passed locally; CI passes schema/restart/Gateway/MCP on PostgreSQL 14.23 + pgvector 0.8.2 |
 | Logical recovery | Encrypted package, verified replicas, immutable off-site copy and safe empty-target restore | PASS | Native D:/E:/AWS restore drill |
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | BLOCKED | Add a read-only resilience health boundary and Workbench status panel |
