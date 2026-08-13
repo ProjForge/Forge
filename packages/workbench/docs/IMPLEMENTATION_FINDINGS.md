@@ -78,3 +78,14 @@ Workbench now exposes the complete human execution lifecycle. The successful
 final state remains disabled until the execution has a continuation package;
 failed and cancelled outcomes remain available. Core stays generic and does
 not force every non-human execution to compile a package.
+# Finding 12 — Recovery evidence was operationally durable but invisible
+
+The logical policy, physical uploader, base-backup worker and PITR monitor each
+wrote atomic non-secret status, but a human had to locate and interpret those
+files manually. Database health alone could therefore look green while recovery
+was stale or failed.
+
+Resolution: the Windows launcher discovers status paths from local non-secret
+configuration. Workbench reads only bounded regular JSON files, rejects links,
+missing/malformed/stale/failing state, and exposes a sanitized summary. No path,
+policy, credential or raw worker error crosses the HTTP boundary.

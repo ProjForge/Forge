@@ -5,6 +5,7 @@ import { ForgePersistenceGateway, ForgeSemanticBridge, OpenAiCompatibleEmbedding
 import { loadWorkbenchConfig, type WorkbenchConfig } from './config.js'
 import { createWorkbenchServer } from './server.js'
 import { ForgeWorkbenchService } from './service.js'
+import { FileRecoveryHealth } from './recovery-health.js'
 
 const isPackaged = Boolean((process as NodeJS.Process & { pkg?: unknown }).pkg)
 
@@ -30,7 +31,7 @@ export async function runWorkbench(config: WorkbenchConfig): Promise<void> {
     profile: config.semantic.profile,
     ...(reranker ? { reranker } : {}),
   })
-  const service = new ForgeWorkbenchService(gateway, bridge)
+  const service = new ForgeWorkbenchService(gateway, bridge, new FileRecoveryHealth(config.recovery))
   const publicDir = process.env.FORGE_WORKBENCH_PUBLIC_DIR
     ?? (isPackaged ? join(dirname(process.execPath), 'public') : fileURLToPath(new URL('../public/', import.meta.url)))
   const server = createWorkbenchServer(service, { publicDir })

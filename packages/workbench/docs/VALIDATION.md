@@ -4,7 +4,7 @@ Validated on 2026-08-14 with Node.js 24, PostgreSQL 18.4, Schema 0.1.3,
 pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 
 - TypeScript strict production build: PASS
-- Unit/HTTP/configuration tests: 11/11 PASS
+- Unit/HTTP/configuration/recovery-health tests: 16/16 PASS
 - Gateway native continuation integration: PASS
 - Assigned-agent catalog and registration/assignment: PASS
 - Optimistic task reassignment and stale-version rejection: PASS
@@ -28,6 +28,10 @@ pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 - Isolated installer + DPAPI round-trip: PASS
 - Packaged executable live launch on port 7335: PASS
 - Packaged status/catalog against PostgreSQL 18.4: PASS
+- Recovery health fail-closed parsing, freshness and path redaction: PASS
+- Live installed recovery panel: PASS; logical, PITR, WAL and base status healthy
+- Responsive recovery panel at 390×844: PASS; no horizontal overflow
+- Installed Windows PowerShell 5.1 UTF-8 BOM status/config compatibility: PASS
 
 Live data showed 52 projects, 14 FORGE Core memories and 10 decisions. The UI
 now selects `forge-core` by default and offers client-side project filtering so

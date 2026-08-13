@@ -279,6 +279,33 @@ function showMessage(message, error = false) {
   node.classList.toggle('error', error)
 }
 
+const recoveryLabels = {
+  logical: 'Copia lógica', pitr: 'PITR', walTransport: 'Transporte WAL', baseBackup: 'Base física',
+}
+const healthLabels = { healthy: 'Sano', degraded: 'Atención', failed: 'Fallo', unconfigured: 'Sin configurar' }
+
+function renderRecoveryHealth(recovery) {
+  const overall = $('#recovery-overall')
+  overall.className = `health-badge ${recovery.overall}`
+  overall.textContent = healthLabels[recovery.overall] || 'Desconocido'
+  const container = $('#recovery-health')
+  container.replaceChildren()
+  for (const key of ['logical', 'pitr', 'walTransport', 'baseBackup']) {
+    const component = recovery[key]
+    const card = item('article', `recovery-card ${component.state}`, '')
+    const heading = item('div', 'recovery-card-heading', '')
+    heading.append(item('strong', '', recoveryLabels[key]), item('span', `health-badge ${component.state}`, healthLabels[component.state]))
+    card.append(heading, item('p', '', component.summary))
+    if (component.updatedAt) card.append(item('time', '', `Actualizado ${new Date(component.updatedAt).toLocaleString()}`))
+    if (Array.isArray(component.checks) && component.checks.length) {
+      const checks = item('ul', 'recovery-checks', '')
+      for (const check of component.checks) checks.append(item('li', check.status.toLowerCase(), `${check.name}: ${check.detail}`))
+      card.append(checks)
+    }
+    container.append(card)
+  }
+}
+
 function renderResults(results) {
   const container = $('#results')
   container.replaceChildren()
@@ -362,6 +389,7 @@ async function boot() {
     state.token = (await (await fetch('/api/bootstrap')).json()).token
     const [status, projects] = await Promise.all([api('/api/status'), api('/api/projects')])
     state.projects = projects
+    renderRecoveryHealth(status.recovery)
     $('#health-dot').classList.add('good')
     $('#health').textContent = `PostgreSQL ${status.serverVersion} · Schema ${status.schemaVersion}`
     renderProjects()

@@ -1,9 +1,11 @@
 import { loadSemanticBridgeConfig, type SemanticBridgeConfig } from 'forge-semantic-bridge/workbench'
+import type { RecoveryHealthConfig } from './recovery-health.js'
 
 export interface WorkbenchConfig {
   host: '127.0.0.1' | '::1'
   port: number
   semantic: SemanticBridgeConfig
+  recovery: RecoveryHealthConfig
 }
 
 function port(env: NodeJS.ProcessEnv): number {
@@ -19,5 +21,13 @@ export function loadWorkbenchConfig(env: NodeJS.ProcessEnv = process.env): Workb
   if (host !== '127.0.0.1' && host !== '::1') {
     throw new TypeError('FORGE Workbench may only bind to a loopback address')
   }
-  return { host, port: port(env), semantic: loadSemanticBridgeConfig(env) }
+  return {
+    host, port: port(env), semantic: loadSemanticBridgeConfig(env),
+    recovery: {
+      ...(env.FORGE_LOGICAL_RECOVERY_STATUS ? { logicalStatusPath: env.FORGE_LOGICAL_RECOVERY_STATUS } : {}),
+      ...(env.FORGE_PITR_MONITOR_STATUS ? { pitrStatusPath: env.FORGE_PITR_MONITOR_STATUS } : {}),
+      ...(env.FORGE_PHYSICAL_UPLOADER_STATUS ? { walTransportStatusPath: env.FORGE_PHYSICAL_UPLOADER_STATUS } : {}),
+      ...(env.FORGE_PHYSICAL_BASEBACKUP_STATUS ? { baseBackupStatusPath: env.FORGE_PHYSICAL_BASEBACKUP_STATUS } : {}),
+    },
+  }
 }

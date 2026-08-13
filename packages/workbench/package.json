@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:compile": "tsc -p tsconfig.test.json",
-    "test": "npm run test:compile && node --test .test-dist/tests/server.test.js .test-dist/tests/service.test.js .test-dist/tests/windows-config.test.js",
+    "test": "npm run test:compile && node --test .test-dist/tests/server.test.js .test-dist/tests/service.test.js .test-dist/tests/windows-config.test.js .test-dist/tests/recovery-health.test.js",
     "start": "node dist/main.js",
     "start:windows": "node dist/windows-launcher.js",
     "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/Build-Windows-Package.ps1"
