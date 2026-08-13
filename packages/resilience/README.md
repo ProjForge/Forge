@@ -287,3 +287,20 @@ connects to the production database:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-physical-basebackup-windows.ps1
 ```
+
+Create the production replication identity only from a trusted interactive
+session. The administrator password and generated replication password never
+appear in process arguments or JSON; the latter is stored with CurrentUser
+DPAPI. The generated physical S3 policy is scoped to
+`physical/<system-identifier>` and starts with `enabled=false`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-pitr-role-windows.ps1
+```
+
+`run-pitr-monitor-windows.ps1` checks the PostgreSQL service, C:/PITR-volume
+capacity, effective archiver settings, `pg_stat_archiver` failure growth and
+authenticated WAL/base receipt ages. Before activation it reports
+`PREACTIVATION` and deliberately does not enforce receipt or archive-mode age
+gates. After activation, any capacity, archiver or RPO breach returns exit code
+2 and writes an atomic non-secret status file.
