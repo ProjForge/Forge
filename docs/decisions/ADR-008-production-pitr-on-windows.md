@@ -117,7 +117,9 @@ long-running service and replication slot lifecycle.
    pass isolated SCRAM plus real-cluster base-backup acceptance.
 6. [x] Install limited hidden uploader, daily base-backup and five-minute
    monitor tasks; prove scheduler exit zero before activation.
-7. [ ] Restart once, force a WAL switch and pass an isolated named-target drill.
+7. [x] Complete the guarded restart and authenticate a forced production WAL
+   segment locally and remotely.
+8. [ ] Pass the final isolated named-target restore from the production chain.
 
 ## References
 

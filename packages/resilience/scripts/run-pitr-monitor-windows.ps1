@@ -99,7 +99,7 @@ try {
         $walActivityAt = $null
         if ($previous -and $previous.walActivityAt) { $walActivityAt = ([datetime]$previous.walActivityAt).ToUniversalTime() }
         if ($previous -and $previous.database -and [string]$previous.database.currentLsn -ne [string]$db.currentLsn -and -not $walActivityAt) {
-            $walActivityAt = $NowUtc.ToUniversalTime()
+            $walActivityAt = if ($previous.checkedAt) { ([datetime]$previous.checkedAt).ToUniversalTime() } else { $activatedAt }
         }
         if ($walActivityAt -and $walReceipt -and $walReceipt.authenticatedAt -ge $walActivityAt) { $walActivityAt = $null }
         if (-not $walActivityAt) { Add-Check 'wal-receipt-age' 'PASS' 'No unauthenticated WAL activity is pending.' }

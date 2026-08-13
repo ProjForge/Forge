@@ -272,3 +272,16 @@ The command text is no longer represented in the native argument vector, while
 the administrator password remains only in `PGPASSWORD` memory. A regression
 test requires stdin execution and rejects reintroduction of `-c $Sql` in the
 activation path.
+
+## RES-023: WAL activity is observed over an interval, not at monitor time
+
+The successful production activation forced, uploaded and authenticated a WAL
+segment before its post-activation monitor ran. The monitor observed an LSN
+change and initially timestamped that activity at the current check, a few
+seconds after the valid receipt. It therefore reported the receipt-age gate as
+informational instead of clearing the already authenticated activity.
+
+Resolution: an LSN change is conservatively dated at the previous successful
+check (or activation time when no prior check exists). Any receipt authenticated
+after that boundary clears the pending activity. A regression covers the exact
+ordering: previous check, database activity, authenticated receipt, next check.

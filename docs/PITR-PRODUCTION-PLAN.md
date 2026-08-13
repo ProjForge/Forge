@@ -1,6 +1,6 @@
 # Production PITR activation plan
 
-Status: designed, not activated
+Status: active; final isolated recovery acceptance pending
 
 Environment: Windows 11, PostgreSQL 18.4
 
@@ -73,7 +73,7 @@ spool and collecting status, set `archive_mode=off` and restart during the
 approved maintenance window. Do not delete archived WAL or base backups during
 rollback; validate logical D:/E:/AWS recovery remains healthy.
 
-## Current blockers
+## Current state and remaining gate
 
 - The elevated non-mutating preflight is `READY`: nine checks pass with zero
   failures or blockers. C: and E: are fully encrypted with XTS-AES-256;
@@ -81,37 +81,36 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   custody. A real reboot proved TPM unlock for C: and automatic unlock for E:,
   followed by healthy PostgreSQL, FORGE reads and scheduled tasks.
 - Encrypted physical manifests, CLI packaging, local authentication and S3
-  upload/fetch are implemented in Resilience 0.4. The real provider-backed
-  acceptance drill passed; production scheduling remains pending.
+  upload/fetch are implemented in Resilience 0.4. Provider-backed acceptance
+  and production scheduling pass.
 - The AWS reference template now scopes the recovery identity and lifecycle to
   both `logical/` and `physical/`; the deployed stack is updated and validated.
 - The production `forge_pitr_replication` identity exists with LOGIN,
   REPLICATION, NOINHERIT, no elevated database capabilities and connection
   limit 2. Its generated password is CurrentUser-DPAPI protected; both the
   isolated SCRAM drill and a real encrypted base backup passed.
-- The distinct physical passphrase is now generated, DPAPI-protected and
-  checksum-verified against its offline recovery copy. A dedicated replication
-  role and scheduled physical workers remain pending.
-- The bounded WAL uploader is implemented and passes isolated package,
-  authentication and idempotent-replay tests without AWS. Production runtime
-  configuration, scheduling and a real spool receipt remain pending.
+- The distinct physical passphrase is generated, DPAPI-protected and
+  checksum-verified against its offline recovery copy.
+- The bounded WAL uploader passes isolated idempotency plus real local spool,
+  immutable upload, provider re-download and authentication.
 - The daily base-backup worker is implemented and passes a native disposable
   PostgreSQL 18 drill: streamed WAL, fast checkpoint, SHA-256 manifest
   verification, encrypted cluster binding, staging cleanup and idempotent
-  offline replay. Production replication credentials and scheduling remain
-  pending.
+  offline replay. Production replication credentials and scheduling pass.
 - The monitor passes deterministic preactivation, healthy and fail-closed
-  capacity/archiver/receipt tests, plus a read-only live preactivation probe
-  against the installed PostgreSQL service. It does not change GUCs.
+  capacity/archiver/receipt tests plus live activated operation.
 - The limited hidden uploader, daily base-backup and monitor tasks are installed.
   Uploader and monitor returned zero through Task Scheduler; the real base
   package was authenticated under the cluster-scoped AWS Object Lock prefix and
-  has a local receipt. PITR remains explicitly disabled.
-- Guarded activation and rollback are implemented but not yet executed. The
-  plan requires fresh preflight, checksummed exact configuration backup,
-  NetworkService-readable non-secret archiver deployment, one restart, FORGE
-  read validation, forced WAL local publication, immutable remote receipt and
-  a passing monitor. Failure after mutation triggers checked restoration.
+  has a local receipt.
+- Guarded activation completed on 2026-08-13 at 21:20:15Z. Effective settings
+  are `archive_mode=on` and `archive_timeout=1h`; the service is running with
+  zero archiver failures. FORGE retained 53 projects and 100 memories. Forced
+  segment `000000010000000000000008` was verified locally, encrypted, uploaded,
+  re-downloaded and authenticated under the cluster-scoped immutable prefix.
+  A first attempt exposed RES-022 and proved automatic checksummed rollback.
+- The remaining capability gate is a fresh isolated restore from the retained
+  production base/WAL chain to a named target with FORGE row validation.
 
 ## Provider acceptance evidence
 
