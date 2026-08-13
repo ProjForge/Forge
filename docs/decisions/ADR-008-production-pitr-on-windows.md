@@ -114,7 +114,9 @@ long-running service and replication slot lifecycle.
    physical passphrase.
 4. [x] Implement encrypted physical manifests, uploader and authenticated fetch.
 5. [ ] Create a dedicated replication role and DPAPI configuration flow.
-6. [ ] Install archiver, daily base-backup and five-minute monitor tasks.
+6. [ ] Install archiver, daily base-backup and five-minute monitor tasks. The
+   base-backup worker and native isolated acceptance test are complete; task
+   registration and the monitor remain pending.
 7. [ ] Restart once, force a WAL switch and pass an isolated named-target drill.
 
 ## References

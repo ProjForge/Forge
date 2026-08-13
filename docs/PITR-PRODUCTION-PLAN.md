@@ -92,6 +92,11 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
 - The bounded WAL uploader is implemented and passes isolated package,
   authentication and idempotent-replay tests without AWS. Production runtime
   configuration, scheduling and a real spool receipt remain pending.
+- The daily base-backup worker is implemented and passes a native disposable
+  PostgreSQL 18 drill: streamed WAL, fast checkpoint, SHA-256 manifest
+  verification, encrypted cluster binding, staging cleanup and idempotent
+  offline replay. Production replication credentials and scheduling remain
+  pending.
 
 ## Provider acceptance evidence
 

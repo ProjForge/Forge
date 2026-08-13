@@ -228,3 +228,17 @@ Resolution: use `RandomNumberGenerator.Create().GetBytes(byte[])` and an
 equal-length accumulated-XOR comparison. The final run generated 48 random
 bytes, round-tripped CurrentUser DPAPI, matched the offline copy and regenerated
 valid SHA-256 records for every recovery file without printing the secret.
+
+## RES-020: piping `pg_ctl` output can stall Windows automation
+
+The first isolated base-backup worker test started PostgreSQL successfully and
+the server reported `ready`, but its PowerShell parent never advanced. The test
+helper had piped `pg_ctl` output to `Out-Null`; on Windows, the detached server
+process can retain the inherited pipeline handle, so the pipeline remains open
+even after `pg_ctl` has completed its readiness check.
+
+Resolution: invoke `pg_ctl` directly and let its small status output use the
+normal process streams. The production base-backup worker never starts or stops
+PostgreSQL and was not affected. Tests now record their current phase so a
+future timeout distinguishes server lifecycle, native verification, archiving,
+encryption and remote authentication without exposing secrets.
