@@ -5,13 +5,13 @@ import { requireDatabaseUrl } from './config.js'
 import { restoreBackup, verifyBackup } from './restore.js'
 import { parseRecoveryPolicyDocument, runBackupPolicy } from './policy.js'
 import { fetchBackupFromS3 } from './s3.js'
-import { createPhysicalPackage, parsePhysicalManifest, verifyPhysicalPackage } from './physical.js'
+import { createPhysicalPackage, parsePhysicalManifest, restorePhysicalPackage, verifyPhysicalPackage } from './physical.js'
 import { fetchPhysicalPackageFromS3, replicatePhysicalPackageToS3 } from './physical-s3.js'
 import path from 'node:path'
 
 function usage(): never {
   throw new Error(
-    'Usage: forge-resilience <backup|verify|restore|run-policy|fetch-s3|physical-pack|physical-verify|physical-upload-s3|physical-fetch-s3> [options]',
+    'Usage: forge-resilience <backup|verify|restore|run-policy|fetch-s3|physical-pack|physical-verify|physical-restore|physical-upload-s3|physical-fetch-s3> [options]',
   )
 }
 
@@ -141,6 +141,11 @@ async function main(): Promise<void> {
     if (parsed.command === 'physical-verify') {
       const manifest = await verifyPhysicalPackage(required(parsed.options, 'manifest'), secret)
       process.stdout.write(`${JSON.stringify({ verified: true, manifest })}\n`)
+      return
+    }
+    if (parsed.command === 'physical-restore') {
+      const result = await restorePhysicalPackage(required(parsed.options, 'manifest'), required(parsed.options, 'output'), secret)
+      process.stdout.write(`${JSON.stringify({ restored: true, ...result })}\n`)
       return
     }
     if (parsed.command === 'physical-upload-s3') {

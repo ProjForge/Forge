@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { createPhysicalPackage, parsePhysicalManifest, verifyPhysicalPackage } from '../../src/physical.js'
+import { createPhysicalPackage, parsePhysicalManifest, restorePhysicalPackage, verifyPhysicalPackage } from '../../src/physical.js'
 import { fetchPhysicalPackageFromS3, replicatePhysicalPackageToS3 } from '../../src/physical-s3.js'
 import type { S3DownloadRequest, S3PutRequest, S3ReplicationClient } from '../../src/s3.js'
 import type { S3ReplicationTarget } from '../../src/types.js'
@@ -41,6 +41,42 @@ test('encrypts and verifies a cluster-bound WAL package', async () => {
     assert.equal(verified.kind, 'wal')
     assert.equal(verified.cluster.systemIdentifier, cluster.systemIdentifier)
     assert.equal(verified.source.file, path.basename(source))
+  } finally {
+    passphrase.fill(0)
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('restores authenticated plaintext atomically and refuses overwrite', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'forge-physical-restore-'))
+  const passphrase = Buffer.from('separate physical recovery secret')
+  try {
+    const source = path.join(directory, '000000010000000000000009')
+    const expected = Buffer.alloc(8 * 1024, 9)
+    await writeFile(source, expected)
+    const physical = await createPhysicalPackage({ sourcePath: source, outputDirectory: path.join(directory, 'out'), passphrase, kind: 'wal', cluster, label: 'wal-0009' })
+    const restored = await restorePhysicalPackage(physical.manifestPath, path.join(directory, 'restored'), passphrase)
+    assert.deepEqual(await readFile(restored.outputPath), expected)
+    await assert.rejects(restorePhysicalPackage(physical.manifestPath, path.join(directory, 'restored'), passphrase), /already exists/)
+  } finally {
+    passphrase.fill(0)
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('does not publish plaintext when physical authentication fails', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'forge-physical-restore-tamper-'))
+  const passphrase = Buffer.from('separate physical recovery secret')
+  try {
+    const source = path.join(directory, 'base.tar')
+    await writeFile(source, 'base backup bytes')
+    const physical = await createPhysicalPackage({ sourcePath: source, outputDirectory: path.join(directory, 'out'), passphrase, kind: 'base-backup', cluster, label: 'base-restore' })
+    const document = JSON.parse(await readFile(physical.manifestPath, 'utf8')) as { encryption: { authTag: string } }
+    document.encryption.authTag = Buffer.alloc(16, 1).toString('base64')
+    await writeFile(physical.manifestPath, `${JSON.stringify(document)}\n`)
+    const restoredDirectory = path.join(directory, 'restored')
+    await assert.rejects(restorePhysicalPackage(physical.manifestPath, restoredDirectory, passphrase), /authenticate|Unsupported state/i)
+    await assert.rejects(readFile(path.join(restoredDirectory, path.basename(source))), /ENOENT/)
   } finally {
     passphrase.fill(0)
     await rm(directory, { recursive: true, force: true })

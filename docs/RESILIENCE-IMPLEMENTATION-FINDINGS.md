@@ -285,3 +285,14 @@ Resolution: an LSN change is conservatively dated at the previous successful
 check (or activation time when no prior check exists). Any receipt authenticated
 after that boundary clears the pending activity. A regression covers the exact
 ordering: previous check, database activity, authenticated receipt, next check.
+## RES-024: recovery commands cannot assume PowerShell module discovery
+
+The production-chain drill reached consistent recovery but failed before its
+named target because PostgreSQL launched `restore-wal.ps1` in an environment
+where `Get-FileHash` was unavailable. Syntax tests and the synthetic drill did
+not reproduce that narrower module environment.
+
+Resolution: WAL copy verification now computes SHA-256 through the .NET
+cryptography API, which does not depend on PowerShell module auto-loading. The
+production recovery harness also tolerates the brief connection transition
+between read-only recovery and promotion.

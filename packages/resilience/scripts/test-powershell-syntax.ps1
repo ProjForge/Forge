@@ -44,3 +44,25 @@ try {
 finally {
     if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }
+
+$walTestRoot = Join-Path ([IO.Path]::GetTempPath()) "forge-wal-restore-$([Guid]::NewGuid().ToString('N'))"
+try {
+    New-Item -ItemType Directory -Force -Path $walTestRoot | Out-Null
+    $walName = '000000010000000000000001'
+    $source = Join-Path $walTestRoot $walName
+    $destination = Join-Path $walTestRoot 'restored-wal'
+    [IO.File]::WriteAllBytes($source,[byte[]](1..255))
+    $savedModulePath = $env:PSModulePath
+    try {
+        $env:PSModulePath = ''
+        & (Join-Path $PSScriptRoot 'restore-wal.ps1') -FileName $walName -Destination $destination -ArchiveDirectory $walTestRoot
+    }
+    finally { $env:PSModulePath = $savedModulePath }
+    if (-not [Linq.Enumerable]::SequenceEqual([byte[]][IO.File]::ReadAllBytes($source),[byte[]][IO.File]::ReadAllBytes($destination))) {
+        throw 'WAL restore changed the source bytes.'
+    }
+    Write-Output 'PASS: WAL restore verifies SHA-256 without PowerShell module discovery.'
+}
+finally {
+    if (Test-Path -LiteralPath $walTestRoot) { Remove-Item -LiteralPath $walTestRoot -Recurse -Force }
+}
