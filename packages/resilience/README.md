@@ -304,3 +304,16 @@ authenticated WAL/base receipt ages. Before activation it reports
 `PREACTIVATION` and deliberately does not enforce receipt or archive-mode age
 gates. After activation, any capacity, archiver or RPO breach returns exit code
 2 and writes an atomic non-secret status file.
+
+After the replication role and preactivation monitor pass, register the three
+CurrentUser-DPAPI workers as limited, hidden Windows tasks:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-pitr-tasks-windows.ps1
+```
+
+The uploader and monitor run every five minutes and at logon; the idempotent
+base backup runs daily at 03:00 and catches up after downtime. Installation is
+refused after activation, uses `IgnoreNew` concurrency and does not modify or
+restart PostgreSQL. `-PlanOnly` emits the exact non-secret task plan without
+registering it.

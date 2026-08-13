@@ -85,9 +85,10 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   acceptance drill passed; production scheduling remains pending.
 - The AWS reference template now scopes the recovery identity and lifecycle to
   both `logical/` and `physical/`; the deployed stack is updated and validated.
-- No production replication role exists yet. Its least-privilege setup and
-  CurrentUser-DPAPI configuration flow now pass an isolated PostgreSQL 18 SCRAM
-  `pg_basebackup` drill; production execution awaits administrator entry.
+- The production `forge_pitr_replication` identity exists with LOGIN,
+  REPLICATION, NOINHERIT, no elevated database capabilities and connection
+  limit 2. Its generated password is CurrentUser-DPAPI protected; both the
+  isolated SCRAM drill and a real encrypted base backup passed.
 - The distinct physical passphrase is now generated, DPAPI-protected and
   checksum-verified against its offline recovery copy. A dedicated replication
   role and scheduled physical workers remain pending.
@@ -102,6 +103,10 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
 - The monitor passes deterministic preactivation, healthy and fail-closed
   capacity/archiver/receipt tests, plus a read-only live preactivation probe
   against the installed PostgreSQL service. It does not change GUCs.
+- The limited hidden uploader, daily base-backup and monitor tasks are installed.
+  Uploader and monitor returned zero through Task Scheduler; the real base
+  package was authenticated under the cluster-scoped AWS Object Lock prefix and
+  has a local receipt. PITR remains explicitly disabled.
 
 ## Provider acceptance evidence
 
