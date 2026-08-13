@@ -19,6 +19,10 @@ try {
         throw 'archive_command does not preserve required quoting and placeholders.'
     }
     if ($plan.steps.Count -lt 8 -or $plan.rollback -notmatch 'restore exact configuration') { throw 'Activation plan is missing gates or rollback.' }
+    $activationSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'activate-pitr-windows.ps1') -Raw
+    if (-not $activationSource.Contains('$arguments += @(''-f'',''-'')') -or $activationSource.Contains('$arguments += @(''-c'',$Sql)')) {
+        throw 'Administrative SQL must use stdin to preserve Windows quoting.'
+    }
     $after = @(Get-ChildItem -LiteralPath $root -Recurse -File).Count
     if ($before -ne $after) { throw 'PlanOnly mutated the test environment.' }
     Write-Output 'PASS: PITR activation plan preserves quoting, gates, rollback and performs no mutation.'

@@ -61,9 +61,9 @@ function Invoke-AdminSql([string]$Sql,[switch]$Scalar,[string]$Database='postgre
     $psql = Join-Path ([string]$physical.postgresBin) 'psql.exe'
     $arguments = @('-X','-w','-v','ON_ERROR_STOP=1','-h',[string]$physical.replication.host,'-p',[string]$physical.replication.port,'-U','postgres','-d',$Database)
     if ($Scalar) { $arguments += @('-A','-t') }
-    $arguments += @('-c',$Sql)
-    $output = & $psql @arguments
-    if ($LASTEXITCODE -ne 0) { throw 'Administrative PostgreSQL command failed.' }
+    $arguments += @('-f','-')
+    $output = $Sql | & $psql @arguments 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "Administrative PostgreSQL command failed: $($output -join ' ')" }
     if ($Scalar) { return (($output | Out-String).Trim()) }
     return $output
 }
