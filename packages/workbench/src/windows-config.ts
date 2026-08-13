@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 
 export interface WindowsWorkbenchConfig {
   database: {
@@ -22,8 +22,8 @@ export interface WindowsWorkbenchConfig {
 
 export const defaultWindowsConfig: WindowsWorkbenchConfig = {
   database: {
-    host: '127.0.0.1', port: 5432, name: 'forge_test',
-    user: 'forge_test_runner', credentialFile: 'forge_test_runner.dpapi',
+    host: '127.0.0.1', port: 5432, name: 'forge',
+    user: 'forge_runtime', credentialFile: 'forge-runtime.dpapi',
   },
   workbench: { port: 7334 },
   embedding: {
@@ -60,13 +60,15 @@ export function parseWindowsConfig(value: unknown): WindowsWorkbenchConfig {
   const database = record(root.database, 'database')
   const workbench = root.workbench === undefined ? {} : record(root.workbench, 'workbench')
   const embedding = root.embedding === undefined ? {} : record(root.embedding, 'embedding')
+  const credentialFile = string(database.credentialFile, 'database.credentialFile', 'workbench.dpapi')
+  if (basename(credentialFile) !== credentialFile) throw new TypeError('database.credentialFile must be a file name')
   return {
     database: {
       host: string(database.host, 'database.host'),
       port: integer(database.port, 'database.port', 5432, 1, 65_535),
       name: string(database.name, 'database.name'),
       user: string(database.user, 'database.user'),
-      credentialFile: string(database.credentialFile, 'database.credentialFile', 'workbench.dpapi'),
+      credentialFile,
     },
     workbench: { port: integer(workbench.port, 'workbench.port', 7334, 1, 65_535) },
     embedding: {
@@ -82,7 +84,7 @@ export function parseWindowsConfig(value: unknown): WindowsWorkbenchConfig {
 
 export function loadWindowsConfig(configRoot: string): WindowsWorkbenchConfig {
   const path = join(configRoot, 'workbench.json')
-  try { return parseWindowsConfig(JSON.parse(readFileSync(path, 'utf8')) as unknown) }
+  try { return parseWindowsConfig(JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as unknown) }
   catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return defaultWindowsConfig
     throw new Error(`Invalid FORGE Workbench configuration at ${path}: ${error instanceof Error ? error.message : 'unknown error'}`)

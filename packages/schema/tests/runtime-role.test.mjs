@@ -4,6 +4,9 @@ import pg from 'pg'
 
 const { Pool } = pg
 const connectionString = process.env.FORGE_DATABASE_URL
+const connection = connectionString ? new URL(connectionString) : undefined
+const expectedRuntimeRole = process.env.FORGE_EXPECTED_RUNTIME_ROLE ?? (connection ? decodeURIComponent(connection.username) : undefined)
+const expectedDatabase = connection ? decodeURIComponent(connection.pathname.slice(1)) : undefined
 
 const expectedPrivileges = new Map([
   ['schema_migrations', ['SELECT']],
@@ -54,8 +57,8 @@ test('runtime role follows the least-privilege contract', {
       "       has_schema_privilege(current_user, 'forge', 'CREATE') AS can_create_in_schema",
     ].join('\n'))
     assert.deepEqual(identity.rows[0], {
-      role_name: 'forge_test_runner',
-      database_name: 'forge_test',
+      role_name: expectedRuntimeRole,
+      database_name: expectedDatabase,
       can_connect: true,
       can_create_database_objects: false,
       can_use_schema: true,

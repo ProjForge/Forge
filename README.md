@@ -78,6 +78,9 @@ See [Architecture](docs/ARCHITECTURE.md) and the
 
 Prerequisites: Node.js 20+ and npm 10+.
 
+For the guided Windows installation, start with the non-mutating plan in the
+[Windows bootstrap guide](docs/INSTALL-WINDOWS.md).
+
 ```bash
 git clone https://github.com/ProjForge/Forge.git
 cd Forge

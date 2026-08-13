@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process'
+import { join } from 'node:path'
 import { runForgeStdioServer } from './stdio.js'
+import { databaseUrl, loadMcpWindowsConfig } from './windows-config.js'
 
 const windowsPowerShell = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 const decryptScript = [
   '$ErrorActionPreference = "Stop"',
   'Add-Type -AssemblyName System.Security -ErrorAction Stop',
-  '$root = Join-Path ([Environment]::GetFolderPath("ApplicationData")) "FORGE"',
-  '$path = Join-Path $root "forge_test_runner.dpapi"',
+  '$path = $env:FORGE_DPAPI_PATH',
   'if (-not (Test-Path -LiteralPath $path)) { throw "FORGE credential is not configured." }',
   '$protected = $null',
   '$plain = $null',
@@ -23,7 +24,7 @@ const decryptScript = [
   '}',
 ].join('; ')
 
-function decryptRuntimePassword(): Buffer {
+function decryptRuntimePassword(path: string): Buffer {
   const encodedCommand = Buffer.from(decryptScript, 'utf16le').toString('base64')
   const result = spawnSync(
     windowsPowerShell,
@@ -33,6 +34,7 @@ function decryptRuntimePassword(): Buffer {
       windowsHide: true,
       maxBuffer: 64 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, FORGE_DPAPI_PATH: path },
     },
   )
   if (result.error || result.status !== 0 || result.stdout.length === 0) {
@@ -49,11 +51,11 @@ let password: string | undefined
 let connectionString: string | undefined
 
 try {
-  passwordBuffer = decryptRuntimePassword()
+  const configRoot = process.env.FORGE_CONFIG_ROOT ?? join(process.env.APPDATA ?? '', 'FORGE')
+  const config = loadMcpWindowsConfig(configRoot)
+  passwordBuffer = decryptRuntimePassword(config.credentialPath)
   password = passwordBuffer.toString('utf8')
-  connectionString = 'postgresql://forge_test_runner:'
-    + encodeURIComponent(password)
-    + '@127.0.0.1:5432/forge_test'
+  connectionString = databaseUrl(config, password)
   await runForgeStdioServer(connectionString)
 } catch (error) {
   const message = error instanceof Error ? error.message : 'Unknown launcher error'

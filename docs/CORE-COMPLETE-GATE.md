@@ -19,7 +19,7 @@ failover, every model provider or unlimited-scale vector search.
 | Logical recovery | Encrypted package, verified replicas, immutable off-site copy and safe empty-target restore | PASS | Native D:/E:/AWS restore drill |
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
-| Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | BLOCKED | Build one guided bootstrap with prerequisite detection, resumability and rollback |
+| Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | BLOCKED ON ACCEPTANCE | Generic bootstrap, plan/resume/data-safe rollback and tests pass; run one isolated fresh-Windows execution |
 | Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS FOR SOURCE | Signed Windows publication remains a later distribution gate |
 
 ## Release decision
@@ -28,8 +28,8 @@ Do not describe FORGE as Core Complete or publish a signed general-user binary
 until every row above is PASS or PASS WITH an explicitly accepted limitation.
 The next implementation order is:
 
-1. expose read-only recovery health in Workbench;
-2. build and clean-machine-test the guided Windows bootstrap;
+1. run the guided bootstrap on an isolated fresh Windows environment;
+2. correct any native finding and repeat from empty state;
 3. run the complete release checklist and only then sign/package.
 
 ## Rollback triggers
