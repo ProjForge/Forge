@@ -1,6 +1,6 @@
 # Resilience 0.3 validation
 
-Date: 2026-08-12
+Date: 2026-08-13
 
 ## Environment
 
@@ -14,11 +14,11 @@ Date: 2026-08-12
 
 | Gate | Result |
 |---|---|
-| Resilience default tests | 16/16 passed (15 unit + 1 S3 SDK) |
+| Resilience default tests | 22/22 passed (21 unit + 1 S3 SDK) |
 | S3 SDK loopback integration | 1/1 passed and included in default CI gate |
-| Complete monorepo tests | 64/64 passed |
+| Complete monorepo tests | 70/70 passed |
 | Production dependency audit | 0 vulnerabilities |
-| PowerShell syntax | all 10 Resilience scripts passed Windows PowerShell parsing |
+| PowerShell scripts | all 27 parsed; module-independent WAL SHA-256 regression passed |
 | Git diff whitespace | passed |
 
 ## Logical recovery drill
@@ -89,13 +89,32 @@ The isolated drill passed without changing the installed FORGE cluster:
 8. proved the safe row remained and both later mutations disappeared;
 9. removed both clusters and their WAL archive.
 
+## Production AWS physical-recovery acceptance
+
+The final production-chain gate passed without stopping or modifying the active
+PostgreSQL service:
+
+1. created named target `forge_production_acceptance_20260813_215539`;
+2. archived and authenticated target WAL `000000010000000000000009` under
+   30-day S3 Object Lock COMPLIANCE;
+3. fetched the immutable production base plus WAL 8 and WAL 9 from AWS;
+4. authenticated AES-256-GCM metadata/ciphertext and restored plaintext through
+   atomic no-overwrite publication;
+5. passed `pg_verifybackup` on the downloaded base;
+6. started PostgreSQL 18.4 on isolated port 63805 and promoted at the target;
+7. matched the target state: 53 projects and 100 memories;
+8. stopped the isolated server, removed plaintext staging and confirmed
+   production remained on port 5432.
+
+The first replay exposed RES-024: PostgreSQL's recovery process could not
+auto-load `Get-FileHash`. WAL verification now uses the module-independent .NET
+SHA-256 API, with a regression that runs under an empty `PSModulePath`.
+
 ## Remaining deployment limits
 
 - The local replica remains on an independent disk in the same computer, while
   the validated immutable AWS replica covers total-machine loss.
 - Recovery identity rotation and periodic provider-backed restore drills remain
   ongoing operational responsibilities.
-- Production WAL archiving is not silently enabled. It needs explicit capacity,
-  retention, replication credentials and monitoring for the actual cluster.
 - Exact PostgreSQL 14 binary execution remains a compatibility-matrix gap; all
   used commands and options are documented in PostgreSQL 14.

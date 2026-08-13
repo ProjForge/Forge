@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Transform, Writable } from 'node:stream'
@@ -238,5 +238,47 @@ export async function verifyPhysicalPackage(manifestPath: string, suppliedPassph
     return manifest
   } finally {
     passphrase.fill(0)
+  }
+}
+
+export async function restorePhysicalPackage(
+  manifestPath: string,
+  outputDirectory: string,
+  suppliedPassphrase: Uint8Array | string,
+): Promise<{ outputPath: string; manifest: PhysicalManifest }> {
+  const resolvedManifest = path.resolve(manifestPath)
+  const manifest = parsePhysicalManifest(JSON.parse(await readFile(resolvedManifest, 'utf8')) as unknown)
+  const payloadPath = path.join(path.dirname(resolvedManifest), manifest.payload.file)
+  const payload = await hashFile(payloadPath)
+  if (payload.sha256 !== manifest.payload.sha256 || payload.bytes !== manifest.payload.bytes) {
+    throw new Error('Physical payload checksum does not match its manifest')
+  }
+
+  const directory = path.resolve(outputDirectory)
+  await mkdir(directory, { recursive: true })
+  const outputPath = path.join(directory, manifest.source.file)
+  if (existsSync(outputPath)) throw new Error(`Physical restore output already exists: ${outputPath}`)
+  const partialOutput = `${outputPath}.${randomUUID()}.partial`
+  const passphrase = validatePassphrase(suppliedPassphrase)
+  try {
+    await decryptFile(
+      payloadPath,
+      createWriteStream(partialOutput, { flags: 'wx', mode: 0o600 }),
+      passphrase,
+      decode(manifest.encryption.salt),
+      decode(manifest.encryption.iv),
+      decode(manifest.encryption.authTag),
+      manifest.encryption.parameters,
+      canonicalJson(physicalAuthenticatedCore(manifest)),
+    )
+    const restored = await hashFile(partialOutput)
+    if (restored.sha256 !== manifest.source.sha256 || restored.bytes !== manifest.source.bytes) {
+      throw new Error('Physical plaintext checksum does not match its manifest')
+    }
+    await rename(partialOutput, outputPath)
+    return { outputPath, manifest }
+  } finally {
+    passphrase.fill(0)
+    await rm(partialOutput, { force: true }).catch(() => undefined)
   }
 }

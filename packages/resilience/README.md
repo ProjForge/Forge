@@ -235,12 +235,28 @@ forge-resilience physical-pack --kind wal --source 'E:\FORGE PITR\wal\0000000100
 forge-resilience physical-verify --manifest 'E:\FORGE PITR\encrypted\wal-000000010000000000000001.forge-physical.json'
 ```
 
+Authenticated packages can be materialized without exposing partial or failed
+plaintext. The destination must not already contain the source file:
+
+```powershell
+forge-resilience physical-restore `
+  --manifest 'E:\FORGE PITR\encrypted\wal-000000010000000000000001.forge-physical.json' `
+  --output 'E:\FORGE PITR\restore'
+```
+
 `physical-upload-s3` and `physical-fetch-s3` accept the existing recovery policy
 and named S3 target. Production must use a distinct DPAPI-protected physical
 passphrase; the plaintext-file example above is illustrative and is not the
 Windows deployment contract. Upload verifies locally first, publishes payload
 before manifest under Object Lock, re-downloads both and authenticates the
 plaintext before reporting success.
+
+`prepare-production-recovery-point-windows.ps1` creates and uploads a named
+production restore point without storing the administrator password.
+`test-production-recovery-windows.ps1` then downloads the selected base and WAL
+chain from S3, authenticates and decrypts them, starts PostgreSQL on a random
+isolated port, promotes at that exact target, validates FORGE row counts, stops
+the isolated server and removes plaintext staging.
 
 On Windows, prepare the BitLocker-protected spool from an elevated terminal:
 

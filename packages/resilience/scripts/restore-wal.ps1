@@ -13,7 +13,13 @@ if ([IO.Path]::GetFileName($FileName) -ne $FileName -or $FileName -notmatch $val
 $source = Join-Path $ArchiveDirectory $FileName
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { exit 1 }
 Copy-Item -LiteralPath $source -Destination $Destination -ErrorAction Stop
-if ((Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $Destination).Hash) {
+function Get-Sha256([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-','') }
+    finally { $sha256.Dispose(); $stream.Dispose() }
+}
+if ((Get-Sha256 $source) -ne (Get-Sha256 $Destination)) {
     Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
     throw "Restored WAL verification failed: $FileName"
 }
