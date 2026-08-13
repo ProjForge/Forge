@@ -1,8 +1,9 @@
 # FORGE Workbench 0.1.1
 
 The local human-facing client for FORGE. It runs locally, exposes an operational
-task board and agent execution history, lists memories and decisions, supports
-idempotent creation and optimistic task transitions, and offers fast or
+task board, assigned-agent catalog and execution history, lists memories and
+decisions, supports idempotent creation plus optimistic task assignment/status
+transitions, inspects immutable continuation packages, and offers fast or
 optional precision semantic search.
 
 ## Install on Windows
@@ -45,6 +46,7 @@ lms load qwen/qwen3.5-9b --identifier forge-reranker-qwen35-9b --context-length 
 - 64 KiB JSON limit and bounded text inputs.
 - No raw SQL or browser-held database credentials.
 - Writes flow through Gateway idempotency contracts.
+- Agent, task and continuation reads remain project-scoped in PostgreSQL.
 - PostgreSQL password is decrypted from DPAPI only in the Node launcher.
 
 The Workbench is a local operator tool, not a remotely exposed multi-user

@@ -42,3 +42,24 @@ The first packaged executable passed the credential path after PowerShell
 `$args`, so decryption failed despite a valid blob. The child process now
 receives the non-secret path through a scoped environment variable. A clean
 install and live executable test protects this packaging regression.
+
+## FINDING-WORKBENCH-07 — Immutable packages still need a scoped discovery path
+
+Core could compile and load continuation packages, but a human operator needed
+an existing UUID to inspect one. A project-scoped Gateway catalog now exposes
+only immutable package summaries; full contents still load through the existing
+version-aware continuation contract and report stale sources.
+
+## FINDING-WORKBENCH-08 — Assignment is part of optimistic task state
+
+Creating tasks with an agent was supported, but reassignment was not. Workbench
+now updates `assigned_agent_id` through a project-scoped, version-checked
+Gateway operation. The database foreign key still requires that the selected
+agent is actively associated with the same project.
+
+## FINDING-WORKBENCH-09 — Four workspace actions exceeded the mobile width
+
+Adding the agent action exposed an intrinsic-width overflow at 390 px, and the
+intercepted form submit made cancel controls unreliable in the live browser.
+Mobile actions and task controls now wrap, while cancel submissions use native
+`method="dialog"` behavior before application form handling.

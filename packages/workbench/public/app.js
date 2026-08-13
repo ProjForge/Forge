@@ -1,4 +1,4 @@
-const state = { token: '', projects: [], project: null }
+const state = { token: '', projects: [], project: null, agents: [] }
 const $ = (selector) => document.querySelector(selector)
 
 async function api(path, options = {}) {
@@ -66,21 +66,100 @@ function renderTasks(tasks) {
     const controls = item('div', 'task-controls', '')
     const meta = item('div', 'meta', '')
     meta.append(item('span', '', task.taskKey), item('span', '', task.priority), item('span', '', `v${task.version}`))
-    const select = document.createElement('select')
-    select.setAttribute('aria-label', `Estado de ${task.title}`)
-    for (const [value, label] of Object.entries(taskStatusLabels)) select.add(new Option(label, value, false, task.status === value))
-    select.addEventListener('change', async () => {
-      select.disabled = true
+    const statusSelect = document.createElement('select')
+    statusSelect.setAttribute('aria-label', `Estado de ${task.title}`)
+    for (const [value, label] of Object.entries(taskStatusLabels)) statusSelect.add(new Option(label, value, false, task.status === value))
+    statusSelect.addEventListener('change', async () => {
+      statusSelect.disabled = true
       try {
-        await api(`/api/projects/${state.project.id}/tasks/${task.id}/status`, { method: 'PATCH', body: JSON.stringify({ expectedVersion: task.version, status: select.value }) })
+        await api(`/api/projects/${state.project.id}/tasks/${task.id}/status`, { method: 'PATCH', body: JSON.stringify({ expectedVersion: task.version, status: statusSelect.value }) })
         await selectProject(state.project)
-      } catch (error) { showMessage(error.message, true); select.value = task.status }
-      finally { select.disabled = false }
+      } catch (error) { showMessage(error.message, true); statusSelect.value = task.status }
+      finally { statusSelect.disabled = false }
     })
-    controls.append(meta, select)
+    const agentSelect = document.createElement('select')
+    agentSelect.setAttribute('aria-label', `Agente asignado a ${task.title}`)
+    agentSelect.add(new Option('Sin agente', '', false, task.assignedAgentId === null))
+    for (const agent of state.agents) agentSelect.add(new Option(agent.name, agent.id, false, task.assignedAgentId === agent.id))
+    agentSelect.addEventListener('change', async () => {
+      agentSelect.disabled = true
+      try {
+        await api(`/api/projects/${state.project.id}/tasks/${task.id}/assignment`, {
+          method: 'PATCH',
+          body: JSON.stringify({ expectedVersion: task.version, assignedAgentId: agentSelect.value || null }),
+        })
+        await selectProject(state.project)
+      } catch (error) { showMessage(error.message, true); agentSelect.value = task.assignedAgentId || '' }
+      finally { agentSelect.disabled = false }
+    })
+    controls.append(meta, agentSelect, statusSelect)
     card.append(controls)
     container.append(card)
   }
+}
+
+function renderAgents(agents) {
+  const container = $('#agents')
+  container.replaceChildren()
+  container.classList.toggle('empty', agents.length === 0)
+  if (!agents.length) { container.textContent = 'No hay agentes asignados.'; return }
+  for (const agent of agents) {
+    const card = item('article', 'catalog-item', '')
+    card.append(item('strong', '', agent.name))
+    const meta = item('div', 'meta', '')
+    meta.append(item('span', '', agent.agentKey), item('span', '', agent.assignmentRole || agent.role || 'sin rol'), item('span', '', agent.assignmentStatus))
+    card.append(meta)
+    container.append(card)
+  }
+}
+
+async function inspectContinuation(summary) {
+  const content = $('#context-detail')
+  content.textContent = 'Cargando paquete…'
+  openDialog('#context-dialog')
+  try {
+    const context = await api(`/api/projects/${state.project.id}/context-packages/${summary.id}`)
+    content.replaceChildren()
+    content.append(item('h3', '', context.task.title))
+    const meta = item('div', 'meta', '')
+    meta.append(
+      item('span', '', `${context.memories.length} memorias`),
+      item('span', '', `${context.decisions.length} decisiones`),
+      item('span', '', context.staleSources.length ? `${context.staleSources.length} fuentes obsoletas` : 'vigente'),
+    )
+    content.append(meta, item('p', '', context.task.objective || 'Sin objetivo descrito.'))
+    content.append(item('h4', '', 'Huella inmutable'), item('code', 'package-hash', context.packageHash))
+    for (const [title, records] of [['Memorias', context.memories], ['Decisiones', context.decisions]]) {
+      content.append(item('h4', '', title))
+      const list = document.createElement('ul')
+      for (const record of records) list.append(item('li', '', record.title || record.decisionKey || 'Sin título'))
+      if (!records.length) list.append(item('li', 'muted', 'Ninguna incluida.'))
+      content.append(list)
+    }
+  } catch (error) { content.textContent = error.message }
+}
+
+function renderContextPackages(packages) {
+  const container = $('#context-packages')
+  container.replaceChildren()
+  container.classList.toggle('empty', packages.length === 0)
+  if (!packages.length) { container.textContent = 'No hay paquetes de continuidad.'; return }
+  for (const contextPackage of packages) {
+    const button = item('button', 'catalog-item inspect-button', '')
+    button.type = 'button'
+    button.append(item('strong', '', `Paquete ${contextPackage.id.slice(0, 8)}`))
+    const meta = item('div', 'meta', '')
+    meta.append(item('span', '', `${contextPackage.itemCount} fuentes`), item('span', '', new Date(contextPackage.createdAt).toLocaleString()))
+    button.append(meta)
+    button.addEventListener('click', () => inspectContinuation(contextPackage))
+    container.append(button)
+  }
+}
+
+function populateAgentOptions() {
+  const select = $('#task-agent')
+  select.replaceChildren(new Option('Sin agente', ''))
+  for (const agent of state.agents) select.add(new Option(agent.name, agent.id))
 }
 
 function renderExecutions(executions) {
@@ -103,21 +182,29 @@ async function selectProject(project) {
   renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
-  for (const selector of ['#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
+  for (const selector of ['#add-agent', '#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
   $('#tasks').textContent = 'Cargando…'
   $('#executions').textContent = 'Cargando…'
   $('#memories').textContent = 'Cargando…'
   $('#decisions').textContent = 'Cargando…'
+  $('#agents').textContent = 'Cargando…'
+  $('#context-packages').textContent = 'Cargando…'
   try {
     const catalog = await api(`/api/projects/${project.id}/catalog`)
     $('#task-count').textContent = String(catalog.tasks.length)
     $('#execution-count').textContent = String(catalog.executions.length)
     $('#memory-count').textContent = String(catalog.memories.length)
     $('#decision-count').textContent = String(catalog.decisions.length)
+    $('#agent-count').textContent = String(catalog.agents.length)
+    $('#context-count').textContent = String(catalog.contextPackages.length)
+    state.agents = catalog.agents
+    populateAgentOptions()
     renderCatalog('#memories', catalog.memories, 'memory')
     renderCatalog('#decisions', catalog.decisions, 'decision')
     renderTasks(catalog.tasks)
     renderExecutions(catalog.executions)
+    renderAgents(catalog.agents)
+    renderContextPackages(catalog.contextPackages)
   } catch (error) { showMessage(error.message, true) }
 }
 
@@ -158,7 +245,14 @@ $('#search-form').addEventListener('submit', async (event) => {
 })
 
 function openDialog(selector) { $(selector).showModal() }
+for (const cancel of document.querySelectorAll('dialog [value="cancel"]')) {
+  cancel.addEventListener('click', (event) => {
+    event.preventDefault()
+    cancel.closest('dialog').close()
+  })
+}
 $('#new-project').addEventListener('click', () => openDialog('#project-dialog'))
+$('#add-agent').addEventListener('click', () => openDialog('#agent-dialog'))
 $('#add-task').addEventListener('click', () => openDialog('#task-dialog'))
 $('#add-memory').addEventListener('click', () => openDialog('#memory-dialog'))
 $('#add-decision').addEventListener('click', () => openDialog('#decision-dialog'))
@@ -166,8 +260,8 @@ $('#add-decision').addEventListener('click', () => openDialog('#decision-dialog'
 function bindForm(formSelector, submit) {
   const form = $(formSelector)
   form.addEventListener('submit', async (event) => {
+    if (event.submitter?.value === 'cancel') return
     event.preventDefault()
-    if (event.submitter?.value === 'cancel') { form.closest('dialog').close(); return }
     const error = form.querySelector('.form-error')
     error.textContent = ''
     try {
@@ -183,6 +277,10 @@ bindForm('#project-form', async (data) => {
 })
 bindForm('#memory-form', async (data) => {
   await api(`/api/projects/${state.project.id}/memories`, { method: 'POST', body: JSON.stringify({ ...data, idempotencyKey: crypto.randomUUID() }) })
+  await selectProject(state.project)
+})
+bindForm('#agent-form', async (data) => {
+  await api(`/api/projects/${state.project.id}/agents`, { method: 'POST', body: JSON.stringify(data) })
   await selectProject(state.project)
 })
 bindForm('#task-form', async (data) => {

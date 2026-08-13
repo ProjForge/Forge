@@ -21,6 +21,7 @@
 
 .task-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -45,4 +46,26 @@ dialog select { width: 100%; max-width: none; }
   .project-filter { max-width: 320px; }
   .projects { width: 100%; max-width: 100%; overflow-x: auto; }
   .project-button { width: 170px; min-width: 170px; }
+  .top-actions { flex-wrap: wrap; }
+  .top-actions button { flex: 1 1 calc(50% - 5px); min-width: 0; }
+  .task-controls select { flex: 1 1 9rem; max-width: none; }
 }
+
+.inspect-button {
+  width: 100%;
+  border: 1px solid transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.inspect-button:hover,
+.inspect-button:focus-visible { border-color: var(--forge-cyan); }
+
+.context-dialog { width: min(44rem, calc(100vw - 2rem)); }
+.context-detail { display: grid; gap: .8rem; max-height: 65vh; overflow: auto; }
+.context-detail h3,
+.context-detail h4,
+.context-detail p,
+.context-detail ul { margin: 0; }
+.package-hash { overflow-wrap: anywhere; color: var(--forge-cyan); }
