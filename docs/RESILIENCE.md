@@ -1,6 +1,6 @@
 # FORGE resilience contract
 
-Status: Resilience 0.3, filesystem and immutable S3 recovery targets
+Status: Resilience 0.4, logical and physical recovery with filesystem and immutable S3 targets
 
 ## Guarantees in this slice
 
@@ -50,9 +50,10 @@ restore drills demonstrate it.
 
 ## Not yet claimed
 
-Logical packages are not point-in-time recovery. FORGE now includes a validated
-isolated PITR drill and safe WAL archive/restore commands, but it does not
-silently enable physical archiving on an installed production cluster.
+Logical packages are not point-in-time recovery. FORGE additionally includes
+guarded physical archiving, encrypted base/WAL transport, fail-closed
+monitoring and named-target recovery. These capabilities are opt-in and must be
+activated explicitly; Core never silently changes an installed cluster.
 PostgreSQL describes the distinct base-backup/WAL mechanism here:
 <https://www.postgresql.org/docs/18/continuous-archiving.html>.
 

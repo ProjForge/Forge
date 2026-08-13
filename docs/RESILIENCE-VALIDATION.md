@@ -1,4 +1,4 @@
-# Resilience 0.3 validation
+# Resilience 0.4 validation
 
 Date: 2026-08-13
 
@@ -16,7 +16,7 @@ Date: 2026-08-13
 |---|---|
 | Resilience default tests | 22/22 passed (21 unit + 1 S3 SDK) |
 | S3 SDK loopback integration | 1/1 passed and included in default CI gate |
-| Complete monorepo tests | 70/70 passed |
+| Complete monorepo tests | 74/74 passed |
 | Production dependency audit | 0 vulnerabilities |
 | PowerShell scripts | all 27 parsed; module-independent WAL SHA-256 regression passed |
 | Git diff whitespace | passed |
@@ -116,5 +116,5 @@ SHA-256 API, with a regression that runs under an empty `PSModulePath`.
   the validated immutable AWS replica covers total-machine loss.
 - Recovery identity rotation and periodic provider-backed restore drills remain
   ongoing operational responsibilities.
-- Exact PostgreSQL 14 binary execution remains a compatibility-matrix gap; all
-  used commands and options are documented in PostgreSQL 14.
+- PostgreSQL 14.23 + pgvector 0.8.2 CI passes schema migration, invariant and
+  restart persistence checks plus native Gateway and MCP continuity.
