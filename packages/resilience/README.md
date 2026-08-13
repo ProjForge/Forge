@@ -273,3 +273,17 @@ writes an atomic receipt only after provider re-download and authentication.
 Replay is idempotent, and raw WAL is never deleted by the uploader. The
 `-PackageOnly` mode exists for isolated acceptance tests and performs no network
 operation.
+
+`run-physical-basebackup-windows.ps1` creates one stable daily base package. It
+uses `pg_basebackup` with streamed WAL and a fast checkpoint, requires a
+SHA-256 backup manifest to pass `pg_verifybackup`, archives the verified tree,
+encrypts it and follows the same authenticated S3 receipt contract. Successful
+staging is removed; failed staging is preserved for diagnosis. A replay reuses
+the verified package and never starts a second backup for the same label.
+
+The native acceptance test uses a disposable PostgreSQL cluster and never
+connects to the production database:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-physical-basebackup-windows.ps1
+```
