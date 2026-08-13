@@ -257,3 +257,18 @@ Administrators and read/execute to NetworkService. AWS credentials, DPAPI
 secrets and asynchronous workers remain in the limited interactive-user
 boundary. A forced WAL switch must prove the effective service path before
 activation can pass.
+
+## RES-022: PowerShell 5.1 native argument quoting can truncate `ALTER SYSTEM`
+
+The first guarded production activation passed every preflight and created its
+checksummed rollback record, but `psql -c` received a truncated
+`archive_command` at the space in `E:\FORGE PITR`. Windows PowerShell 5.1 had
+reconstructed the native command line containing nested double quotes. The SQL
+failed before restart; the activator restored the exact configuration, kept
+PITR disabled and returned PostgreSQL healthy.
+
+Resolution: administrative SQL is streamed to `psql -f -` over standard input.
+The command text is no longer represented in the native argument vector, while
+the administrator password remains only in `PGPASSWORD` memory. A regression
+test requires stdin execution and rejects reintroduction of `-c $Sql` in the
+activation path.
