@@ -1,7 +1,8 @@
 # FORGE Workbench 0.1.1
 
-The first user-facing client for FORGE. It runs locally, lists projects,
-memories and decisions, supports idempotent creation, and exposes fast or
+The local human-facing client for FORGE. It runs locally, exposes an operational
+task board and agent execution history, lists memories and decisions, supports
+idempotent creation and optimistic task transitions, and offers fast or
 optional precision semantic search.
 
 ## Install on Windows

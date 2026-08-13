@@ -16,6 +16,10 @@ query embedding and optional reranking remain in Semantic Bridge. Workbench
 contains no schema migrations, provider implementation, raw SQL or persistent
 secret storage.
 
-The 0.1.0 vertical slice deliberately limits catalogs to their first bounded
-page. Cursor navigation and richer task/execution views are product increments,
-not reasons to weaken the existing core contracts.
+The current vertical slice deliberately limits catalogs to their first bounded
+page. Task creation is idempotent and status changes carry the last observed
+version, so a stale browser cannot silently overwrite a concurrent agent
+transition. Execution history remains read-only in Workbench; agents own their
+execution lifecycle through MCP. Cursor navigation, context-package inspection
+and assignment controls remain product increments, not reasons to weaken the
+existing core contracts.

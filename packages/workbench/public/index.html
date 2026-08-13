@@ -34,6 +34,7 @@
           <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
         </div>
         <div class="top-actions">
+          <button id="add-task" class="secondary" disabled>+ Tarea</button>
           <button id="add-memory" class="secondary" disabled>+ Memoria</button>
           <button id="add-decision" class="primary" disabled>+ Decisión</button>
         </div>
@@ -58,6 +59,14 @@
 
       <section class="catalog-grid">
         <article class="catalog-panel">
+          <div class="section-heading"><div><p class="eyebrow">Operación</p><h2>Tareas</h2></div><span id="task-count" class="count">0</span></div>
+          <div id="tasks" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+        <article class="catalog-panel">
+          <div class="section-heading"><div><p class="eyebrow">Actividad agéntica</p><h2>Ejecuciones</h2></div><span id="execution-count" class="count">0</span></div>
+          <div id="executions" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+        <article class="catalog-panel">
           <div class="section-heading"><div><p class="eyebrow">Conocimiento</p><h2>Memorias</h2></div><span id="memory-count" class="count">0</span></div>
           <div id="memories" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
@@ -70,6 +79,7 @@
   </div>
 
   <dialog id="project-dialog"><form id="project-form" method="dialog"><header><h2>Nuevo proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="projectKey" maxlength="200" placeholder="mi-proyecto" required></label><label>Nombre<input name="name" maxlength="500" required></label><label>Descripción<textarea name="description" maxlength="4000" rows="3"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Crear proyecto</button></footer><p class="form-error" role="alert"></p></form></dialog>
+  <dialog id="task-dialog"><form id="task-form" method="dialog"><header><h2>Nueva tarea</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="taskKey" maxlength="200" placeholder="TASK-001" required></label><label>Título<input name="title" maxlength="500" required></label><label>Objetivo<textarea name="objective" maxlength="4000" rows="4"></textarea></label><label>Prioridad<select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="critical">Crítica</option><option value="low">Baja</option></select></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Crear tarea</button></footer><p class="form-error" role="alert"></p></form></dialog>
   <dialog id="memory-dialog"><form id="memory-form" method="dialog"><header><h2>Nueva memoria</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Título<input name="title" maxlength="500"></label><label>Contenido<textarea name="content" maxlength="32000" rows="8" required></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Guardar memoria</button></footer><p class="form-error" role="alert"></p></form></dialog>
   <dialog id="decision-dialog"><form id="decision-form" method="dialog"><header><h2>Nueva decisión</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="decisionKey" maxlength="200" placeholder="DEC-001" required></label><label>Título<input name="title" maxlength="500" required></label><label>Decisión<textarea name="decisionText" maxlength="32000" rows="6" required></textarea></label><label>Razonamiento<textarea name="rationale" maxlength="32000" rows="4"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Guardar decisión</button></footer><p class="form-error" role="alert"></p></form></dialog>
   <script type="module" src="/app.js"></script>
