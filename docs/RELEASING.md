@@ -9,6 +9,8 @@ from a clean tagged commit.
 - [ ] `npm run check` passes from a clean install.
 - [ ] `npm run audit:production` reports no known production vulnerabilities.
 - [ ] Native PostgreSQL migration and runtime-role tests pass.
+- [ ] PostgreSQL 14 compatibility CI passes for schema restart, Gateway and MCP continuity.
+- [ ] Every required row in `docs/CORE-COMPLETE-GATE.md` is PASS or explicitly accepted PASS WITH LIMIT.
 - [ ] Workbench installer, DPAPI round-trip, custom port and uninstaller pass.
 - [ ] No credentials, DPAPI blobs, generated logs or local paths are tracked.
 - [ ] Source and Windows artifact SHA-256 manifests match.

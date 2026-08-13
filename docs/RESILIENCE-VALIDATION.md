@@ -1,4 +1,4 @@
-# Resilience 0.3 validation
+# Resilience 0.4 validation
 
 Date: 2026-08-13
 
@@ -16,7 +16,7 @@ Date: 2026-08-13
 |---|---|
 | Resilience default tests | 22/22 passed (21 unit + 1 S3 SDK) |
 | S3 SDK loopback integration | 1/1 passed and included in default CI gate |
-| Complete monorepo tests | 70/70 passed |
+| Complete monorepo tests | 74/74 passed |
 | Production dependency audit | 0 vulnerabilities |
 | PowerShell scripts | all 27 parsed; module-independent WAL SHA-256 regression passed |
 | Git diff whitespace | passed |

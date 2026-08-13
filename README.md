@@ -48,7 +48,7 @@ The official geometric identity and usage rules live in the
 | `mcp-server` | 0.1.5 | Strict stdio MCP adapter |
 | `embedding-worker` | 0.1.6 | Provider-pluggable indexing worker |
 | `semantic-bridge` | 0.1.4 | Natural-language search and optional reranking |
-| `resilience` | 0.3.0 | Encrypted backup, immutable replication and safe restore |
+| `resilience` | 0.4.0 | Encrypted logical/physical recovery, immutable replication and safe restore |
 | `workbench` | 0.1.1 | Local human-facing web application |
 
 ## Architecture
