@@ -52,20 +52,72 @@ function renderCatalog(target, records, kind) {
   }
 }
 
+const taskStatusLabels = { proposed: 'Propuesta', ready: 'Lista', in_progress: 'En curso', blocked: 'Bloqueada', done: 'Terminada', cancelled: 'Cancelada' }
+
+function renderTasks(tasks) {
+  const container = $('#tasks')
+  container.replaceChildren()
+  container.classList.toggle('empty', tasks.length === 0)
+  if (!tasks.length) { container.textContent = 'No hay tareas todavía.'; return }
+  for (const task of tasks) {
+    const card = item('article', 'catalog-item task-item', '')
+    card.append(item('strong', '', task.title))
+    if (task.objective) card.append(item('p', '', task.objective))
+    const controls = item('div', 'task-controls', '')
+    const meta = item('div', 'meta', '')
+    meta.append(item('span', '', task.taskKey), item('span', '', task.priority), item('span', '', `v${task.version}`))
+    const select = document.createElement('select')
+    select.setAttribute('aria-label', `Estado de ${task.title}`)
+    for (const [value, label] of Object.entries(taskStatusLabels)) select.add(new Option(label, value, false, task.status === value))
+    select.addEventListener('change', async () => {
+      select.disabled = true
+      try {
+        await api(`/api/projects/${state.project.id}/tasks/${task.id}/status`, { method: 'PATCH', body: JSON.stringify({ expectedVersion: task.version, status: select.value }) })
+        await selectProject(state.project)
+      } catch (error) { showMessage(error.message, true); select.value = task.status }
+      finally { select.disabled = false }
+    })
+    controls.append(meta, select)
+    card.append(controls)
+    container.append(card)
+  }
+}
+
+function renderExecutions(executions) {
+  const container = $('#executions')
+  container.replaceChildren()
+  container.classList.toggle('empty', executions.length === 0)
+  if (!executions.length) { container.textContent = 'No hay ejecuciones todavía.'; return }
+  for (const execution of executions) {
+    const card = item('article', 'catalog-item', '')
+    card.append(item('strong', '', execution.executionKey || 'Ejecución sin clave'))
+    const meta = item('div', 'meta', '')
+    meta.append(item('span', '', execution.status), item('span', '', execution.taskId ? 'vinculada a tarea' : 'sin tarea'), item('span', '', new Date(execution.updatedAt).toLocaleString()))
+    card.append(meta)
+    container.append(card)
+  }
+}
+
 async function selectProject(project) {
   state.project = project
   renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
-  for (const selector of ['#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
+  for (const selector of ['#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
+  $('#tasks').textContent = 'Cargando…'
+  $('#executions').textContent = 'Cargando…'
   $('#memories').textContent = 'Cargando…'
   $('#decisions').textContent = 'Cargando…'
   try {
     const catalog = await api(`/api/projects/${project.id}/catalog`)
+    $('#task-count').textContent = String(catalog.tasks.length)
+    $('#execution-count').textContent = String(catalog.executions.length)
     $('#memory-count').textContent = String(catalog.memories.length)
     $('#decision-count').textContent = String(catalog.decisions.length)
     renderCatalog('#memories', catalog.memories, 'memory')
     renderCatalog('#decisions', catalog.decisions, 'decision')
+    renderTasks(catalog.tasks)
+    renderExecutions(catalog.executions)
   } catch (error) { showMessage(error.message, true) }
 }
 
@@ -107,6 +159,7 @@ $('#search-form').addEventListener('submit', async (event) => {
 
 function openDialog(selector) { $(selector).showModal() }
 $('#new-project').addEventListener('click', () => openDialog('#project-dialog'))
+$('#add-task').addEventListener('click', () => openDialog('#task-dialog'))
 $('#add-memory').addEventListener('click', () => openDialog('#memory-dialog'))
 $('#add-decision').addEventListener('click', () => openDialog('#decision-dialog'))
 
@@ -130,6 +183,10 @@ bindForm('#project-form', async (data) => {
 })
 bindForm('#memory-form', async (data) => {
   await api(`/api/projects/${state.project.id}/memories`, { method: 'POST', body: JSON.stringify({ ...data, idempotencyKey: crypto.randomUUID() }) })
+  await selectProject(state.project)
+})
+bindForm('#task-form', async (data) => {
+  await api(`/api/projects/${state.project.id}/tasks`, { method: 'POST', body: JSON.stringify({ ...data, idempotencyKey: crypto.randomUUID() }) })
   await selectProject(state.project)
 })
 bindForm('#decision-form', async (data) => {

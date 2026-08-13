@@ -19,6 +19,27 @@
 .projects { overflow-y: auto; overflow-x: hidden; }
 .project-button { width: 100%; min-width: 0; }
 
+.task-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.task-controls select,
+dialog select {
+  max-width: 150px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0b0d10;
+  color: var(--text);
+  padding: 7px;
+  font-size: 11px;
+}
+
+dialog select { width: 100%; max-width: none; }
+
 @media (max-width: 900px) {
   .rail { width: 100%; overflow: hidden; }
   .project-filter { max-width: 320px; }

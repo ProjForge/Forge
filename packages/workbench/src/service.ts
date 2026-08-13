@@ -1,7 +1,9 @@
 import type {
   CatalogPage,
+  CreateTaskInput,
   Decision,
   DecisionCatalogItem,
+  Execution,
   Memory,
   MemoryCatalogItem,
   Project,
@@ -9,6 +11,8 @@ import type {
   RememberInput,
   SaveDecisionInput,
   SemanticSearchResult,
+  Task,
+  TaskStatus,
   TextSearchInput,
 } from 'forge-semantic-bridge/workbench'
 
@@ -17,9 +21,13 @@ export interface WorkbenchGateway {
   listProjects(input?: { limit?: number }): Promise<CatalogPage<Project>>
   listMemories(input: { projectId: string; limit?: number }): Promise<CatalogPage<MemoryCatalogItem>>
   listDecisions(input: { projectId: string; limit?: number }): Promise<CatalogPage<DecisionCatalogItem>>
+  listTasks(input: { projectId: string; limit?: number }): Promise<CatalogPage<Task>>
+  listExecutions(input: { projectId: string; limit?: number }): Promise<CatalogPage<Execution>>
   registerProject(input: RegisterProjectInput): Promise<Project>
   remember(input: RememberInput): Promise<Memory>
   saveDecision(input: SaveDecisionInput): Promise<Decision>
+  createTask(input: CreateTaskInput): Promise<Task>
+  updateTaskStatus(input: { projectId: string; taskId: string; expectedVersion: number; status: TaskStatus }): Promise<Task>
 }
 
 export interface TextSearchPort {
@@ -43,12 +51,16 @@ export class ForgeWorkbenchService {
   async catalog(projectId: string): Promise<{
     memories: MemoryCatalogItem[]
     decisions: DecisionCatalogItem[]
+    tasks: Task[]
+    executions: Execution[]
   }> {
-    const [memories, decisions] = await Promise.all([
+    const [memories, decisions, tasks, executions] = await Promise.all([
       this.gateway.listMemories({ projectId, limit: 50 }),
       this.gateway.listDecisions({ projectId, limit: 50 }),
+      this.gateway.listTasks({ projectId, limit: 50 }),
+      this.gateway.listExecutions({ projectId, limit: 50 }),
     ])
-    return { memories: memories.items, decisions: decisions.items }
+    return { memories: memories.items, decisions: decisions.items, tasks: tasks.items, executions: executions.items }
   }
 
   registerProject(input: RegisterProjectInput) {
@@ -61,6 +73,14 @@ export class ForgeWorkbenchService {
 
   saveDecision(input: SaveDecisionInput) {
     return this.gateway.saveDecision(input)
+  }
+
+  createTask(input: CreateTaskInput) {
+    return this.gateway.createTask(input)
+  }
+
+  updateTaskStatus(input: { projectId: string; taskId: string; expectedVersion: number; status: TaskStatus }) {
+    return this.gateway.updateTaskStatus(input)
   }
 
   search(input: TextSearchInput) {

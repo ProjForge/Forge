@@ -66,6 +66,23 @@ function projectId(value: string | undefined): string {
   return value
 }
 
+function entityId(value: string | undefined, name: string): string {
+  if (!value || !uuid.test(value)) throw new TypeError(`${name} must be a UUID`)
+  return value
+}
+
+function choice<const T extends readonly string[]>(input: Record<string, unknown>, key: string, allowed: T, fallback?: T[number]): T[number] {
+  const value = input[key] ?? fallback
+  if (typeof value !== 'string' || !allowed.includes(value)) throw new TypeError(`${key} is unsupported`)
+  return value
+}
+
+function positiveInteger(input: Record<string, unknown>, key: string): number {
+  const value = input[key]
+  if (!Number.isSafeInteger(value) || Number(value) < 1) throw new TypeError(`${key} must be a positive integer`)
+  return Number(value)
+}
+
 function knownError(error: unknown): { status: number; code: string; message: string } {
   if (error instanceof SyntaxError || error instanceof TypeError) {
     return { status: 400, code: 'INVALID_REQUEST', message: error.message }
@@ -149,6 +166,31 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
           title: text(input, 'title', 500)!, decisionText: text(input, 'decisionText', 32_000)!,
           ...(text(input, 'rationale', 32_000, true) ? { rationale: text(input, 'rationale', 32_000, true)! } : {}),
           status: 'accepted', idempotencyKey: text(input, 'idempotencyKey', 500)!,
+        }) })
+        return
+      }
+
+      const taskMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/tasks$/)
+      if (request.method === 'POST' && taskMatch) {
+        const input = await body(request)
+        json(response, 201, { result: await service.createTask({
+          projectId: projectId(taskMatch[1]), taskKey: text(input, 'taskKey', 200)!,
+          title: text(input, 'title', 500)!,
+          ...(text(input, 'objective', 4_000, true) ? { objective: text(input, 'objective', 4_000, true)! } : {}),
+          status: choice(input, 'status', ['proposed', 'ready', 'in_progress', 'blocked', 'done', 'cancelled'] as const, 'ready'),
+          priority: choice(input, 'priority', ['low', 'normal', 'high', 'critical'] as const, 'normal'),
+          idempotencyKey: text(input, 'idempotencyKey', 500)!,
+        }) })
+        return
+      }
+
+      const taskStatusMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/status$/)
+      if (request.method === 'PATCH' && taskStatusMatch) {
+        const input = await body(request)
+        json(response, 200, { result: await service.updateTaskStatus({
+          projectId: projectId(taskStatusMatch[1]), taskId: entityId(taskStatusMatch[2], 'taskId'),
+          expectedVersion: positiveInteger(input, 'expectedVersion'),
+          status: choice(input, 'status', ['proposed', 'ready', 'in_progress', 'blocked', 'done', 'cancelled'] as const),
         }) })
         return
       }
