@@ -6,7 +6,9 @@ decisions, supports idempotent creation plus optimistic task assignment/status
 transitions, inspects immutable continuation packages, and offers fast or
 optional precision semantic search. Assigned tasks can now complete the human
 execution lifecycle: start, compile a durable continuation snapshot, then
-finish with version-checked status.
+finish with version-checked status. The recovery panel presents sanitized,
+read-only freshness for authenticated logical replicas, WAL transport, physical
+base backups and the PITR monitor without exposing filesystem paths or secrets.
 
 ## Install on Windows
 
@@ -50,6 +52,8 @@ lms load qwen/qwen3.5-9b --identifier forge-reranker-qwen35-9b --context-length 
 - Writes flow through Gateway idempotency contracts.
 - Agent, task and continuation reads remain project-scoped in PostgreSQL.
 - PostgreSQL password is decrypted from DPAPI only in the Node launcher.
+- Recovery status readers accept only bounded regular JSON files discovered by
+  the launcher; paths, policy contents and worker errors never reach the browser.
 
 The Workbench is a local operator tool, not a remotely exposed multi-user
 service. Remote deployment requires an authenticated HTTPS boundary and is out

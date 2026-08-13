@@ -81,3 +81,30 @@ dialog select { width: 100%; max-width: none; }
   padding: 8px;
   font-size: 11px;
 }
+
+.recovery-panel {
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, #14161aee, #0f1114ee);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.recovery-intro { margin: 8px 0 18px; font-size: 12px; }
+.recovery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.recovery-card { min-width: 0; border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 14px; background: #0b0d10; }
+.recovery-card.healthy { border-left-color: var(--good); }
+.recovery-card.degraded { border-left-color: var(--accent); }
+.recovery-card.failed { border-left-color: #ff897e; }
+.recovery-card.unconfigured { border-left-color: #646b75; }
+.recovery-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.recovery-card p { margin: 10px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.recovery-card time { color: #6f7680; font-size: 9px; }
+.health-badge { display: inline-block; border: 1px solid currentColor; border-radius: 999px; padding: 4px 7px; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
+.health-badge.healthy { color: var(--good); }
+.health-badge.degraded { color: var(--accent-2); }
+.health-badge.failed { color: #ff897e; }
+.health-badge.unconfigured { color: #7b818b; }
+.recovery-checks { display: grid; gap: 5px; margin: 10px 0 0; padding-left: 16px; color: var(--muted); font-size: 10px; }
+.recovery-checks .fail { color: #ff897e; }
+
+@media (max-width: 1100px) { .recovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .recovery-grid { grid-template-columns: 1fr; } }

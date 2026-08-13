@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 
 export interface WindowsWorkbenchConfig {
   database: {
@@ -106,4 +106,21 @@ export function runtimeEnvironment(config: WindowsWorkbenchConfig, password: str
     FORGE_RERANKER_MODEL: config.embedding.rerankerModel,
     ...base,
   }
+}
+
+export function recoveryHealthEnvironment(configRoot: string): NodeJS.ProcessEnv {
+  const result: NodeJS.ProcessEnv = {
+    FORGE_LOGICAL_RECOVERY_STATUS: join(configRoot, 'resilience-status.json'),
+  }
+  try {
+    const policy = JSON.parse(readFileSync(join(configRoot, 'pitr-policy.json'), 'utf8').replace(/^\uFEFF/, '')) as { outputDirectory?: unknown }
+    if (typeof policy.outputDirectory !== 'string' || !isAbsolute(policy.outputDirectory)) return result
+    const statusRoot = join(dirname(policy.outputDirectory), 'status')
+    result.FORGE_PITR_MONITOR_STATUS = join(statusRoot, 'pitr-monitor.json')
+    result.FORGE_PHYSICAL_UPLOADER_STATUS = join(statusRoot, 'physical-uploader.json')
+    result.FORGE_PHYSICAL_BASEBACKUP_STATUS = join(statusRoot, 'physical-basebackup.json')
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Invalid FORGE PITR policy used for health discovery')
+  }
+  return result
 }

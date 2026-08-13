@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { loadWorkbenchConfig } from './config.js'
 import { runWorkbench } from './main.js'
-import { loadWindowsConfig, runtimeEnvironment } from './windows-config.js'
+import { loadWindowsConfig, recoveryHealthEnvironment, runtimeEnvironment } from './windows-config.js'
 
 const powerShell = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 const decryptScript = [
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
     const windowsConfig = loadWindowsConfig(configRoot)
     passwordBuffer = decryptPassword(join(configRoot, windowsConfig.database.credentialFile))
     password = passwordBuffer.toString('utf8')
-    const env = runtimeEnvironment(windowsConfig, password, process.env)
+    const env = runtimeEnvironment(windowsConfig, password, { ...recoveryHealthEnvironment(configRoot), ...process.env })
     await runWorkbench(loadWorkbenchConfig(env))
   } finally {
     passwordBuffer?.fill(0); passwordBuffer = undefined; password = undefined

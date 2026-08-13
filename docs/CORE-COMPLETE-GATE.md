@@ -18,7 +18,7 @@ failover, every model provider or unlimited-scale vector search.
 | PostgreSQL compatibility | Core schema and continuity run on the declared PostgreSQL 14+ floor and current 18 | PASS | PostgreSQL 18.4 passed locally; CI passes schema/restart/Gateway/MCP on PostgreSQL 14.23 + pgvector 0.8.2 |
 | Logical recovery | Encrypted package, verified replicas, immutable off-site copy and safe empty-target restore | PASS | Native D:/E:/AWS restore drill |
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
-| Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | BLOCKED | Add a read-only resilience health boundary and Workbench status panel |
+| Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
 | Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | BLOCKED | Build one guided bootstrap with prerequisite detection, resumability and rollback |
 | Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS FOR SOURCE | Signed Windows publication remains a later distribution gate |
 

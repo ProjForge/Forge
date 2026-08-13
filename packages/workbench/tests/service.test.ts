@@ -7,6 +7,13 @@ const project = {
   status: 'active' as const, metadata: {}, version: 1, createdAt: '2026-08-11T00:00:00Z', updatedAt: '2026-08-11T00:00:00Z',
 }
 
+test('composes database and recovery health without exposing the filesystem reader', async () => {
+  const gateway = { assertReady: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2' }) } as unknown as WorkbenchGateway
+  const recovery = { overall: 'healthy' as const, logical: { state: 'healthy' as const, updatedAt: '2026-08-14T00:00:00Z', summary: 'ok' }, pitr: { state: 'healthy' as const, updatedAt: '2026-08-14T00:00:00Z', summary: 'ok' }, walTransport: { state: 'healthy' as const, updatedAt: '2026-08-14T00:00:00Z', summary: 'ok' }, baseBackup: { state: 'healthy' as const, updatedAt: '2026-08-14T00:00:00Z', summary: 'ok' } }
+  const service = new ForgeWorkbenchService(gateway, { search: async () => [] }, { read: async () => recovery })
+  assert.deepEqual(await service.status(), { serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2', recovery })
+})
+
 test('composes bounded project catalogs without bypassing the gateway', async () => {
   const calls: string[] = []
   const gateway = {
