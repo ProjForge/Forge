@@ -85,7 +85,9 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   acceptance drill passed; production scheduling remains pending.
 - The AWS reference template now scopes the recovery identity and lifecycle to
   both `logical/` and `physical/`; the deployed stack is updated and validated.
-- No production replication role exists yet.
+- No production replication role exists yet. Its least-privilege setup and
+  CurrentUser-DPAPI configuration flow now pass an isolated PostgreSQL 18 SCRAM
+  `pg_basebackup` drill; production execution awaits administrator entry.
 - The distinct physical passphrase is now generated, DPAPI-protected and
   checksum-verified against its offline recovery copy. A dedicated replication
   role and scheduled physical workers remain pending.
@@ -97,6 +99,9 @@ rollback; validate logical D:/E:/AWS recovery remains healthy.
   verification, encrypted cluster binding, staging cleanup and idempotent
   offline replay. Production replication credentials and scheduling remain
   pending.
+- The monitor passes deterministic preactivation, healthy and fail-closed
+  capacity/archiver/receipt tests, plus a read-only live preactivation probe
+  against the installed PostgreSQL service. It does not change GUCs.
 
 ## Provider acceptance evidence
 
