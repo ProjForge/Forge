@@ -30,19 +30,6 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $RepositoryRoot ('.run\windows-sandbox\' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
 }
 
-$required = [ordered]@{
-    source = Join-Path $RepositoryRoot 'scripts\install-forge-windows.ps1'
-    acceptance = Join-Path $RepositoryRoot 'scripts\acceptance\windows-sandbox\Invoke-FORGE-Acceptance.ps1'
-    node = Join-Path $NodeRoot 'node.exe'
-    npm = Join-Path $NodeRoot 'npm.cmd'
-    postgres = Join-Path $PostgresRoot 'bin\initdb.exe'
-    pgvectorControl = Join-Path $PostgresRoot 'share\extension\vector.control'
-    pgvectorDll = Join-Path $PostgresRoot 'lib\vector.dll'
-}
-foreach ($entry in $required.GetEnumerator()) {
-    if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) { throw "Missing $($entry.Key) input: $($entry.Value)" }
-}
-
 $plan = [ordered]@{
     safe = $true
     mode = if ($PlanOnly) { 'plan' } else { 'acceptance' }
@@ -56,6 +43,19 @@ $plan = [ordered]@{
     timeoutMinutes = $TimeoutMinutes
 }
 if ($PlanOnly) { $plan | ConvertTo-Json -Depth 5; return }
+
+$required = [ordered]@{
+    source = Join-Path $RepositoryRoot 'scripts\install-forge-windows.ps1'
+    acceptance = Join-Path $RepositoryRoot 'scripts\acceptance\windows-sandbox\Invoke-FORGE-Acceptance.ps1'
+    node = Join-Path $NodeRoot 'node.exe'
+    npm = Join-Path $NodeRoot 'npm.cmd'
+    postgres = Join-Path $PostgresRoot 'bin\initdb.exe'
+    pgvectorControl = Join-Path $PostgresRoot 'share\extension\vector.control'
+    pgvectorDll = Join-Path $PostgresRoot 'lib\vector.dll'
+}
+foreach ($entry in $required.GetEnumerator()) {
+    if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) { throw "Missing $($entry.Key) input: $($entry.Value)" }
+}
 
 $sandboxExe = Join-Path $env:WINDIR 'System32\WindowsSandbox.exe'
 if (-not (Test-Path -LiteralPath $sandboxExe -PathType Leaf)) {
