@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join, win32 } from 'node:path'
 
 export interface McpWindowsConfig {
   host: string
@@ -28,7 +28,7 @@ export function loadMcpWindowsConfig(configRoot: string): McpWindowsConfig {
   const port = database.port ?? 5432
   if (!Number.isInteger(port) || Number(port) < 1 || Number(port) > 65_535) throw new TypeError('database.port must be an integer between 1 and 65535')
   const credentialFile = text(database.credentialFile, 'database.credentialFile')
-  if (basename(credentialFile) !== credentialFile) throw new TypeError('database.credentialFile must be a file name')
+  if (win32.basename(credentialFile) !== credentialFile) throw new TypeError('database.credentialFile must be a file name')
   return {
     host: text(database.host, 'database.host'), port: Number(port), name: text(database.name, 'database.name'),
     user: text(database.user, 'database.user'),

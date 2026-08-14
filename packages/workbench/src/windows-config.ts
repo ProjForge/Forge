@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join, win32 } from 'node:path'
 
 export interface WindowsWorkbenchConfig {
   database: {
@@ -61,7 +61,7 @@ export function parseWindowsConfig(value: unknown): WindowsWorkbenchConfig {
   const workbench = root.workbench === undefined ? {} : record(root.workbench, 'workbench')
   const embedding = root.embedding === undefined ? {} : record(root.embedding, 'embedding')
   const credentialFile = string(database.credentialFile, 'database.credentialFile', 'workbench.dpapi')
-  if (basename(credentialFile) !== credentialFile) throw new TypeError('database.credentialFile must be a file name')
+  if (win32.basename(credentialFile) !== credentialFile) throw new TypeError('database.credentialFile must be a file name')
   return {
     database: {
       host: string(database.host, 'database.host'),
