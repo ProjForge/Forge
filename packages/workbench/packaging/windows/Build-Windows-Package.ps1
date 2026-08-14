@@ -4,6 +4,7 @@ param([string]$OutputRoot)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '..\..'))
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $projectRoot '..\forge-workbench-windows-0.1.1'
 }
@@ -25,10 +26,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'TypeScript build failed' }
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
     $bundle = Join-Path $OutputRoot 'workbench-bundle.cjs'
-    $esbuild = Join-Path $projectRoot 'node_modules\.bin\esbuild.cmd'
-    & $esbuild 'dist/windows-launcher.js' '--bundle' '--platform=node' '--format=cjs' '--target=node22' '--packages=bundle' ('--outfile=' + $bundle)
+    $esbuild = Join-Path $repositoryRoot 'node_modules\.bin\esbuild.cmd'
+    $entryPoint = Join-Path $projectRoot 'dist\windows-launcher.js'
+    & $esbuild $entryPoint '--bundle' '--platform=node' '--format=cjs' '--target=node22' '--packages=bundle' ('--outfile=' + $bundle)
     if ($LASTEXITCODE -ne 0) { throw 'Windows bundle failed' }
-    $pkg = Join-Path $projectRoot 'node_modules\.bin\pkg.cmd'
+    $pkg = Join-Path $repositoryRoot 'node_modules\.bin\pkg.cmd'
     & $pkg $bundle '--targets' 'node22-win-x64' '--output' (Join-Path $stage 'FORGE-Workbench.exe') '--compress' 'Zstd' '--no-bytecode' '--public'
     if ($LASTEXITCODE -ne 0) { throw 'Windows executable packaging failed' }
 } finally {
