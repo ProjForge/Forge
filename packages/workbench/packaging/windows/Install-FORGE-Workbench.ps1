@@ -4,8 +4,9 @@ param(
     [string]$ConfigRoot = (Join-Path $env:APPDATA 'FORGE'),
     [string]$DatabaseHost = '127.0.0.1',
     [ValidateRange(1, 65535)][int]$DatabasePort = 5432,
-    [string]$DatabaseName = 'forge_test',
-    [string]$DatabaseUser = 'forge_test_runner',
+    [string]$DatabaseName = 'forge',
+    [string]$DatabaseUser = 'forge_runtime',
+    [ValidatePattern('^[^\\/:*?"<>|]+$')][string]$CredentialFile = 'workbench.dpapi',
     [ValidateRange(1, 65535)][int]$WorkbenchPort = 7334,
     [Security.SecureString]$DatabasePassword,
     [switch]$NoShortcuts,
@@ -33,17 +34,24 @@ Copy-Item -LiteralPath $sourceExe, $sourceLauncher, $sourceUninstaller -Destinat
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'public') -Destination $InstallRoot -Recurse -Force
 "http://127.0.0.1:$WorkbenchPort" | Set-Content -LiteralPath (Join-Path $InstallRoot 'workbench.url') -Encoding ascii -NoNewline
 
+$existingEmbedding = $null
+$configPath = Join-Path $ConfigRoot 'workbench.json'
+if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+    try { $existingEmbedding = (Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json).embedding }
+    catch { throw 'Existing FORGE shared configuration is invalid; refusing to overwrite it.' }
+}
 $config = [ordered]@{
     database = [ordered]@{
         host = $DatabaseHost
         port = $DatabasePort
         name = $DatabaseName
         user = $DatabaseUser
-        credentialFile = 'workbench.dpapi'
+        credentialFile = $CredentialFile
     }
     workbench = [ordered]@{ port = $WorkbenchPort }
 }
-$config | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $ConfigRoot 'workbench.json') -Encoding utf8
+if ($null -ne $existingEmbedding) { $config['embedding'] = $existingEmbedding }
+[IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
 
 if ($null -eq $DatabasePassword) {
     $DatabasePassword = Read-Host 'PostgreSQL password for the FORGE runtime user' -AsSecureString
@@ -59,7 +67,7 @@ try {
     $plainBytes = [Text.Encoding]::UTF8.GetBytes($plain)
     $protectedBytes = [Security.Cryptography.ProtectedData]::Protect(
         $plainBytes, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
-    [Convert]::ToBase64String($protectedBytes) | Set-Content -LiteralPath (Join-Path $ConfigRoot 'workbench.dpapi') -NoNewline
+    [IO.File]::WriteAllText((Join-Path $ConfigRoot $CredentialFile), [Convert]::ToBase64String($protectedBytes), [Text.Encoding]::ASCII)
 } finally {
     if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
     if ($null -ne $plainBytes) { [Array]::Clear($plainBytes, 0, $plainBytes.Length) }

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "migrate": "node scripts/migrate.mjs",
-    "test": "node tests/schema.test.mjs",
+    "test": "node --test tests/admin-scripts.test.mjs && node tests/schema.test.mjs",
     "test:embedded": "node tests/schema.test.mjs",
     "test:runtime-role": "node tests/runtime-role.test.mjs",
     "test:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-docker.ps1"

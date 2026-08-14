@@ -5,7 +5,8 @@ param(
     [string]$Database = 'forge_test',
     [string]$AdminRole = 'postgres',
     [string]$BackupRole = 'forge_backup_reader',
-    [string]$PostgresBin = 'C:\Program Files\PostgreSQL\18\bin'
+    [string]$PostgresBin = 'C:\Program Files\PostgreSQL\18\bin',
+    [Security.SecureString]$AdminPassword
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +27,13 @@ function Set-Status([string]$Status, [string]$Detail) {
 
 Set-Status 'RUNNING' "Configuring $BackupRole on $Database."
 try {
-    & $psql -X -W -h $HostName -p $Port -U $AdminRole -d $Database `
+    $adminPointer = [IntPtr]::Zero
+    if ($AdminPassword) {
+        $adminPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($AdminPassword)
+        $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($adminPointer)
+    }
+    $passwordMode = if ($AdminPassword) { '-w' } else { '-W' }
+    & $psql -X $passwordMode -h $HostName -p $Port -U $AdminRole -d $Database `
         --set "backup_role=$BackupRole" -f $sql 2>&1 | Tee-Object -FilePath $logPath
     if ($LASTEXITCODE -ne 0) { throw "Backup role setup failed with exit code $LASTEXITCODE." }
     Set-Status 'PASS' "$BackupRole has read-only FORGE backup privileges on $Database."
@@ -35,4 +42,8 @@ try {
 catch {
     Set-Status 'FAIL' $_.Exception.Message
     throw
+}
+finally {
+    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    if ($adminPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($adminPointer) }
 }
