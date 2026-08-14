@@ -37,7 +37,7 @@ try {
   for (const membership of memberships.rows) {
     await client.query(`REVOKE ${quoteIdentifier(membership.rolname)} FROM ${role}`)
   }
-  const passwordSql = await client.query('SELECT format(\'ALTER ROLE %I PASSWORD %L\', $1, $2) AS sql', [runtimeRole, password])
+  const passwordSql = await client.query('SELECT format(\'ALTER ROLE %I PASSWORD %L\', $1::text, $2::text) AS sql', [runtimeRole, password])
   await client.query(passwordSql.rows[0].sql)
   await client.query(`ALTER ROLE ${role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS INHERIT CONNECTION LIMIT 20`)
   await client.query(`ALTER ROLE ${role} SET statement_timeout = '15s'`)

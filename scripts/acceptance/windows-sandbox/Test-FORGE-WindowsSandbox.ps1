@@ -11,6 +11,16 @@ try {
         throw 'Windows Sandbox acceptance plan violates isolation requirements.'
     }
     if (Test-Path -LiteralPath $output) { throw 'Plan mode changed the filesystem.' }
+    $missingRootPlan = & (Join-Path $PSScriptRoot 'Start-FORGE-WindowsSandbox.ps1') `
+        -RepositoryRoot $repositoryRoot `
+        -NodeRoot (Join-Path $output 'missing-node') `
+        -PostgresRoot (Join-Path $output 'missing-postgresql') `
+        -OutputRoot $output `
+        -PlanOnly | ConvertFrom-Json
+    if (-not $missingRootPlan.safe -or $missingRootPlan.mode -ne 'plan') {
+        throw 'Plan mode requires host runtime binaries that it must not execute.'
+    }
+    if (Test-Path -LiteralPath $output) { throw 'Plan mode changed the filesystem.' }
     $source = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Invoke-FORGE-Acceptance.ps1')
     if ($source -match '(?im)^\s*\$(?:admin|runtime)(?:password|plain)\s*=\s*[''\"]' -or
         $source -match '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b') {
