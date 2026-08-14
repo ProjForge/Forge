@@ -1,4 +1,4 @@
-# FORGE Workbench 0.2.0-rc.1 — Windows x64
+# FORGE Workbench 0.2.0-rc.2 — Windows x64
 
 This is a FORGE technical release candidate. PostgreSQL with the compatible
 FORGE schema must already be available. LM Studio is optional for catalog and

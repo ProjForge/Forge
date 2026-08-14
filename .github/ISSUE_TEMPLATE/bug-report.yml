@@ -1,0 +1,72 @@
+name: Release candidate bug report
+description: Report a reproducible FORGE release candidate problem.
+title: "[RC bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing FORGE. Do not include passwords, connection URLs, DPAPI files, database dumps, access keys or recovery material.
+  - type: input
+    id: version
+    attributes:
+      label: FORGE version
+      placeholder: v0.2.0-rc.2
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows edition, PostgreSQL version and pgvector version if installed.
+      placeholder: Windows 11 24H2; PostgreSQL 18.4; pgvector 0.8.2
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation or launch
+        - Workbench interface
+        - Tasks or agents
+        - Memories or decisions
+        - Semantic search
+        - Recovery or continuity
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Screenshots or logs after removing secrets and personal data.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I checked that this report contains no credentials, DPAPI files, database dumps, access keys or recovery material.
+          required: true

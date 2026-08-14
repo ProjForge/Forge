@@ -15,7 +15,7 @@ For an official release, create an annotated `v<package-version>` tag and bind
 the build to it:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 -ExpectedTag v0.2.0-rc.1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 -ExpectedTag v0.2.0-rc.2
 ```
 
 The builder fails on dirty source, lightweight or mismatched tags, checksum
@@ -52,6 +52,7 @@ implementation findings and accepted boundary.
 - [ ] Third-party license notices are included with binary distributions.
 - [ ] Release notes describe compatibility, known limitations and rollback.
 - [ ] Windows binaries are signed, or the release is explicitly marked unsigned.
+- [ ] Tester instructions identify prerequisites, smoke flows and safe feedback content.
 
 ## Rollback triggers
 
