@@ -103,7 +103,7 @@ Result: **Pass**.
 Credentials were entered only through interactive hidden prompts and were not
 persisted by the validation scripts.
 
-## Optional PostgreSQL 14 container path
+## PostgreSQL 14 compatibility path
 
 Prepared image: `pgvector/pgvector:0.8.2-pg14`.
 
@@ -119,11 +119,15 @@ Command:
 npm run test:docker
 ```
 
-Docker is not installed on this host, so this optional exact-version path was not executed. Native PostgreSQL 18.4 satisfies the declared PostgreSQL 14+ target and completed the full server suite.
+The exact-version PostgreSQL 14 container path is mandatory in CI. It executes
+the migration, restart, Gateway-continuity and MCP-continuity suites. Native
+PostgreSQL 18.4 remains the local validation target.
 
 ## Compatibility assessment
 
-The migrations intentionally avoid post-14 SQL features. Syntax, constraints, locking and restart persistence were validated on PostgreSQL 18.4. Exact PostgreSQL 14 binary execution remains an optional compatibility-matrix check, not a blocker for the PostgreSQL 14+ implementation candidate.
+The migrations intentionally avoid post-14 SQL features. Syntax, constraints,
+locking and restart persistence were validated on PostgreSQL 18.4. PostgreSQL
+14 compatibility is a release blocker and is continuously enforced by CI.
 
 ## Schema 0.1.2 regression history
 

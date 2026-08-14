@@ -1,4 +1,4 @@
-# FORGE Workbench 0.1.1
+# FORGE Workbench 0.2.0-rc.1
 
 The local human-facing client for FORGE. It runs locally, exposes an operational
 task board, assigned-agent catalog and execution history, lists memories and
@@ -21,8 +21,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-FORGE-Workbench.ps
 ```
 
 No administrator permission is required. PostgreSQL and the FORGE schema remain
-prerequisites. Public publication additionally requires choosing the project
-license and a Windows code-signing identity.
+prerequisites. General-user publication additionally requires a Windows
+code-signing identity.
 
 ## Run from source on Windows
 
