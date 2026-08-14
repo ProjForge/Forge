@@ -20,17 +20,18 @@ failover, every model provider or unlimited-scale vector search.
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
 | Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | PASS | Ephemeral Windows Server 2022 acceptance passed bootstrap, DPAPI/MCP, installed Workbench, PostgreSQL restart, resume and data-safe rollback on PostgreSQL 14.23 + pgvector 0.8.2 ([run 31833285751](https://github.com/ProjForge/Forge/actions/runs/31833285751)) |
-| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Source is reproducible; signed general-user Windows publication remains a separate distribution gate |
+| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Unsigned `v0.2.0-rc.1` is published with verified hashes; automated tag-bound assembly and provenance are in place, while signed general-user Windows publication remains a separate distribution gate |
 
 ## Release decision
 
-FORGE Core is complete for the validated source distribution. This does not
-authorize a signed general-user binary until the remaining distribution
-checklist is complete. The next release order is:
+FORGE Core is complete and `v0.2.0-rc.1` is available as an explicitly unsigned
+technical prerelease. This does not authorize a general-user binary until the
+remaining distribution checklist is complete. The next release order is:
 
-1. merge the accepted clean-Windows evidence into protected `main`;
-2. run the complete release checklist from the resulting clean commit;
-3. select signing identity, sign and publish only the validated artifacts.
+1. obtain approval for the documented SignPath Foundation identity;
+2. build from a clean annotated tag and sign only the verified executable;
+3. rerun the fail-closed signed verifier, installer acceptance and rollback;
+4. publish a distinct signed RC without replacing the unsigned evidence.
 
 ## Rollback triggers
 

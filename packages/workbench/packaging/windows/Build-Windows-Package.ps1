@@ -47,11 +47,21 @@ function Get-SignTool {
     throw 'signtool.exe was not found. Install the Windows SDK signing tools.'
 }
 
+function Invoke-Npm([string[]]$Arguments) {
+    $node = Get-Command node.exe -ErrorAction Stop
+    $npmCli = Join-Path (Split-Path -Parent $node.Source) 'node_modules\npm\bin\npm-cli.js'
+    if (Test-Path -LiteralPath $npmCli -PathType Leaf) {
+        & $node.Source $npmCli @Arguments
+    } else {
+        & npm.cmd @Arguments
+    }
+}
+
 Push-Location $repositoryRoot
 try {
-    & npm.cmd ci
+    Invoke-Npm -Arguments @('ci')
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
-    & npm.cmd run build
+    Invoke-Npm -Arguments @('run', 'build')
     if ($LASTEXITCODE -ne 0) { throw 'Monorepo build failed' }
     if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
