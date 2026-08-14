@@ -12,6 +12,7 @@ Scope: Windows release assembly and verification
 | DIST-010 — Automating artifacts could accidentally automate publication | Prevented: the workflow has read-only repository contents permission, uploads only a retained workflow artifact and provenance attestations, and never creates a GitHub Release. |
 | DIST-011 — Array splatting passed named child-script parameters positionally, turning `-OutputRoot` into a path and the real path into a certificate thumbprint | Fixed: child PowerShell scripts now receive hashtable-splatted named parameters; the regression rejects array splatting at both boundaries. |
 | DIST-012 — Inline PowerShell expressions split `git archive --prefix=` and made Git parse the archive root as a revision | Fixed: output and prefix are built as atomic Git arguments; the regression requires both explicit argument variables. |
+| DIST-013 — The first live workflow passed but `upload-artifact@v4.6.2` emitted a deprecated Node 20 runtime warning | Fixed: the action is pinned to the official `v7.0.1` commit, which targets the current runner runtime. |
 
 The workflow intentionally remains unsigned until the SignPath integration is
 approved. Signing must occur before the package manifests and archives are
