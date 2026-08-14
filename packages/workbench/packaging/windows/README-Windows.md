@@ -1,4 +1,4 @@
-# FORGE Workbench 0.1.1 — Windows x64
+# FORGE Workbench 0.2.0-rc.1 — Windows x64
 
 This is an unsigned local release candidate. PostgreSQL with the compatible
 FORGE schema must already be available. LM Studio is optional for catalog and
@@ -34,4 +34,4 @@ configuration should also be removed.
 
 - The executable is not code-signed; Windows SmartScreen may warn.
 - The FORGE database/schema bootstrap remains a separate prerequisite.
-- A project license and signing identity must be selected before public release.
+- A signing identity must be selected before a signed general-user release.
