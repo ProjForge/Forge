@@ -17,6 +17,14 @@ try{
     try{& (Join-Path $PSScriptRoot 'install-forge-windows.ps1') -ConfigRoot $root -SkipWorkbench -SkipBuild -Resume}catch{$mismatchRejected=$_.Exception.Message -match 'do not match'}
     if(-not $mismatchRejected){throw 'Resume accepted a different deployment configuration.'}
     $source=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'install-forge-windows.ps1')
-    if($source -match 'bd726f08|941408Amm'){throw 'Bootstrap contains a deployment-specific identifier or secret.'}
+    if($source -match '(?im)^\s*\$(?:admin|runtime)(?:password|plain)\s*=\s*[''\"]' -or
+       $source -match '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b') {
+        throw 'Bootstrap contains a deployment-specific identifier or secret.'
+    }
+    $packagerSource=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\packages\workbench\packaging\windows\Build-Windows-Package.ps1')
+    if($packagerSource -notmatch "Join-Path \`$repositoryRoot 'node_modules\\\.bin\\esbuild\.cmd'" -or
+       $packagerSource -notmatch "Join-Path \`$repositoryRoot 'node_modules\\\.bin\\pkg\.cmd'") {
+        throw 'Workbench packaging depends on package-local binaries that npm workspaces do not install cleanly.'
+    }
     Write-Output 'PASS: Windows bootstrap plan is generic and non-mutating.'
 }finally{Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue}
