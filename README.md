@@ -81,6 +81,10 @@ Prerequisites: Node.js 20+ and npm 10+.
 For the guided Windows installation, start with the non-mutating plan in the
 [Windows bootstrap guide](docs/INSTALL-WINDOWS.md).
 
+TencentDB for PostgreSQL has a dedicated, fail-closed Core compatibility gate.
+It remains uncertified until the [provider gate](docs/TENCENTDB-COMPATIBILITY.md)
+passes on an isolated instance through a private VPC runner.
+
 ```bash
 git clone https://github.com/ProjForge/Forge.git
 cd Forge

@@ -677,10 +677,24 @@ async function runServerAfterRestart() {
   }
 }
 
+async function runServerAfterReconnect() {
+  assert.ok(connectionString, 'FORGE_TEST_DATABASE_URL is required')
+  const db = await openServerDatabase(connectionString)
+  try {
+    const runtime = await verifyRuntime(db)
+    await check('persistence after PostgreSQL connection recycle', () => verifyRestartMarker(db))
+    process.stdout.write(`${JSON.stringify({ runtime, passed: results.length, restart: 'connection-recycle-verified' }, null, 2)}\n`)
+  } finally {
+    await db.close()
+  }
+}
+
 if (mode === '--server-before-restart') {
   await runServerBeforeRestart()
 } else if (mode === '--server-after-restart') {
   await runServerAfterRestart()
+} else if (mode === '--server-after-reconnect') {
+  await runServerAfterReconnect()
 } else {
   await runEmbedded()
 }

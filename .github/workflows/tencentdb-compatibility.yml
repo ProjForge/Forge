@@ -1,0 +1,31 @@
+name: TencentDB compatibility
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tencentdb-compatibility
+  cancel-in-progress: false
+
+jobs:
+  core:
+    name: TencentDB Core compatibility
+    environment: tencentdb-compatibility
+    runs-on: [self-hosted, linux, x64, forge-tencentdb]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run isolated TencentDB gate
+        env:
+          FORGE_TENCENTDB_ADMIN_URL: ${{ secrets.TENCENTDB_ADMIN_URL }}
+          FORGE_TENCENTDB_RUNTIME_PASSWORD: ${{ secrets.TENCENTDB_RUNTIME_PASSWORD }}
+          FORGE_TENCENTDB_RUN_ID: gha_${{ github.run_id }}_${{ github.run_attempt }}
+        run: npm run test:compat:tencentdb
