@@ -31,5 +31,12 @@ try{
        $packagerSource -match '(?m)^\s*\$commit\s*=\s*\(& git ') {
         throw 'Workbench packaging requires git even when the bootstrap uses an isolated PATH.'
     }
+    $stampPosition=$packagerSource.IndexOf("& `$resedit `$pkgBase `$stampedBase")
+    $packagePosition=$packagerSource.IndexOf("& `$pkg `$bundle")
+    if($stampPosition -lt 0 -or $packagePosition -lt 0 -or $stampPosition -gt $packagePosition -or
+       $packagerSource -notmatch '\$env:PKG_NODE_PATH\s*=\s*\$stampedBase' -or
+       $packagerSource -notmatch 'Windows executable metadata verification failed') {
+        throw 'Workbench product metadata is not stamped into the Node base before pkg snapshot injection.'
+    }
     Write-Output 'PASS: Windows bootstrap plan is generic and non-mutating.'
 }finally{Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue}

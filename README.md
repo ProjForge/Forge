@@ -109,6 +109,9 @@ all writes behind Gateway validation and idempotency contracts. Never expose
 the local Workbench directly to a network.
 
 Please report vulnerabilities using the process in [SECURITY.md](SECURITY.md).
+Official binaries follow the [code signing policy](docs/CODE_SIGNING_POLICY.md).
+FORGE does not collect telemetry; network and local-data behavior is documented
+in the [privacy policy](PRIVACY.md).
 
 ## Contributing
 

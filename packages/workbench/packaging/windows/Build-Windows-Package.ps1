@@ -11,6 +11,11 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '..\..'))
 $packageMetadata = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
 $version = [string]$packageMetadata.version
+if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$') {
+    throw "Unsupported Windows release version: $version"
+}
+$revision = if ([string]::IsNullOrWhiteSpace($Matches[4])) { 0 } else { [int]$Matches[4] }
+$windowsVersion = '{0}.{1}.{2}.{3}' -f $Matches[1], $Matches[2], $Matches[3], $revision
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $projectRoot ("..\forge-workbench-windows-{0}" -f $version)
 }
@@ -55,9 +60,45 @@ try {
     $entryPoint = Join-Path $projectRoot 'dist\windows-launcher.js'
     & $esbuild $entryPoint '--bundle' '--platform=node' '--format=cjs' '--target=node22' '--packages=bundle' ('--outfile=' + $bundle)
     if ($LASTEXITCODE -ne 0) { throw 'Windows bundle failed' }
-    $pkg = Join-Path $repositoryRoot 'node_modules\.bin\pkg.cmd'
-    & $pkg $bundle '--targets' 'node22-win-x64' '--output' (Join-Path $stage 'FORGE-Workbench.exe') '--compress' 'Zstd' '--no-bytecode' '--public'
-    if ($LASTEXITCODE -ne 0) { throw 'Windows executable packaging failed' }
+    $pkgBasePathFile = Join-Path $OutputRoot '.pkg-base-path'
+    $stampedBase = Join-Path $OutputRoot '.forge-node-base.exe'
+    $previousPkgNodePath = $env:PKG_NODE_PATH
+    $resedit = Join-Path $repositoryRoot 'node_modules\.bin\resedit.cmd'
+    try {
+        & node (Join-Path $PSScriptRoot 'prepare-pkg-base.mjs') $pkgBasePathFile
+        if ($LASTEXITCODE -ne 0) { throw 'Node.js base acquisition failed' }
+        $pkgBase = (Get-Content -LiteralPath $pkgBasePathFile -Raw).Trim()
+        if (-not (Test-Path -LiteralPath $pkgBase -PathType Leaf)) { throw 'Node.js base binary was not found' }
+        & $resedit $pkgBase $stampedBase `
+            '--product-name' 'FORGE Workbench' `
+            '--product-version' $windowsVersion `
+            '--file-description' 'FORGE Workbench' `
+            '--file-version' $windowsVersion `
+            '--company-name' 'ProjForge' `
+            '--original-filename' 'FORGE-Workbench.exe' `
+            '--internal-name' 'FORGE-Workbench' `
+            '--icon' ('1,' + (Join-Path $repositoryRoot 'assets\brand\forge-favicon.ico'))
+        if ($LASTEXITCODE -ne 0) { throw 'Windows executable metadata stamping failed' }
+        $env:PKG_NODE_PATH = $stampedBase
+        $pkg = Join-Path $repositoryRoot 'node_modules\.bin\pkg.cmd'
+        & $pkg $bundle '--targets' 'node22-win-x64' '--output' (Join-Path $stage 'FORGE-Workbench.exe') '--compress' 'Zstd' '--no-bytecode' '--public'
+        if ($LASTEXITCODE -ne 0) { throw 'Windows executable packaging failed' }
+    } finally {
+        if ($null -eq $previousPkgNodePath) { Remove-Item Env:PKG_NODE_PATH -ErrorAction SilentlyContinue }
+        else { $env:PKG_NODE_PATH = $previousPkgNodePath }
+        Remove-Item -LiteralPath $pkgBasePathFile -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stampedBase -Force -ErrorAction SilentlyContinue
+    }
+    $executable = Join-Path $stage 'FORGE-Workbench.exe'
+    $versionInfo = (Get-Item -LiteralPath $executable).VersionInfo
+    if ($versionInfo.ProductName -ne 'FORGE Workbench' -or
+        $versionInfo.FileDescription -ne 'FORGE Workbench' -or
+        $versionInfo.CompanyName -ne 'ProjForge' -or
+        $versionInfo.ProductVersion -ne $windowsVersion -or
+        $versionInfo.FileVersion -ne $windowsVersion -or
+        $versionInfo.OriginalFilename -ne 'FORGE-Workbench.exe') {
+        throw 'Windows executable metadata verification failed'
+    }
 } finally {
     Pop-Location
 }
