@@ -1,7 +1,7 @@
 # FORGE Core Complete gate
 
 Date: 2026-08-14
-Status: in progress
+Status: Core Complete for source; unsigned prerelease
 
 Core Complete means FORGE's principal local workflows are complete, recoverable
 and operable by a new user. It does not mean high availability, automatic
@@ -19,18 +19,18 @@ failover, every model provider or unlimited-scale vector search.
 | Logical recovery | Encrypted package, verified replicas, immutable off-site copy and safe empty-target restore | PASS | Native D:/E:/AWS restore drill |
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
-| Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | BLOCKED ON ACCEPTANCE | Generic bootstrap, plan/resume/data-safe rollback and tests pass; run one isolated fresh-Windows execution |
-| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS FOR SOURCE | Signed Windows publication remains a later distribution gate |
+| Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | PASS | Ephemeral Windows Server 2022 acceptance passed bootstrap, DPAPI/MCP, installed Workbench, PostgreSQL restart, resume and data-safe rollback on PostgreSQL 14.23 + pgvector 0.8.2 ([run 31833285751](https://github.com/ProjForge/Forge/actions/runs/31833285751)) |
+| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Source is reproducible; signed general-user Windows publication remains a separate distribution gate |
 
 ## Release decision
 
-Do not describe FORGE as Core Complete or publish a signed general-user binary
-until every row above is PASS or PASS WITH an explicitly accepted limitation.
-The next implementation order is:
+FORGE Core is complete for the validated source distribution. This does not
+authorize a signed general-user binary until the remaining distribution
+checklist is complete. The next release order is:
 
-1. run the guided bootstrap on an isolated fresh Windows environment;
-2. correct any native finding and repeat from empty state;
-3. run the complete release checklist and only then sign/package.
+1. merge the accepted clean-Windows evidence into protected `main`;
+2. run the complete release checklist from the resulting clean commit;
+3. select signing identity, sign and publish only the validated artifacts.
 
 ## Rollback triggers
 
