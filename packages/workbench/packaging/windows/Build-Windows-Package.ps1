@@ -80,14 +80,28 @@ Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE'), (Join-Path $reposi
 & node (Join-Path $repositoryRoot 'scripts\generate-third-party-notices.mjs') '--output' (Join-Path $stage 'THIRD-PARTY-NOTICES.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Third-party notice generation failed' }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'public') -Destination $stage -Recurse -Force
-$commit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-$dirty = -not [string]::IsNullOrWhiteSpace((& git -C $repositoryRoot status --porcelain | Out-String))
+$git = Get-Command git.exe -ErrorAction SilentlyContinue
+if ($null -ne $git) {
+    $commit = (& $git.Source -C $repositoryRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to identify the source commit.' }
+    $dirty = -not [string]::IsNullOrWhiteSpace((& $git.Source -C $repositoryRoot status --porcelain | Out-String))
+    $sourceState = 'repository'
+} elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
+    $commit = $env:GITHUB_SHA
+    $dirty = $false
+    $sourceState = 'ci-environment'
+} else {
+    $commit = $null
+    $dirty = $null
+    $sourceState = 'unavailable'
+}
 [ordered]@{
     product = 'FORGE Workbench'
     version = $version
     platform = 'windows-x64'
     sourceCommit = $commit
     sourceDirty = $dirty
+    sourceState = $sourceState
     authenticodeSigned = $signed
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'RELEASE.json') -Encoding utf8
 $checksums = Get-ChildItem -LiteralPath $stage -File -Recurse | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object FullName | ForEach-Object {

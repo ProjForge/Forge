@@ -26,5 +26,10 @@ try{
        $packagerSource -notmatch "Join-Path \`$repositoryRoot 'node_modules\\\.bin\\pkg\.cmd'") {
         throw 'Workbench packaging depends on package-local binaries that npm workspaces do not install cleanly.'
     }
+    if($packagerSource -notmatch 'Get-Command git\.exe -ErrorAction SilentlyContinue' -or
+       $packagerSource -notmatch '\$env:GITHUB_SHA' -or
+       $packagerSource -match '(?m)^\s*\$commit\s*=\s*\(& git ') {
+        throw 'Workbench packaging requires git even when the bootstrap uses an isolated PATH.'
+    }
     Write-Output 'PASS: Windows bootstrap plan is generic and non-mutating.'
 }finally{Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue}
