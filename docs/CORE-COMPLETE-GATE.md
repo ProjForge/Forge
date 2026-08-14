@@ -1,7 +1,7 @@
 # FORGE Core Complete gate
 
-Date: 2026-08-14
-Status: Core Complete for source; unsigned prerelease
+Date: 2026-08-15
+Status: Core Complete for source; rc.2 candidate in validation
 
 Core Complete means FORGE's principal local workflows are complete, recoverable
 and operable by a new user. It does not mean high availability, automatic
@@ -20,12 +20,13 @@ failover, every model provider or unlimited-scale vector search.
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
 | Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | PASS | Ephemeral Windows Server 2022 acceptance passed bootstrap, DPAPI/MCP, installed Workbench, PostgreSQL restart, resume and data-safe rollback on PostgreSQL 14.23 + pgvector 0.8.2 ([run 31833285751](https://github.com/ProjForge/Forge/actions/runs/31833285751)) |
-| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Unsigned `v0.2.0-rc.1` is published with verified hashes; automated tag-bound assembly and provenance are in place, while signed general-user Windows publication remains a separate distribution gate |
+| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Unsigned `v0.2.0-rc.1` remains published; `v0.2.0-rc.2` adds automated tag-bound assembly, provenance and tester guidance. Signed general-user Windows publication remains a separate distribution gate. |
 
 ## Release decision
 
-FORGE Core is complete and `v0.2.0-rc.1` is available as an explicitly unsigned
-technical prerelease. This does not authorize a general-user binary until the
+FORGE Core is complete. `v0.2.0-rc.1` remains available as an explicitly
+unsigned technical prerelease while `v0.2.0-rc.2` is prepared for bounded
+tester evaluation. This does not authorize a general-user binary until the
 remaining distribution checklist is complete. The next release order is:
 
 1. obtain approval for the documented SignPath Foundation identity;
