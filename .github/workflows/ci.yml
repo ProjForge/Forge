@@ -41,6 +41,9 @@ jobs:
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-install-forge-windows.ps1
       - if: runner.os == 'Windows'
         shell: powershell
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-tencentdb-compatibility.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-release-windows.ps1
       - if: runner.os == 'Windows'
         shell: powershell
@@ -87,6 +90,10 @@ jobs:
         env:
           FORGE_TEST_DATABASE_URL: postgresql://forge_test:forge_test_local_only@127.0.0.1:55432/forge_test
         run: node packages/schema/tests/schema.test.mjs --server-after-restart
+      - name: Validate connection-recycle mode
+        env:
+          FORGE_TEST_DATABASE_URL: postgresql://forge_test:forge_test_local_only@127.0.0.1:55432/forge_test
+        run: node packages/schema/tests/schema.test.mjs --server-after-reconnect
       - name: Validate Gateway continuity
         env:
           FORGE_DATABASE_URL: postgresql://forge_test:forge_test_local_only@127.0.0.1:55432/forge_test
