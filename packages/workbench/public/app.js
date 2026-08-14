@@ -1,5 +1,22 @@
-const state = { token: '', projects: [], project: null, agents: [], tasks: [], executions: [], contextPackages: [] }
+const state = { token: '', projects: [], project: null, agents: [], tasks: [], executions: [], contextPackages: [], view: 'overview' }
 const $ = (selector) => document.querySelector(selector)
+
+function setView(view) {
+  state.view = view
+  document.documentElement.dataset.workspaceView = view
+  for (const section of document.querySelectorAll('[data-views]')) {
+    section.hidden = !section.dataset.views.split(' ').includes(view)
+  }
+  for (const tab of document.querySelectorAll('.view-tab')) {
+    const active = tab.dataset.view === view
+    tab.classList.toggle('active', active)
+    if (active) tab.setAttribute('aria-current', 'page')
+    else tab.removeAttribute('aria-current')
+  }
+}
+
+for (const tab of document.querySelectorAll('.view-tab')) tab.addEventListener('click', () => setView(tab.dataset.view))
+setView(state.view)
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -251,6 +268,7 @@ async function selectProject(project) {
   $('#decisions').textContent = 'Cargando…'
   $('#agents').textContent = 'Cargando…'
   $('#context-packages').textContent = 'Cargando…'
+  for (const selector of ['#metric-open-tasks', '#metric-running-executions', '#metric-knowledge']) $(selector).textContent = '…'
   try {
     const catalog = await api(`/api/projects/${project.id}/catalog`)
     $('#task-count').textContent = String(catalog.tasks.length)
@@ -263,6 +281,9 @@ async function selectProject(project) {
     state.tasks = catalog.tasks
     state.executions = catalog.executions
     state.contextPackages = catalog.contextPackages
+    $('#metric-open-tasks').textContent = String(catalog.tasks.filter((task) => !['done', 'cancelled'].includes(task.status)).length)
+    $('#metric-running-executions').textContent = String(catalog.executions.filter((execution) => execution.status === 'running').length)
+    $('#metric-knowledge').textContent = String(catalog.memories.length + catalog.decisions.length)
     populateAgentOptions()
     renderCatalog('#memories', catalog.memories, 'memory')
     renderCatalog('#decisions', catalog.decisions, 'decision')
@@ -288,6 +309,9 @@ function renderRecoveryHealth(recovery) {
   const overall = $('#recovery-overall')
   overall.className = `health-badge ${recovery.overall}`
   overall.textContent = healthLabels[recovery.overall] || 'Desconocido'
+  const metric = $('#metric-recovery')
+  metric.textContent = healthLabels[recovery.overall] || 'Desconocido'
+  metric.className = recovery.overall
   const container = $('#recovery-health')
   container.replaceChildren()
   for (const key of ['logical', 'pitr', 'walTransport', 'baseBackup']) {

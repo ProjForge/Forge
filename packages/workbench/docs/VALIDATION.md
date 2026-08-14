@@ -32,6 +32,8 @@ pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 - Live installed recovery panel: PASS; logical, PITR, WAL and base status healthy
 - Responsive recovery panel at 390×844: PASS; no horizontal overflow
 - Installed Windows PowerShell 5.1 UTF-8 BOM status/config compatibility: PASS
+- Four-area workspace navigation and project metric asset contract: PASS
+- Updated small-text contrast against raised surfaces: 5.04:1 minimum
 
 Live data showed 52 projects, 14 FORGE Core memories and 10 decisions. The UI
 now selects `forge-core` by default and offers client-side project filtering so

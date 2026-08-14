@@ -17,7 +17,7 @@
         <img class="brand-mark" src="/brand/forge-mark-color.svg" alt="">
         <span><strong>FORGE</strong><small>Workbench</small></span>
       </a>
-      <div class="rail-heading"><span>Proyectos</span><button id="new-project" class="icon-button" title="Crear proyecto">+</button></div>
+      <div class="rail-heading"><span>Proyectos</span><button id="new-project" class="icon-button" title="Crear proyecto" aria-label="Crear proyecto">+</button></div>
       <label class="project-filter"><span class="sr-only">Filtrar proyectos</span><input id="project-filter" placeholder="Filtrar proyectos…" autocomplete="off"></label>
       <nav id="projects" class="projects" aria-label="Proyectos"></nav>
       <div class="rail-footer">
@@ -28,7 +28,7 @@
 
     <main>
       <header class="topbar">
-        <div>
+        <div class="project-heading">
           <p class="eyebrow">Memoria operativa</p>
           <h1 id="project-name">Selecciona un proyecto</h1>
           <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
@@ -41,7 +41,21 @@
         </div>
       </header>
 
-      <section class="search-panel" aria-labelledby="search-title">
+      <nav class="workspace-tabs" aria-label="Secciones del proyecto">
+        <button type="button" class="view-tab active" data-view="overview" aria-current="page">Resumen</button>
+        <button type="button" class="view-tab" data-view="operation">Operación</button>
+        <button type="button" class="view-tab" data-view="knowledge">Conocimiento</button>
+        <button type="button" class="view-tab" data-view="continuity">Continuidad</button>
+      </nav>
+
+      <section class="project-stats" aria-label="Resumen del proyecto">
+        <article class="stat-card"><span>Trabajo pendiente</span><strong id="metric-open-tasks">—</strong><small>Tareas activas</small></article>
+        <article class="stat-card"><span>Ahora mismo</span><strong id="metric-running-executions">—</strong><small>Ejecuciones en curso</small></article>
+        <article class="stat-card"><span>Conocimiento</span><strong id="metric-knowledge">—</strong><small>Memorias y decisiones</small></article>
+        <article class="stat-card resilience-stat"><span>Supervivencia</span><strong id="metric-recovery">—</strong><small>Estado de recuperación</small></article>
+      </section>
+
+      <section class="search-panel workspace-view" data-views="overview knowledge" aria-labelledby="search-title">
         <div class="search-copy">
           <p class="eyebrow">Recuperación semántica</p>
           <h2 id="search-title">Pregunta a la memoria del proyecto</h2>
@@ -58,7 +72,7 @@
         <div id="results" class="results"></div>
       </section>
 
-      <section class="recovery-panel" aria-labelledby="recovery-title">
+      <section class="recovery-panel workspace-view" data-views="overview continuity" aria-labelledby="recovery-title">
         <div class="section-heading">
           <div><p class="eyebrow">Supervivencia</p><h2 id="recovery-title">Salud de recuperación</h2></div>
           <span id="recovery-overall" class="health-badge unconfigured">Sin configurar</span>
@@ -67,28 +81,28 @@
         <div id="recovery-health" class="recovery-grid" aria-live="polite"></div>
       </section>
 
-      <section class="catalog-grid">
-        <article class="catalog-panel">
+      <section class="catalog-grid workspace-view" data-views="operation knowledge continuity">
+        <article class="catalog-panel workspace-view" data-views="operation">
           <div class="section-heading"><div><p class="eyebrow">Equipo</p><h2>Agentes</h2></div><span id="agent-count" class="count">0</span></div>
           <div id="agents" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
-        <article class="catalog-panel">
+        <article class="catalog-panel workspace-view" data-views="continuity">
           <div class="section-heading"><div><p class="eyebrow">Continuidad</p><h2>Paquetes</h2></div><span id="context-count" class="count">0</span></div>
           <div id="context-packages" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
-        <article class="catalog-panel">
+        <article class="catalog-panel workspace-view" data-views="operation">
           <div class="section-heading"><div><p class="eyebrow">Operación</p><h2>Tareas</h2></div><span id="task-count" class="count">0</span></div>
           <div id="tasks" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
-        <article class="catalog-panel">
+        <article class="catalog-panel workspace-view" data-views="operation">
           <div class="section-heading"><div><p class="eyebrow">Actividad agéntica</p><h2>Ejecuciones</h2></div><span id="execution-count" class="count">0</span></div>
           <div id="executions" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
-        <article class="catalog-panel">
+        <article class="catalog-panel workspace-view" data-views="knowledge">
           <div class="section-heading"><div><p class="eyebrow">Conocimiento</p><h2>Memorias</h2></div><span id="memory-count" class="count">0</span></div>
           <div id="memories" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
-        <article class="catalog-panel">
+        <article class="catalog-panel workspace-view" data-views="knowledge">
           <div class="section-heading"><div><p class="eyebrow">Dirección</p><h2>Decisiones</h2></div><span id="decision-count" class="count">0</span></div>
           <div id="decisions" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>

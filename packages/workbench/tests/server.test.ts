@@ -41,6 +41,20 @@ test('serves the loopback API with token and origin protections', async (context
 
   const unapproved = await fetch(`${base}/brand/not-approved.svg`)
   assert.equal(unapproved.status, 404)
+
+  const index = await (await fetch(base)).text()
+  assert.match(index, /class="workspace-tabs"/)
+  assert.match(index, /data-view="overview"/)
+  assert.match(index, /id="metric-open-tasks"/)
+  assert.match(index, /data-views="operation knowledge continuity"/)
+
+  const client = await (await fetch(`${base}/app.js`)).text()
+  assert.match(client, /function setView\(view\)/)
+  assert.match(client, /metric-running-executions/)
+
+  const styles = await (await fetch(`${base}/styles.css`)).text()
+  assert.match(styles, /\.project-stats/)
+  assert.match(styles, /\[hidden\]/)
 })
 
 test('validates and forwards project-scoped human task workflow', async (context) => {
