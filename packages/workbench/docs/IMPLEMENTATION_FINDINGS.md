@@ -89,3 +89,26 @@ Resolution: the Windows launcher discovers status paths from local non-secret
 configuration. Workbench reads only bounded regular JSON files, rejects links,
 missing/malformed/stale/failing state, and exposes a sanitized summary. No path,
 policy, credential or raw worker error crosses the HTTP boundary.
+
+## FINDING-WORKBENCH-13 — Equal-weight catalogs obscured the operating model
+
+Agents, packages, tasks, executions, memories and decisions appeared as six
+equally prominent panels in one continuous page. The interface exposed all
+capabilities but did not explain their relationship. Workbench now groups them
+into Resumen, Operación, Conocimiento and Continuidad without changing any Core
+contract or hiding data behind a server-side state.
+
+## FINDING-WORKBENCH-14 — Project health required manual counting
+
+The operator could inspect each catalog but could not answer the first-screen
+questions: how much work is active, whether an agent is running, how much
+knowledge exists, and whether recovery is healthy. A compact live summary now
+derives those signals from the already project-scoped catalog and sanitized
+recovery response; no extra endpoint or duplicated persistent state was added.
+
+## FINDING-WORKBENCH-15 — Responsive did not imply mobile hierarchy
+
+The previous breakpoint prevented overflow but kept every section in one long
+mobile document. The new navigation is horizontally safe, actions form a 2x2
+touch-target grid, metrics remain scannable, and only the selected operational
+area is rendered in the reading flow. Keyboard focus is explicit throughout.
