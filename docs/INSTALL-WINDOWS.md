@@ -1,6 +1,6 @@
 # Windows bootstrap
 
-Status: implementation candidate
+Status: validated implementation
 
 The source bootstrap installs a generic FORGE environment on Windows without
 binding it to a particular project, agent or model provider. It creates the
@@ -73,12 +73,14 @@ data, encrypted credentials, recovery material and user configuration.
 .\scripts\install-forge-windows.ps1 -Rollback
 ```
 
-## Current validation boundary
+## Validation status
 
 The plan, resume state machine, rollback boundary, configuration parsing,
-schema invariants and every package suite are automated. A fully isolated
-fresh-Windows execution remains required before the Core Complete installation
-gate can be marked PASS.
+schema invariants and every package suite are automated. The complete workflow
+passed on an ephemeral Windows Server 2022 environment with Node.js 22,
+PostgreSQL 14.23 and pgvector 0.8.2, including installation, DPAPI clients,
+restart continuity, resume and data-preserving rollback. See
+[CI run 31833285751](https://github.com/ProjForge/Forge/actions/runs/31833285751).
 
 ## Isolated acceptance
 
