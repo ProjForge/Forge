@@ -1,0 +1,59 @@
+name: Release artifacts
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: release-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Assemble and verify Windows release
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Assemble and verify release candidate
+        shell: powershell
+        env:
+          FORGE_OUTPUT_ROOT: ${{ runner.temp }}\forge-release
+          FORGE_EXPECTED_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          $arguments = @('-OutputRoot', $env:FORGE_OUTPUT_ROOT)
+          if (-not [string]::IsNullOrWhiteSpace($env:FORGE_EXPECTED_TAG)) {
+            $arguments += @('-ExpectedTag', $env:FORGE_EXPECTED_TAG)
+          }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 @arguments
+      - name: Attest release archives
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/forge-release/FORGE-*-source.zip
+            ${{ runner.temp }}/forge-release/FORGE-Workbench-*-Windows-x64.zip
+      - name: Upload verified release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: forge-${{ github.ref_name }}-windows-release
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/forge-release/FORGE-*-source.zip
+            ${{ runner.temp }}/forge-release/FORGE-Workbench-*-Windows-x64.zip
+            ${{ runner.temp }}/forge-release/FORGE-Workbench-*-Windows-x64-SHA256SUMS.txt
+            ${{ runner.temp }}/forge-release/SHA256SUMS.txt
+            ${{ runner.temp }}/forge-release/release-verification.json

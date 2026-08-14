@@ -1,8 +1,9 @@
 # FORGE Workbench 0.2.0-rc.1 — Windows x64
 
-This is an unsigned local release candidate. PostgreSQL with the compatible
+This is a FORGE technical release candidate. PostgreSQL with the compatible
 FORGE schema must already be available. LM Studio is optional for catalog and
-write operations, and required for semantic search.
+write operations, and required for semantic search. Check `RELEASE.json` and
+the release notes for this package's signing status.
 
 ## Install
 
@@ -32,6 +33,8 @@ configuration should also be removed.
 
 ## Release limitations
 
-- The executable is not code-signed; Windows SmartScreen may warn.
+- An unsigned technical prerelease may trigger Windows SmartScreen. A signed
+  package must pass the timestamped Authenticode release gate.
 - The FORGE database/schema bootstrap remains a separate prerequisite.
-- A signing identity must be selected before a signed general-user release.
+- General-user promotion remains blocked until signed-package acceptance and
+  rollback are exercised.
