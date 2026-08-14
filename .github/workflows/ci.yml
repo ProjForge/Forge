@@ -41,6 +41,9 @@ jobs:
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-install-forge-windows.ps1
       - if: runner.os == 'Windows'
         shell: powershell
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/acceptance/windows-sandbox/Test-FORGE-WindowsSandbox.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/embedding-worker/scripts/test-windows-launcher.ps1
       - if: runner.os == 'Windows'
         shell: powershell
@@ -94,3 +97,48 @@ jobs:
       - name: Stop PostgreSQL 14
         if: always()
         run: docker compose -f packages/schema/compose.yaml down -v
+
+  windows-clean-bootstrap:
+    name: Clean Windows bootstrap / PostgreSQL 14
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build pgvector 0.8.2 for PostgreSQL 14
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          set "PGROOT=C:\Program Files\PostgreSQL\14"
+          git clone --filter=blob:none --no-checkout https://github.com/pgvector/pgvector.git "%RUNNER_TEMP%\pgvector"
+          git -C "%RUNNER_TEMP%\pgvector" checkout --detach cab9da72c04353f143bb06b42ab70a403daac64a
+          cd /d "%RUNNER_TEMP%\pgvector"
+          nmake /NOLOGO /F Makefile.win
+          nmake /NOLOGO /F Makefile.win install
+      - name: Run clean Windows acceptance
+        shell: powershell
+        run: |
+          $nodeRoot = Split-Path -Parent (Get-Command node.exe -ErrorAction Stop).Source
+          $postgresRoot = 'C:\Program Files\PostgreSQL\14'
+          $outputRoot = Join-Path $env:RUNNER_TEMP 'forge-acceptance-result'
+          $workRoot = Join-Path $env:RUNNER_TEMP 'forge-acceptance-work'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\acceptance\windows-sandbox\Invoke-FORGE-Acceptance.ps1 `
+            -SourceRoot $PWD.Path `
+            -NodeRoot $nodeRoot `
+            -PostgresRoot $postgresRoot `
+            -OutputRoot $outputRoot `
+            -WorkRoot $workRoot `
+            -EnvironmentLabel 'GitHub-hosted Windows Server 2022'
+      - name: Print sanitized acceptance result
+        if: always()
+        shell: powershell
+        run: |
+          $result = Join-Path $env:RUNNER_TEMP 'forge-acceptance-result\acceptance-result.json'
+          if (Test-Path -LiteralPath $result -PathType Leaf) {
+            Get-Content -LiteralPath $result -Raw
+          } else {
+            Write-Error 'The clean-Windows acceptance did not publish a result.'
+          }

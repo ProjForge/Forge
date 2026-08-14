@@ -79,3 +79,34 @@ The plan, resume state machine, rollback boundary, configuration parsing,
 schema invariants and every package suite are automated. A fully isolated
 fresh-Windows execution remains required before the Core Complete installation
 gate can be marked PASS.
+
+## Isolated acceptance
+
+The authoritative clean-Windows gate runs automatically on an ephemeral
+GitHub-hosted Windows Server 2022 runner. It builds pgvector 0.8.2 for the
+preinstalled PostgreSQL 14, creates an empty cluster and executes the same
+acceptance body used locally. The runner is destroyed after the job.
+
+Maintainers can also run that acceptance in Windows Sandbox. The repository,
+Node.js and PostgreSQL/pgvector binaries are mounted read-only; the guest creates
+its own empty PostgreSQL cluster and never connects to the host database.
+
+```powershell
+# Non-mutating host preflight.
+.\scripts\acceptance\windows-sandbox\Start-FORGE-WindowsSandbox.ps1 -PlanOnly
+
+# Enable once from an elevated shell, then restart if requested.
+.\scripts\acceptance\windows-sandbox\Enable-FORGE-WindowsSandbox.ps1
+
+# Start the isolated acceptance and wait for its sanitized JSON result.
+.\scripts\acceptance\windows-sandbox\Start-FORGE-WindowsSandbox.ps1
+```
+
+Both executors validate the complete build/test suite, schema and runtime-role
+setup, DPAPI MCP launcher, MCP process replacement, installed Workbench over
+loopback, PostgreSQL restart persistence, resumability and data-preserving
+rollback. Only a bounded, credential-free JSON result is retained.
+
+Windows 11 24H2 and later service the newer Sandbox client through Microsoft
+Store. If the client closes before the result file exists, update or repair that
+Windows component; the CI gate remains independent of the local client.
