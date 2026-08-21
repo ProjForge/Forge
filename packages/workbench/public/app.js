@@ -13,9 +13,16 @@ function setView(view) {
     if (active) tab.setAttribute('aria-current', 'page')
     else tab.removeAttribute('aria-current')
   }
+  for (const action of document.querySelectorAll('[data-action-views]')) {
+    action.hidden = !action.dataset.actionViews.split(' ').includes(view)
+    const primary = action.dataset.primaryViews?.split(' ').includes(view) === true
+    action.classList.toggle('primary', primary)
+    action.classList.toggle('secondary', !primary)
+  }
 }
 
 for (const tab of document.querySelectorAll('.view-tab')) tab.addEventListener('click', () => setView(tab.dataset.view))
+for (const metric of document.querySelectorAll('[data-target-view]')) metric.addEventListener('click', () => setView(metric.dataset.targetView))
 setView(state.view)
 
 async function api(path, options = {}) {
@@ -258,6 +265,7 @@ function renderExecutions(executions) {
 
 async function selectProject(project) {
   state.project = project
+  showMessage('')
   renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
@@ -291,14 +299,57 @@ async function selectProject(project) {
     renderExecutions(catalog.executions)
     renderAgents(catalog.agents)
     renderContextPackages(catalog.contextPackages)
+    renderNextStep()
   } catch (error) { showMessage(error.message, true) }
 }
 
 function showMessage(message, error = false) {
+  const node = $('#workspace-message')
+  node.textContent = message
+  node.classList.toggle('error', error)
+  node.hidden = !message
+  node.setAttribute('role', error ? 'alert' : 'status')
+}
+
+function showSearchMessage(message, error = false) {
   const node = $('#search-message')
   node.textContent = message
   node.classList.toggle('error', error)
 }
+
+function renderNextStep() {
+  const title = $('#next-step-title')
+  const description = $('#next-step-description')
+  const action = $('#next-step-action')
+  if (!state.project) { action.hidden = true; return }
+
+  let recommendation
+  if (!state.agents.length) recommendation = ['Asigna el primer agente', 'Un agente asignado permite convertir una tarea en una ejecución trazable.', 'agent', 'Asignar agente']
+  else if (!state.tasks.length) recommendation = ['Crea la primera tarea', 'Define el objetivo que debe ejecutar el agente dentro de este proyecto.', 'task', 'Crear tarea']
+  else if (state.tasks.some((task) => !task.assignedAgentId)) recommendation = ['Asigna las tareas pendientes', 'Hay tareas sin responsable. Asígnales un agente antes de iniciarlas.', 'operation', 'Revisar tareas']
+  else {
+    const running = state.executions.filter((execution) => execution.status === 'running')
+    const unprotected = running.find((execution) => !state.contextPackages.some((contextPackage) => contextPackage.executionId === execution.id))
+    if (unprotected) recommendation = ['Protege el trabajo en curso', 'Compila su paquete de continuidad antes de cerrar la ejecución.', 'operation', 'Ver ejecución']
+    else if (running.length) recommendation = ['Finaliza la ejecución', 'La continuidad ya está protegida. Registra ahora el resultado de la ejecución.', 'operation', 'Finalizar trabajo']
+    else if (state.tasks.some((task) => task.status === 'in_progress')) recommendation = ['Inicia la ejecución preparada', 'La tarea está en curso y tiene agente; ya puede comenzar su ejecución.', 'operation', 'Iniciar ejecución']
+    else if (state.tasks.some((task) => !['done', 'cancelled'].includes(task.status))) recommendation = ['Prepara la siguiente tarea', 'Revisa su responsable y cambia su estado a En curso cuando pueda comenzar.', 'operation', 'Abrir trabajo']
+    else recommendation = ['Captura lo aprendido', 'El trabajo está cerrado. Conserva el conocimiento útil como memoria del proyecto.', 'memory', 'Guardar memoria']
+  }
+  title.textContent = recommendation[0]
+  description.textContent = recommendation[1]
+  action.dataset.nextAction = recommendation[2]
+  action.textContent = recommendation[3]
+  action.hidden = false
+}
+
+$('#next-step-action').addEventListener('click', () => {
+  const action = $('#next-step-action').dataset.nextAction
+  if (action === 'agent') openDialog('#agent-dialog')
+  else if (action === 'task') openDialog('#task-dialog')
+  else if (action === 'memory') openDialog('#memory-dialog')
+  else setView('operation')
+})
 
 const recoveryLabels = {
   logical: 'Copia lógica', pitr: 'PITR', walTransport: 'Transporte WAL', baseBackup: 'Base física',
@@ -351,12 +402,12 @@ $('#search-form').addEventListener('submit', async (event) => {
   const query = $('#query').value.trim()
   if (!query) return
   $('#search-button').disabled = true
-  showMessage($('#rerank').checked ? 'Buscando y reordenando localmente…' : 'Buscando…')
+  showSearchMessage($('#rerank').checked ? 'Buscando y reordenando localmente…' : 'Buscando…')
   try {
     const results = await api('/api/search', { method: 'POST', body: JSON.stringify({ projectId: state.project.id, query, rerank: $('#rerank').checked }) })
     renderResults(results)
-    showMessage(`${results.length} resultados · ${$('#rerank').checked ? 'precisión local' : 'búsqueda rápida'}`)
-  } catch (error) { showMessage(error.message, true) }
+    showSearchMessage(`${results.length} resultados · ${$('#rerank').checked ? 'precisión local' : 'búsqueda rápida'}`)
+  } catch (error) { showSearchMessage(error.message, true) }
   finally { $('#search-button').disabled = false }
 })
 

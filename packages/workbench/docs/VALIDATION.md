@@ -1,10 +1,10 @@
 # Validation
 
-Validated on 2026-08-14 with Node.js 24, PostgreSQL 18.4, Schema 0.1.3,
+Validated on 2026-08-21 with Node.js 24, PostgreSQL 18.4, Schema 0.1.3,
 pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 
 - TypeScript strict production build: PASS
-- Unit/HTTP/configuration/recovery-health tests: 16/16 PASS
+- Unit/HTTP/configuration/recovery-health tests: 17/17 PASS
 - Gateway native continuation integration: PASS
 - Assigned-agent catalog and registration/assignment: PASS
 - Optimistic task reassignment and stale-version rejection: PASS
@@ -33,6 +33,10 @@ pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 - Responsive recovery panel at 390×844: PASS; no horizontal overflow
 - Installed Windows PowerShell 5.1 UTF-8 BOM status/config compatibility: PASS
 - Four-area workspace navigation and project metric asset contract: PASS
+- Human-oriented Inicio/Trabajo/Memoria/Recuperación navigation: PASS
+- Catalog-derived next-action guidance and contextual creation actions: PASS
+- Global operation errors remain visible outside the search view: PASS
+- Responsive 2x2 mobile navigation at 390×844: PASS; no horizontal overflow
 - Updated small-text contrast against raised surfaces: 5.04:1 minimum
 
 Live data showed 52 projects, 14 FORGE Core memories and 10 decisions. The UI

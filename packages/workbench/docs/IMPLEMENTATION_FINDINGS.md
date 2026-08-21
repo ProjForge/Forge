@@ -112,3 +112,20 @@ The previous breakpoint prevented overflow but kept every section in one long
 mobile document. The new navigation is horizontally safe, actions form a 2x2
 touch-target grid, metrics remain scannable, and only the selected operational
 area is rendered in the reading flow. Keyboard focus is explicit throughout.
+
+## FINDING-WORKBENCH-16 — Architecture labels did not explain the user's next action
+
+Resumen, Operación, Conocimiento and Continuidad described FORGE accurately but
+required the operator to translate internal domains into a workflow. The
+navigation now uses Inicio, Trabajo, Memoria and Recuperación, adds one-line
+intent labels, orders the operating panels as tasks, executions and agents, and
+derives one recommended next action from the existing project catalog. No new
+persistent state or Core contract was introduced.
+
+## FINDING-WORKBENCH-17 — Global operation failures were hidden by view routing
+
+Task, assignment and execution handlers wrote failures into the semantic-search
+message element. Once the workspace gained routed views, that element was hidden
+outside Inicio and Memoria, so a failed mutation could appear to do nothing. A
+view-independent live region now reports operational failures while search keeps
+its own local progress and result status.
