@@ -34,25 +34,36 @@
           <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
         </div>
         <div class="top-actions">
-          <button id="add-agent" class="secondary" disabled>+ Agente</button>
-          <button id="add-task" class="secondary" disabled>+ Tarea</button>
-          <button id="add-memory" class="secondary" disabled>+ Memoria</button>
-          <button id="add-decision" class="primary" disabled>+ Decisión</button>
+          <button id="add-agent" class="secondary" data-action-views="operation" disabled>Nuevo agente</button>
+          <button id="add-task" class="secondary" data-action-views="overview operation" data-primary-views="overview operation" disabled>Nueva tarea</button>
+          <button id="add-memory" class="secondary" data-action-views="overview knowledge" data-primary-views="knowledge" disabled>Nueva memoria</button>
+          <button id="add-decision" class="secondary" data-action-views="knowledge" disabled>Nueva decisión</button>
         </div>
       </header>
 
       <nav class="workspace-tabs" aria-label="Secciones del proyecto">
-        <button type="button" class="view-tab active" data-view="overview" aria-current="page">Resumen</button>
-        <button type="button" class="view-tab" data-view="operation">Operación</button>
-        <button type="button" class="view-tab" data-view="knowledge">Conocimiento</button>
-        <button type="button" class="view-tab" data-view="continuity">Continuidad</button>
+        <button type="button" class="view-tab active" data-view="overview" aria-current="page"><strong>Inicio</strong><small>Qué requiere atención</small></button>
+        <button type="button" class="view-tab" data-view="operation"><strong>Trabajo</strong><small>Tareas y agentes</small></button>
+        <button type="button" class="view-tab" data-view="knowledge"><strong>Memoria</strong><small>Buscar y registrar</small></button>
+        <button type="button" class="view-tab" data-view="continuity"><strong>Recuperación</strong><small>Continuidad y copias</small></button>
       </nav>
 
+      <div id="workspace-message" class="workspace-message" role="status" aria-live="polite" hidden></div>
+
       <section class="project-stats" aria-label="Resumen del proyecto">
-        <article class="stat-card"><span>Trabajo pendiente</span><strong id="metric-open-tasks">—</strong><small>Tareas activas</small></article>
-        <article class="stat-card"><span>Ahora mismo</span><strong id="metric-running-executions">—</strong><small>Ejecuciones en curso</small></article>
-        <article class="stat-card"><span>Conocimiento</span><strong id="metric-knowledge">—</strong><small>Memorias y decisiones</small></article>
-        <article class="stat-card resilience-stat"><span>Supervivencia</span><strong id="metric-recovery">—</strong><small>Estado de recuperación</small></article>
+        <button type="button" class="stat-card" data-target-view="operation"><span>Trabajo pendiente</span><strong id="metric-open-tasks">—</strong><small>Ver tareas activas</small></button>
+        <button type="button" class="stat-card" data-target-view="operation"><span>Ahora mismo</span><strong id="metric-running-executions">—</strong><small>Ver ejecuciones</small></button>
+        <button type="button" class="stat-card" data-target-view="knowledge"><span>Memoria</span><strong id="metric-knowledge">—</strong><small>Buscar y consultar</small></button>
+        <button type="button" class="stat-card resilience-stat" data-target-view="continuity"><span>Recuperación</span><strong id="metric-recovery">—</strong><small>Revisar supervivencia</small></button>
+      </section>
+
+      <section class="next-step-panel workspace-view" data-views="overview" aria-labelledby="next-step-title">
+        <div class="next-step-copy">
+          <p class="eyebrow">Siguiente paso recomendado</p>
+          <h2 id="next-step-title">Selecciona un proyecto</h2>
+          <p id="next-step-description" class="muted">FORGE te indicará la acción más útil según el estado del proyecto.</p>
+        </div>
+        <button id="next-step-action" type="button" class="primary" hidden>Continuar</button>
       </section>
 
       <section class="search-panel workspace-view" data-views="overview knowledge" aria-labelledby="search-title">
@@ -83,20 +94,16 @@
 
       <section class="catalog-grid workspace-view" data-views="operation knowledge continuity">
         <article class="catalog-panel workspace-view" data-views="operation">
-          <div class="section-heading"><div><p class="eyebrow">Equipo</p><h2>Agentes</h2></div><span id="agent-count" class="count">0</span></div>
-          <div id="agents" class="catalog-list empty">Selecciona un proyecto.</div>
-        </article>
-        <article class="catalog-panel workspace-view" data-views="continuity">
-          <div class="section-heading"><div><p class="eyebrow">Continuidad</p><h2>Paquetes</h2></div><span id="context-count" class="count">0</span></div>
-          <div id="context-packages" class="catalog-list empty">Selecciona un proyecto.</div>
-        </article>
-        <article class="catalog-panel workspace-view" data-views="operation">
           <div class="section-heading"><div><p class="eyebrow">Operación</p><h2>Tareas</h2></div><span id="task-count" class="count">0</span></div>
           <div id="tasks" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
         <article class="catalog-panel workspace-view" data-views="operation">
           <div class="section-heading"><div><p class="eyebrow">Actividad agéntica</p><h2>Ejecuciones</h2></div><span id="execution-count" class="count">0</span></div>
           <div id="executions" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+        <article class="catalog-panel workspace-view" data-views="operation">
+          <div class="section-heading"><div><p class="eyebrow">Equipo</p><h2>Agentes</h2></div><span id="agent-count" class="count">0</span></div>
+          <div id="agents" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
         <article class="catalog-panel workspace-view" data-views="knowledge">
           <div class="section-heading"><div><p class="eyebrow">Conocimiento</p><h2>Memorias</h2></div><span id="memory-count" class="count">0</span></div>
@@ -105,6 +112,10 @@
         <article class="catalog-panel workspace-view" data-views="knowledge">
           <div class="section-heading"><div><p class="eyebrow">Dirección</p><h2>Decisiones</h2></div><span id="decision-count" class="count">0</span></div>
           <div id="decisions" class="catalog-list empty">Selecciona un proyecto.</div>
+        </article>
+        <article class="catalog-panel workspace-view" data-views="continuity">
+          <div class="section-heading"><div><p class="eyebrow">Continuidad</p><h2>Paquetes</h2></div><span id="context-count" class="count">0</span></div>
+          <div id="context-packages" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
       </section>
     </main>
