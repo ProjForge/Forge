@@ -37,6 +37,8 @@ test('composes bounded project catalogs without bypassing the gateway', async ()
     startExecution: async () => { throw new Error('unused') },
     compileContinuationContext: async () => { throw new Error('unused') },
     finishExecution: async () => { throw new Error('unused') },
+    exportPortableProject: async () => { throw new Error('unused') },
+    importPortableProject: async () => { throw new Error('unused') },
   } satisfies WorkbenchGateway
   const searchPort: TextSearchPort = { search: async () => [] }
   const service = new ForgeWorkbenchService(gateway, searchPort)
@@ -73,6 +75,8 @@ test('forwards precision mode to the semantic bridge unchanged', async () => {
     startExecution: async () => { throw new Error('unused') },
     compileContinuationContext: async () => { throw new Error('unused') },
     finishExecution: async () => { throw new Error('unused') },
+    exportPortableProject: async () => { throw new Error('unused') },
+    importPortableProject: async () => { throw new Error('unused') },
   } satisfies WorkbenchGateway
   const service = new ForgeWorkbenchService(gateway, { search: async (input) => { observed = input; return [] } })
   await service.search({ projectId: project.id, query: 'decisión', sourceKinds: ['decision'], limit: 10, rerank: true })
@@ -96,4 +100,31 @@ test('forwards the execution lifecycle through the gateway contracts', async () 
   const finish = { projectId: project.id, executionId: execution.id, agentId: start.agentId, expectedVersion: 1, status: 'succeeded' as const }
   await service.finishExecution(finish)
   assert.deepEqual(calls, [start, compile, finish])
+})
+
+test('exports verified bundles and imports repository onboarding atomically through the gateway', async () => {
+  const calls: unknown[] = []
+  const payload = {
+    formatVersion: 1 as const,
+    sourceSchemaVersion: '0.1.3' as const,
+    project: { projectKey: 'existing-app', name: 'Existing App', description: null, metadata: {} },
+    agents: [], tasks: [], memories: [], decisions: [],
+    omitted: ['embeddings', 'executions', 'context_packages', 'events', 'audit_log'] as const,
+  }
+  const gateway = {
+    exportPortableProject: async (scope: string) => { calls.push({ export: scope }); return payload },
+    importPortableProject: async (input: unknown) => { calls.push(input); return { project, imported: { agents: 0, tasks: 0, memories: 1, decisions: 0 } } },
+  } as unknown as WorkbenchGateway
+  const service = new ForgeWorkbenchService(gateway, { search: async () => [] })
+  const bundle = await service.exportProject(project.id)
+  assert.equal(bundle.format, 'forge-project')
+  assert.match(bundle.checksum.value, /^[0-9a-f]{64}$/)
+
+  const onboarded = await service.onboardProject({
+    projectKey: 'existing-app', name: 'Existing App', files: [{ path: 'README.md', content: '# Existing App' }], idempotencyKey: 'import-1',
+  })
+  assert.equal(onboarded.imported.memories, 1)
+  assert.deepEqual(calls[0], { export: project.id })
+  assert.equal((calls[1] as { mode: string }).mode, 'create')
+  assert.equal((calls[1] as { payload: { memories: unknown[] } }).payload.memories.length, 1)
 })

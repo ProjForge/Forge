@@ -426,6 +426,96 @@ export interface SaveDecisionInput {
   idempotencyKey: string
 }
 
+export interface PortableProjectAgentV1 {
+  agentKey: string
+  name: string
+  role: string | null
+  capabilities: JsonObject
+  metadata: JsonObject
+  assignmentRole: string | null
+}
+
+export interface PortableProjectTaskV1 {
+  taskKey: string
+  title: string
+  objective: string | null
+  assignedAgentKey: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  metadata: JsonObject
+}
+
+export interface PortableMemoryProvenanceV1 {
+  sourceKind: ProvenanceKind
+  sourceRef: string
+  sourceVersion: string | null
+  evidence: JsonObject
+}
+
+export interface PortableProjectMemoryV1 {
+  portableId: string
+  taskKey: string | null
+  createdByAgentKey: string | null
+  memoryType: MemoryType
+  epistemicState: EpistemicState
+  trustLevel: TrustLevel
+  title: string | null
+  content: string
+  summary: string | null
+  importance: Importance
+  metadata: JsonObject
+  provenance: PortableMemoryProvenanceV1[]
+}
+
+export interface PortableProjectDecisionV1 {
+  decisionKey: string
+  taskKey: string | null
+  createdByAgentKey: string | null
+  title: string
+  decisionText: string
+  rationale: string | null
+  alternatives: JsonValue[]
+  consequences: JsonValue[]
+  status: DecisionStatus
+  supersedesDecisionKey: string | null
+  metadata: JsonObject
+}
+
+export interface PortableProjectPayloadV1 {
+  formatVersion: 1
+  sourceSchemaVersion: '0.1.3'
+  project: {
+    projectKey: string
+    name: string
+    description: string | null
+    metadata: JsonObject
+  }
+  agents: PortableProjectAgentV1[]
+  tasks: PortableProjectTaskV1[]
+  memories: PortableProjectMemoryV1[]
+  decisions: PortableProjectDecisionV1[]
+  omitted: readonly ['embeddings', 'executions', 'context_packages', 'events', 'audit_log']
+}
+
+export interface ImportPortableProjectInput {
+  payload: PortableProjectPayloadV1
+  targetProjectKey: string
+  targetProjectName?: string
+  mode: 'create' | 'merge'
+  idempotencyKey: string
+  bundleHash: string
+}
+
+export interface ImportPortableProjectResult {
+  project: Project
+  imported: {
+    agents: number
+    tasks: number
+    memories: number
+    decisions: number
+  }
+}
+
 export interface CompileContinuationInput {
   projectId: string
   taskId: string

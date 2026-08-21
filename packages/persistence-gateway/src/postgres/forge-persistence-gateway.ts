@@ -26,6 +26,8 @@ import type {
   Execution,
   ExecutionStatus,
   GetSemanticCandidateTextsInput,
+  ImportPortableProjectInput,
+  ImportPortableProjectResult,
   ListDecisionsInput,
   ListEmbeddingCandidatesInput,
   ListExecutionsInput,
@@ -39,6 +41,7 @@ import type {
   Project,
   ProjectAgentAssignment,
   ProjectAgentCatalogItem,
+  PortableProjectPayloadV1,
   PutEmbeddingInput,
   RegisterAgentInput,
   RegisterEmbeddingProfileInput,
@@ -321,6 +324,338 @@ export class ForgePersistenceGateway {
       ],
     )
     return catalogPage(result.rows, limit, mapProject)
+  }
+
+  async exportPortableProject(projectId: string): Promise<PortableProjectPayloadV1> {
+    return this.transaction(async (client) => {
+      await client.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      const projectResult = await client.query<DatabaseRow>(
+        'SELECT * FROM forge.projects WHERE id = $1',
+        [projectId],
+      )
+      if (projectResult.rowCount === 0) throw new NotFoundError('Project', projectId)
+      const project = mapProject(firstRow(projectResult.rows, 'project'))
+
+      const agents = await client.query<DatabaseRow>(
+          `SELECT agent.*, assignment.assignment_role
+             FROM forge.project_agents AS assignment
+             JOIN forge.agents AS agent ON agent.id = assignment.agent_id
+            WHERE assignment.project_id = $1 AND assignment.status = 'active'
+            ORDER BY agent.agent_key`,
+          [projectId],
+        )
+      const tasks = await client.query<DatabaseRow>(
+          `SELECT task.*, agent.agent_key AS assigned_agent_key
+             FROM forge.tasks AS task
+             LEFT JOIN forge.agents AS agent ON agent.id = task.assigned_agent_id
+            WHERE task.project_id = $1 AND task.deleted_at IS NULL
+            ORDER BY task.task_key`,
+          [projectId],
+        )
+      const memories = await client.query<DatabaseRow>(
+          `SELECT memory.*, task.task_key, agent.agent_key AS created_by_agent_key,
+                  COALESCE(
+                    jsonb_agg(jsonb_build_object(
+                      'sourceKind', provenance.source_kind,
+                      'sourceRef', provenance.source_ref,
+                      'sourceVersion', provenance.source_version,
+                      'evidence', provenance.evidence
+                    ) ORDER BY provenance.recorded_at, provenance.id)
+                    FILTER (WHERE provenance.id IS NOT NULL), '[]'::jsonb
+                  ) AS provenance
+             FROM forge.memories AS memory
+             LEFT JOIN forge.tasks AS task ON task.id = memory.task_id
+             LEFT JOIN forge.agents AS agent ON agent.id = memory.created_by_agent_id
+             LEFT JOIN forge.memory_provenance AS provenance ON provenance.memory_id = memory.id
+            WHERE memory.project_id = $1 AND memory.deleted_at IS NULL
+            GROUP BY memory.id, task.task_key, agent.agent_key
+            ORDER BY memory.created_at, memory.id`,
+          [projectId],
+        )
+      const decisions = await client.query<DatabaseRow>(
+          `SELECT decision.*, task.task_key, agent.agent_key AS created_by_agent_key,
+                  superseded.decision_key AS supersedes_decision_key
+             FROM forge.decisions AS decision
+             LEFT JOIN forge.tasks AS task ON task.id = decision.task_id
+             LEFT JOIN forge.agents AS agent ON agent.id = decision.created_by_agent_id
+             LEFT JOIN forge.decisions AS superseded ON superseded.id = decision.supersedes_id
+            WHERE decision.project_id = $1
+            ORDER BY decision.decision_key`,
+          [projectId],
+        )
+
+      return {
+        formatVersion: 1,
+        sourceSchemaVersion: '0.1.3',
+        project: {
+          projectKey: project.projectKey,
+          name: project.name,
+          description: project.description,
+          metadata: project.metadata,
+        },
+        agents: agents.rows.map((row) => ({
+          agentKey: String(row.agent_key),
+          name: String(row.name),
+          role: row.role === null ? null : String(row.role),
+          capabilities: (row.capabilities ?? {}) as JsonObject,
+          metadata: (row.metadata ?? {}) as JsonObject,
+          assignmentRole: row.assignment_role === null ? null : String(row.assignment_role),
+        })),
+        tasks: tasks.rows.map((row) => ({
+          taskKey: String(row.task_key),
+          title: String(row.title),
+          objective: row.objective === null ? null : String(row.objective),
+          assignedAgentKey: row.assigned_agent_key === null ? null : String(row.assigned_agent_key),
+          status: row.status as Task['status'],
+          priority: row.priority as Task['priority'],
+          metadata: (row.metadata ?? {}) as JsonObject,
+        })),
+        memories: memories.rows.map((row) => ({
+          portableId: String(row.id),
+          taskKey: row.task_key === null ? null : String(row.task_key),
+          createdByAgentKey: row.created_by_agent_key === null ? null : String(row.created_by_agent_key),
+          memoryType: row.memory_type as Memory['memoryType'],
+          epistemicState: row.epistemic_state as Memory['epistemicState'],
+          trustLevel: row.trust_level as Memory['trustLevel'],
+          title: row.title === null ? null : String(row.title),
+          content: String(row.content),
+          summary: row.summary === null ? null : String(row.summary),
+          importance: row.importance as Memory['importance'],
+          metadata: (row.metadata ?? {}) as JsonObject,
+          provenance: Array.isArray(row.provenance) ? row.provenance as PortableProjectPayloadV1['memories'][number]['provenance'] : [],
+        })),
+        decisions: decisions.rows.map((row) => ({
+          decisionKey: String(row.decision_key),
+          taskKey: row.task_key === null ? null : String(row.task_key),
+          createdByAgentKey: row.created_by_agent_key === null ? null : String(row.created_by_agent_key),
+          title: String(row.title),
+          decisionText: String(row.decision_text),
+          rationale: row.rationale === null ? null : String(row.rationale),
+          alternatives: Array.isArray(row.alternatives) ? row.alternatives as PortableProjectPayloadV1['decisions'][number]['alternatives'] : [],
+          consequences: Array.isArray(row.consequences) ? row.consequences as PortableProjectPayloadV1['decisions'][number]['consequences'] : [],
+          status: row.status as Decision['status'],
+          supersedesDecisionKey: row.supersedes_decision_key === null ? null : String(row.supersedes_decision_key),
+          metadata: (row.metadata ?? {}) as JsonObject,
+        })),
+        omitted: ['embeddings', 'executions', 'context_packages', 'events', 'audit_log'],
+      }
+    })
+  }
+
+  async importPortableProject(input: ImportPortableProjectInput): Promise<ImportPortableProjectResult> {
+    const targetProjectKey = nonEmpty('targetProjectKey', input.targetProjectKey)
+    const targetProjectName = nonEmpty('targetProjectName', input.targetProjectName ?? input.payload.project.name)
+    const idempotencyKey = nonEmpty('idempotencyKey', input.idempotencyKey)
+    const bundleHash = nonEmpty('bundleHash', input.bundleHash)
+    if (input.mode !== 'create' && input.mode !== 'merge') throw new TypeError('mode must be create or merge')
+    return this.transaction(async (client) => {
+      const existing = await client.query<DatabaseRow>(
+        'SELECT * FROM forge.projects WHERE project_key = $1 FOR UPDATE',
+        [targetProjectKey],
+      )
+      let project: Project
+      if (existing.rowCount === 1) {
+        project = mapProject(firstRow(existing.rows, 'project'))
+        const importMetadata = project.metadata.forgeImport
+        const samePortableSource = importMetadata !== null
+          && typeof importMetadata === 'object'
+          && !Array.isArray(importMetadata)
+          && importMetadata.bundleHash === bundleHash
+          && importMetadata.sourceProjectKey === input.payload.project.projectKey
+        if (input.mode === 'create' && !samePortableSource) {
+          throw new ConflictError(`Project key already exists: ${targetProjectKey}`)
+        }
+      } else {
+        const metadata = {
+          ...input.payload.project.metadata,
+          forgeImport: { formatVersion: 1, bundleHash, sourceProjectKey: input.payload.project.projectKey },
+        }
+        const inserted = await client.query<DatabaseRow>(
+          `INSERT INTO forge.projects(project_key, name, description, metadata)
+           VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
+          [targetProjectKey, targetProjectName, input.payload.project.description, JSON.stringify(metadata)],
+        )
+        project = mapProject(firstRow(inserted.rows, 'project'))
+      }
+
+      return runIdempotent(client, {
+        projectId: project.id,
+        scope: 'project.import.v1',
+        key: idempotencyKey,
+        request: input,
+      }, async () => {
+        const agentIds = new Map<string, string>()
+        let importedAgents = 0
+        for (const agent of input.payload.agents) {
+          const inserted = await client.query<DatabaseRow>(
+            `INSERT INTO forge.agents(agent_key, name, role, capabilities, metadata)
+             VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+             ON CONFLICT (agent_key) DO NOTHING RETURNING id`,
+            [agent.agentKey, agent.name, agent.role, JSON.stringify(agent.capabilities), JSON.stringify(agent.metadata)],
+          )
+          const id = inserted.rows[0]?.id ?? (await client.query<DatabaseRow>(
+            'SELECT * FROM forge.agents WHERE agent_key = $1', [agent.agentKey],
+          )).rows[0]?.id
+          if (!id) throw new ConflictError(`Agent could not be resolved: ${agent.agentKey}`)
+          if (inserted.rowCount !== 1) {
+            const existingAgent = await client.query<DatabaseRow>('SELECT * FROM forge.agents WHERE id = $1', [id])
+            const row = firstRow(existingAgent.rows, 'agent')
+            const matches = String(row.name) === agent.name
+              && (row.role === null ? null : String(row.role)) === agent.role
+              && stableStringify(row.capabilities ?? {}) === stableStringify(agent.capabilities)
+              && stableStringify(row.metadata ?? {}) === stableStringify(agent.metadata)
+            if (!matches) throw new ConflictError(`Agent key has incompatible data: ${agent.agentKey}`)
+          }
+          agentIds.set(agent.agentKey, String(id))
+          const assignment = await client.query(
+            `INSERT INTO forge.project_agents(project_id, agent_id, assignment_role)
+             VALUES ($1, $2, $3) ON CONFLICT (project_id, agent_id) DO NOTHING`,
+            [project.id, id, agent.assignmentRole],
+          )
+          if (assignment.rowCount === 1) importedAgents += 1
+        }
+
+        const taskIds = new Map<string, string>()
+        let importedTasks = 0
+        for (const task of input.payload.tasks) {
+          const assignedAgentId = task.assignedAgentKey ? agentIds.get(task.assignedAgentKey) : undefined
+          if (task.assignedAgentKey && !assignedAgentId) throw new ConflictError(`Task references an unknown agent: ${task.assignedAgentKey}`)
+          const taskMetadata = { ...task.metadata, forgePortableTaskKey: task.taskKey, forgeBundleHash: bundleHash }
+          const inserted = await client.query<DatabaseRow>(
+            `INSERT INTO forge.tasks(project_id, assigned_agent_id, task_key, title, objective, status, priority, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+             ON CONFLICT (project_id, task_key) DO NOTHING RETURNING id`,
+            [project.id, assignedAgentId ?? null, task.taskKey, task.title, task.objective, task.status, task.priority, JSON.stringify(taskMetadata)],
+          )
+          const existingTask = inserted.rowCount === 1 ? null : await client.query<DatabaseRow>(
+            'SELECT * FROM forge.tasks WHERE project_id = $1 AND task_key = $2', [project.id, task.taskKey],
+          )
+          const id = inserted.rows[0]?.id ?? existingTask?.rows[0]?.id
+          if (!id) throw new ConflictError(`Task could not be resolved: ${task.taskKey}`)
+          if (existingTask) {
+            const row = firstRow(existingTask.rows, 'task')
+            const matches = (row.assigned_agent_id === null ? null : String(row.assigned_agent_id)) === (assignedAgentId ?? null)
+              && String(row.title) === task.title
+              && (row.objective === null ? null : String(row.objective)) === task.objective
+              && String(row.status) === task.status
+              && String(row.priority) === task.priority
+            if (!matches) throw new ConflictError(`Task key has incompatible data: ${task.taskKey}`)
+          }
+          taskIds.set(task.taskKey, String(id))
+          if (inserted.rowCount === 1) importedTasks += 1
+        }
+
+        let importedMemories = 0
+        for (const memory of input.payload.memories) {
+          const prior = await client.query<DatabaseRow>(
+            `SELECT id FROM forge.memories
+              WHERE project_id = $1 AND metadata->>'forgePortableId' = $2`,
+            [project.id, memory.portableId],
+          )
+          if ((prior.rowCount ?? 0) > 0) continue
+          const taskId = memory.taskKey ? taskIds.get(memory.taskKey) : undefined
+          const agentId = memory.createdByAgentKey ? agentIds.get(memory.createdByAgentKey) : undefined
+          if (memory.taskKey && !taskId) throw new ConflictError(`Memory references an unknown task: ${memory.taskKey}`)
+          if (memory.createdByAgentKey && !agentId) throw new ConflictError(`Memory references an unknown agent: ${memory.createdByAgentKey}`)
+          const metadata = { ...memory.metadata, forgePortableId: memory.portableId, forgeBundleHash: bundleHash }
+          const inserted = await client.query<DatabaseRow>(
+            `INSERT INTO forge.memories(
+               project_id, task_id, created_by_agent_id, memory_type, epistemic_state,
+               trust_level, title, content, summary, importance, metadata
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
+            [project.id, taskId ?? null, agentId ?? null, memory.memoryType, memory.epistemicState,
+              memory.trustLevel, memory.title, memory.content, memory.summary, memory.importance, JSON.stringify(metadata)],
+          )
+          const memoryId = inserted.rows[0]?.id
+          if (!memoryId) throw new Error('Imported memory did not return an id')
+          for (const provenance of memory.provenance) {
+            await client.query(
+              `INSERT INTO forge.memory_provenance(memory_id, source_kind, source_ref, source_version, evidence)
+               VALUES ($1, $2, $3, $4, $5::jsonb)`,
+              [memoryId, provenance.sourceKind, provenance.sourceRef, provenance.sourceVersion, JSON.stringify(provenance.evidence)],
+            )
+          }
+          importedMemories += 1
+        }
+
+        const decisionIds = new Map<string, string>()
+        let importedDecisions = 0
+        for (const decision of input.payload.decisions) {
+          const taskId = decision.taskKey ? taskIds.get(decision.taskKey) : undefined
+          const agentId = decision.createdByAgentKey ? agentIds.get(decision.createdByAgentKey) : undefined
+          if (decision.taskKey && !taskId) throw new ConflictError(`Decision references an unknown task: ${decision.taskKey}`)
+          if (decision.createdByAgentKey && !agentId) throw new ConflictError(`Decision references an unknown agent: ${decision.createdByAgentKey}`)
+          const metadata = { ...decision.metadata, forgeBundleHash: bundleHash }
+          const inserted = await client.query<DatabaseRow>(
+            `INSERT INTO forge.decisions(
+               project_id, task_id, created_by_agent_id, decision_key, title, decision_text,
+               rationale, alternatives, consequences, status, metadata
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb)
+             ON CONFLICT (project_id, decision_key) DO NOTHING RETURNING id`,
+            [project.id, taskId ?? null, agentId ?? null, decision.decisionKey, decision.title,
+              decision.decisionText, decision.rationale, JSON.stringify(decision.alternatives),
+              JSON.stringify(decision.consequences), decision.status, JSON.stringify(metadata)],
+          )
+          const existingDecision = inserted.rowCount === 1 ? null : await client.query<DatabaseRow>(
+            'SELECT * FROM forge.decisions WHERE project_id = $1 AND decision_key = $2',
+            [project.id, decision.decisionKey],
+          )
+          const id = inserted.rows[0]?.id ?? existingDecision?.rows[0]?.id
+          if (!id) throw new ConflictError(`Decision could not be resolved: ${decision.decisionKey}`)
+          if (existingDecision) {
+            const row = firstRow(existingDecision.rows, 'decision')
+            const matches = (row.task_id === null ? null : String(row.task_id)) === (taskId ?? null)
+              && (row.created_by_agent_id === null ? null : String(row.created_by_agent_id)) === (agentId ?? null)
+              && String(row.title) === decision.title
+              && String(row.decision_text) === decision.decisionText
+              && (row.rationale === null ? null : String(row.rationale)) === decision.rationale
+              && stableStringify(row.alternatives ?? []) === stableStringify(decision.alternatives)
+              && stableStringify(row.consequences ?? []) === stableStringify(decision.consequences)
+              && String(row.status) === decision.status
+            if (!matches) throw new ConflictError(`Decision key has incompatible data: ${decision.decisionKey}`)
+          }
+          decisionIds.set(decision.decisionKey, String(id))
+          if (inserted.rowCount === 1) importedDecisions += 1
+        }
+        for (const decision of input.payload.decisions) {
+          if (!decision.supersedesDecisionKey) continue
+          const id = decisionIds.get(decision.decisionKey)
+          const supersedesId = decisionIds.get(decision.supersedesDecisionKey)
+          if (!id || !supersedesId) throw new ConflictError(`Decision supersession reference is unresolved: ${decision.decisionKey}`)
+          await client.query(
+            'UPDATE forge.decisions SET supersedes_id = $1 WHERE id = $2 AND supersedes_id IS NULL',
+            [supersedesId, id],
+          )
+        }
+
+        await this.appendEvent(client, {
+          projectId: project.id,
+          executionId: null,
+          agentId: null,
+          eventType: 'project.imported',
+          idempotencyKey,
+          payload: { bundleHash, sourceProjectKey: input.payload.project.projectKey },
+        })
+        await this.appendAudit(client, {
+          projectId: project.id,
+          executionId: null,
+          contextPackageId: null,
+          agentId: null,
+          action: 'project.import',
+          resource: `project:${project.id}`,
+          details: { bundleHash, mode: input.mode },
+        })
+        return {
+          project,
+          imported: {
+            agents: importedAgents,
+            tasks: importedTasks,
+            memories: importedMemories,
+            decisions: importedDecisions,
+          },
+        }
+      })
+    })
   }
 
   async registerEmbeddingProfile(

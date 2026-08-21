@@ -38,6 +38,9 @@ The official geometric identity and usage rules live in the
   idempotent write contracts.
 - **Verified recovery:** authenticated encrypted backups restore only into an
   empty database and prove migration checksums and table counts afterwards.
+- **Project portability:** onboard existing repositories from a conservative
+  documentation allowlist or move checksummed project state between FORGE
+  installations without replaying fabricated operational history.
 
 ## Components
 
@@ -72,7 +75,9 @@ flowchart LR
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) and the
-[decision records](docs/decisions/) for boundaries and trade-offs.
+[decision records](docs/decisions/) for boundaries and trade-offs. The
+[project portability guide](docs/PROJECT-PORTABILITY.md) documents repository
+onboarding and the `.forge-project` format.
 
 ## Quick start for contributors
 

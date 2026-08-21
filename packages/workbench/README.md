@@ -13,6 +13,12 @@ The interface groups these capabilities into Resumen, Operación,
 Conocimiento and Continuidad views and derives project health metrics from the
 same project-scoped Gateway data.
 
+Workbench can also onboard an existing repository from a bounded documentation
+allowlist and export/import checksummed `.forge-project` bundles. Portable state
+includes agents, tasks, memories with provenance and decisions. It deliberately
+excludes embeddings and immutable operational history; see
+[`docs/PROJECT-PORTABILITY.md`](../../docs/PROJECT-PORTABILITY.md).
+
 ## Install on Windows
 
 The Windows x64 release candidate contains an executable with its own Node.js
@@ -56,7 +62,9 @@ lms load qwen/qwen3.5-9b --identifier forge-reranker-qwen35-9b --context-length 
 - Loopback-only HTTP server.
 - Random per-process API token and same-origin enforcement.
 - CSP, frame denial, no-store and MIME-sniffing protection.
-- 64 KiB JSON limit and bounded text inputs.
+- 64 KiB ordinary JSON limit, a 4 MiB package limit and bounded text inputs.
+- Repository onboarding rejects source trees, traversal and likely secret paths.
+- Portable imports verify their SHA-256 envelope and commit atomically.
 - No raw SQL or browser-held database credentials.
 - Writes flow through Gateway idempotency contracts.
 - Agent, task and continuation reads remain project-scoped in PostgreSQL.
@@ -74,6 +82,13 @@ of scope for 0.1.x.
 npm run build
 npm test
 npm audit --omit=dev
+```
+
+Native PostgreSQL 18 portability acceptance uses an isolated loopback cluster
+that is erased after the run:
+
+```powershell
+.\scripts\acceptance\Test-FORGE-ProjectPortability.ps1
 ```
 
 See `docs/ARCHITECTURE.md`, `docs/VALIDATION.md` and

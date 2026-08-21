@@ -11,6 +11,8 @@ import type {
   ExecutionStatus,
   Memory,
   MemoryCatalogItem,
+  ImportPortableProjectResult,
+  PortableProjectPayloadV1,
   Project,
   ProjectAgentAssignment,
   ProjectAgentCatalogItem,
@@ -25,6 +27,13 @@ import type {
   TextSearchInput,
 } from 'forge-semantic-bridge/workbench'
 import { unconfiguredRecoveryHealth, type RecoveryHealthPort } from './recovery-health.js'
+import {
+  createOnboardingPayload,
+  createPortableProjectBundle,
+  parsePortableProjectBundle,
+  type OnboardingProjectInput,
+  type PortableProjectBundleV1,
+} from './project-portability.js'
 
 export interface WorkbenchGateway {
   assertReady(): Promise<{ serverVersion: string; schemaVersion: string; vectorVersion: string | null }>
@@ -47,6 +56,15 @@ export interface WorkbenchGateway {
   startExecution(input: StartExecutionInput): Promise<Execution>
   compileContinuationContext(input: CompileContinuationInput): Promise<ContinuationPackage>
   finishExecution(input: { projectId: string; executionId: string; agentId: string; expectedVersion: number; status: Extract<ExecutionStatus, 'succeeded' | 'failed' | 'cancelled'> }): Promise<Execution>
+  exportPortableProject(projectId: string): Promise<PortableProjectPayloadV1>
+  importPortableProject(input: {
+    payload: PortableProjectPayloadV1
+    targetProjectKey: string
+    targetProjectName?: string
+    mode: 'create' | 'merge'
+    idempotencyKey: string
+    bundleHash: string
+  }): Promise<ImportPortableProjectResult>
 }
 
 export interface TextSearchPort {
@@ -100,6 +118,41 @@ export class ForgeWorkbenchService {
 
   registerProject(input: RegisterProjectInput) {
     return this.gateway.registerProject(input)
+  }
+
+  async exportProject(projectId: string): Promise<PortableProjectBundleV1> {
+    return createPortableProjectBundle(await this.gateway.exportPortableProject(projectId))
+  }
+
+  async importProject(input: {
+    bundle: unknown
+    targetProjectKey: string
+    targetProjectName?: string
+    mode: 'create' | 'merge'
+    idempotencyKey: string
+  }): Promise<ImportPortableProjectResult> {
+    const bundle = parsePortableProjectBundle(input.bundle)
+    return this.gateway.importPortableProject({
+      payload: bundle.payload,
+      targetProjectKey: input.targetProjectKey,
+      ...(input.targetProjectName ? { targetProjectName: input.targetProjectName } : {}),
+      mode: input.mode,
+      idempotencyKey: input.idempotencyKey,
+      bundleHash: bundle.checksum.value,
+    })
+  }
+
+  async onboardProject(input: OnboardingProjectInput & { idempotencyKey: string }): Promise<ImportPortableProjectResult> {
+    const payload = createOnboardingPayload(input)
+    const bundle = createPortableProjectBundle(payload)
+    return this.gateway.importPortableProject({
+      payload,
+      targetProjectKey: payload.project.projectKey,
+      targetProjectName: payload.project.name,
+      mode: 'create',
+      idempotencyKey: input.idempotencyKey,
+      bundleHash: bundle.checksum.value,
+    })
   }
 
   async registerAndAssignAgent(input: RegisterAgentInput & { projectId: string; assignmentRole?: string }) {
