@@ -1,4 +1,4 @@
-# FORGE Workbench 0.2.0-rc.3
+# FORGE Workbench 0.2.0-rc.4
 
 The local human-facing client for FORGE. It runs locally, exposes an operational
 task board, assigned-agent catalog and execution history, lists memories and
