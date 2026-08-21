@@ -47,6 +47,7 @@ try {
     Set-Runtime $true $now.AddHours(-2)
     Set-Fixture 0 100GB '0/2000000'
     Write-Receipt 'wal-recent' 'wal' $now.AddMinutes(-10)
+    Write-Receipt 'base-old' 'base-backup' $now.AddHours(-30)
     Write-Receipt 'base-recent' 'base-backup' $now.AddHours(-2)
     if ((Invoke-Monitor) -ne 0) { throw 'Healthy activated monitor unexpectedly failed.' }
     $status = Get-Content -LiteralPath (Join-Path $pitr 'status\pitr-monitor.json') -Raw | ConvertFrom-Json
@@ -66,7 +67,7 @@ try {
     foreach ($expected in @('capacity-E','archiver-failures','wal-receipt-age','base-receipt-age')) {
         if ($expected -notin $failures) { throw "Missing expected monitor failure: $expected" }
     }
-    Write-Output 'PASS: PITR monitor distinguishes preactivation, healthy operation and fail-closed capacity/archiver/receipt conditions.'
+    Write-Output 'PASS: PITR monitor selects the newest typed receipt and distinguishes preactivation, healthy operation and fail-closed capacity/archiver/receipt conditions.'
 }
 finally {
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

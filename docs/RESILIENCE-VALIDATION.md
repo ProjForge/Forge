@@ -112,6 +112,16 @@ SHA-256 API, with a regression that runs under an empty `PSModulePath`.
 
 ## Remaining deployment limits
 
+On 2026-08-21 the production schedules were recovered after an intentional
+manual disable caused by recurring console flashes. All four Resilience actions
+were migrated to the validated invisible `wscript.exe` launcher and re-enabled.
+The live acceptance then produced authenticated base receipt
+`base-20260821`, authenticated WAL segments `000000010000000000000015` and
+`000000010000000000000016`, and a new logical filesystem/AWS replica pair.
+The final monitor passed service, C:/E: capacity, archive settings, archiver
+failures, WAL age and base-backup age with zero failures. RES-026 records the
+multiple-receipt false negative found and fixed by this run.
+
 - The local replica remains on an independent disk in the same computer, while
   the validated immutable AWS replica covers total-machine loss.
 - Recovery identity rotation and periodic provider-backed restore drills remain
