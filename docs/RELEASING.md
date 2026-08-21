@@ -45,6 +45,8 @@ implementation findings and accepted boundary.
 - [ ] PostgreSQL 14 compatibility CI passes for schema restart, Gateway and MCP continuity.
 - [ ] Every required row in `docs/CORE-COMPLETE-GATE.md` is PASS or explicitly accepted PASS WITH LIMIT.
 - [ ] Workbench installer, DPAPI round-trip, custom port and uninstaller pass.
+- [ ] Workbench update preserves configuration/DPAPI, rejects downgrade and survives a pre-publication swap failure.
+- [ ] The allowlist diagnostics fixture proves connection identities, paths and secret sentinels are absent.
 - [ ] No credentials, DPAPI blobs, generated logs or local paths are tracked.
 - [ ] Source and Windows artifact SHA-256 manifests match.
 - [ ] `release-verification.json` records the exact clean source commit.
@@ -61,6 +63,7 @@ implementation findings and accepted boundary.
 - Managed identity, optimistic locking or append-only invariant regression.
 - Workbench binding outside loopback.
 - Credential exposure in process output, browser state or release artifacts.
+- Mixed-version application files or loss of preserved configuration during update.
 
 Rollback means withdrawing the affected prerelease artifact and restoring the
 last validated version. Applied database migrations are never reverted with

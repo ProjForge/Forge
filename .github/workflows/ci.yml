@@ -47,6 +47,12 @@ jobs:
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-release-windows.ps1
       - if: runner.os == 'Windows'
         shell: powershell
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/workbench/packaging/windows/Test-Windows-Lifecycle.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/workbench/packaging/windows/Test-Diagnostics.ps1
+      - if: runner.os == 'Windows'
+        shell: powershell
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/acceptance/windows-sandbox/Test-FORGE-WindowsSandbox.ps1
       - if: runner.os == 'Windows'
         shell: powershell

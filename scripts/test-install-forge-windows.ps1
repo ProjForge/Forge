@@ -31,6 +31,9 @@ try{
        $packagerSource -match '(?m)^\s*\$commit\s*=\s*\(& git ') {
         throw 'Workbench packaging requires git even when the bootstrap uses an isolated PATH.'
     }
+    if($packagerSource -notmatch 'Export-FORGE-Diagnostics\.ps1') {
+        throw 'Workbench packaging omitted the allowlist-redacted tester diagnostics exporter.'
+    }
     $stampPosition=$packagerSource.IndexOf("& `$resedit `$pkgBase `$stampedBase")
     $packagePosition=$packagerSource.IndexOf("& `$pkg `$bundle")
     if($stampPosition -lt 0 -or $packagePosition -lt 0 -or $stampPosition -gt $packagePosition -or

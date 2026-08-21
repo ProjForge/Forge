@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 $builder = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Build-FORGE-WindowsRelease.ps1') -Raw
 $verifier = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Test-FORGE-WindowsRelease.ps1') -Raw
 $packager = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\packages\workbench\packaging\windows\Build-Windows-Package.ps1') -Raw
+$installer = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\packages\workbench\packaging\windows\Install-FORGE-Workbench.ps1') -Raw
 
 foreach ($required in @(
     'status --porcelain --untracked-files=all',
@@ -33,7 +34,11 @@ foreach ($required in @(
     if ($verifier -notmatch $required) { throw "Release verifier lost invariant: $required" }
 }
 if ($packager -notmatch 'node_modules\\npm\\bin\\npm-cli\.js' -or
-    $packager -match '(?m)^\s*& npm\.cmd (?:ci|run build)\s*$') {
+    $packager -match '(?m)^\s*& npm\.cmd (?:ci|run build)\s*$' -or
+    $packager -notmatch 'Export-FORGE-Diagnostics\.ps1') {
     throw 'Workbench packaging still depends directly on the environment npm.cmd wrapper.'
+}
+foreach ($required in @('Test-Distribution','Refusing to downgrade','requires -Reconfigure','DPAPI credential were preserved','forge-workbench-backup')) {
+    if ($installer -notmatch $required) { throw "Workbench installer lost lifecycle invariant: $required" }
 }
 Write-Output 'PASS: Windows release assembly remains clean, tag-bound and fail-closed.'

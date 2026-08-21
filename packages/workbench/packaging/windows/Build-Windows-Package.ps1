@@ -126,7 +126,7 @@ if ($signed) {
     if ($LASTEXITCODE -ne 0) { throw 'Authenticode verification failed' }
 }
 
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Uninstall-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Launch-FORGE-Workbench.vbs'), (Join-Path $PSScriptRoot 'README-Windows.md') -Destination $stage -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Uninstall-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Export-FORGE-Diagnostics.ps1'), (Join-Path $PSScriptRoot 'Launch-FORGE-Workbench.vbs'), (Join-Path $PSScriptRoot 'README-Windows.md') -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE'), (Join-Path $repositoryRoot 'NOTICE') -Destination $stage -Force
 & node (Join-Path $repositoryRoot 'scripts\generate-third-party-notices.mjs') '--output' (Join-Path $stage 'THIRD-PARTY-NOTICES.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Third-party notice generation failed' }
