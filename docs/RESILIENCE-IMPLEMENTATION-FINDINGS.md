@@ -296,3 +296,26 @@ Resolution: WAL copy verification now computes SHA-256 through the .NET
 cryptography API, which does not depend on PowerShell module auto-loading. The
 production recovery harness also tolerates the brief connection transition
 between read-only recovery and promotion.
+
+## RES-025: scheduled PowerShell tasks can flash despite `-WindowStyle Hidden`
+
+The active WAL uploader, PITR monitor and backup tasks invoked `powershell.exe`
+directly. Windows could briefly create a console before PowerShell applied its
+hidden-window option, causing a visible flash every five minutes.
+
+Resolution: all Resilience schedules now execute through a shared `wscript.exe`
+launcher that starts PowerShell with window style `0`, waits for completion and
+preserves the worker exit code. A safe repair script replaces existing task
+actions without changing their principals, triggers, secrets or PostgreSQL
+configuration. Its `-Enable` switch remains explicit.
+
+## RES-026: multiple ordered receipt dictionaries can defeat newest selection
+
+The production monitor had several base-backup receipts. Windows PowerShell 5.1
+did not reliably sort their ordered-dictionary keys as object properties, so the
+daily-age gate could select an older receipt and report a false failure even
+immediately after an authenticated backup.
+
+Resolution: receipt evidence is represented as `PSCustomObject` before sorting.
+The regression supplies both stale and recent base receipts and requires the
+monitor to select the recent authenticated evidence.

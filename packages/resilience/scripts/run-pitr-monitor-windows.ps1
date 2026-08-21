@@ -38,7 +38,7 @@ function Get-NewestReceipt([string]$Kind) {
             $record = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
             $recordKind = if ($record.kind) { [string]$record.kind } elseif ($record.wal) { 'wal' } else { '' }
             if ($recordKind -eq $Kind -and $record.authenticatedAt) {
-                [ordered]@{file=$file.Name;authenticatedAt=([datetime]$record.authenticatedAt).ToUniversalTime()}
+                [pscustomobject]@{file=$file.Name;authenticatedAt=([datetime]$record.authenticatedAt).ToUniversalTime()}
             }
         } catch { Add-Check "receipt-$($file.Name)" 'FAIL' 'Receipt JSON is invalid.' }
     }

@@ -12,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $statusPath = Join-Path $ConfigRoot 'pitr-install-status.json'
 $root = [IO.Path]::GetFullPath($PitrRoot)
-$powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+$wscript = "$env:SystemRoot\System32\wscript.exe"
+$hiddenLauncher = Join-Path $PSScriptRoot 'run-powershell-hidden.vbs'
 $names = [ordered]@{
     uploader="$TaskPrefix WAL Uploader"
     base="$TaskPrefix Daily Base Backup"
@@ -22,10 +23,8 @@ function Set-Status([string]$Status,[string]$Detail) {
     [ordered]@{status=$Status;detail=$Detail;updatedAt=[datetime]::UtcNow.ToString('o')} | ConvertTo-Json |
         Set-Content -LiteralPath $statusPath -Encoding utf8
 }
-function Script-Arguments([string]$Script,[string]$Extra='') {
-    $arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Script`" -ConfigRoot `"$ConfigRoot`" -PitrRoot `"$root`""
-    if ($Extra) { $arguments += " $Extra" }
-    return $arguments
+function Script-Arguments([string]$Script) {
+    return "`"$hiddenLauncher`" `"$Script`" `"-ConfigRoot`" `"$ConfigRoot`" `"-PitrRoot`" `"$root`""
 }
 
 New-Item -ItemType Directory -Force -Path $ConfigRoot | Out-Null
@@ -44,11 +43,11 @@ $scripts = [ordered]@{
     base=Join-Path $PSScriptRoot 'run-physical-basebackup-windows.ps1'
     monitor=Join-Path $PSScriptRoot 'run-pitr-monitor-windows.ps1'
 }
-foreach ($script in $scripts.Values) { if (-not (Test-Path -LiteralPath $script -PathType Leaf)) { throw "Required worker script is missing: $script" } }
+foreach ($script in @($hiddenLauncher) + @($scripts.Values)) { if (-not (Test-Path -LiteralPath $script -PathType Leaf)) { throw "Required worker script is missing: $script" } }
 $plan = @(
-    [ordered]@{name=$names.uploader;schedule="every-$IntervalMinutes-minutes-and-logon";execute=$powerShell;arguments=(Script-Arguments $scripts.uploader)}
-    [ordered]@{name=$names.base;schedule="daily-$DailyBaseTime";execute=$powerShell;arguments=(Script-Arguments $scripts.base)}
-    [ordered]@{name=$names.monitor;schedule="every-$IntervalMinutes-minutes-and-logon";execute=$powerShell;arguments=(Script-Arguments $scripts.monitor)}
+    [ordered]@{name=$names.uploader;schedule="every-$IntervalMinutes-minutes-and-logon";execute=$wscript;arguments=(Script-Arguments $scripts.uploader)}
+    [ordered]@{name=$names.base;schedule="daily-$DailyBaseTime";execute=$wscript;arguments=(Script-Arguments $scripts.base)}
+    [ordered]@{name=$names.monitor;schedule="every-$IntervalMinutes-minutes-and-logon";execute=$wscript;arguments=(Script-Arguments $scripts.monitor)}
 )
 if ($PlanOnly) { $plan | ConvertTo-Json -Depth 5; return }
 
@@ -63,9 +62,9 @@ try {
     if ($dailyAt -le (Get-Date)) { $dailyAt = $dailyAt.AddDays(1) }
     $daily = New-ScheduledTaskTrigger -Daily -At $dailyAt
     $actions = [ordered]@{
-        uploader=New-ScheduledTaskAction -Execute $powerShell -Argument $plan[0].arguments
-        base=New-ScheduledTaskAction -Execute $powerShell -Argument $plan[1].arguments
-        monitor=New-ScheduledTaskAction -Execute $powerShell -Argument $plan[2].arguments
+        uploader=New-ScheduledTaskAction -Execute $wscript -Argument $plan[0].arguments
+        base=New-ScheduledTaskAction -Execute $wscript -Argument $plan[1].arguments
+        monitor=New-ScheduledTaskAction -Execute $wscript -Argument $plan[2].arguments
     }
     Register-ScheduledTask -TaskName $names.uploader -Action $actions.uploader -Trigger @($logon,$periodic) -Settings $settings -Principal $principal -Description 'Packages, verifies and remotely authenticates bounded FORGE WAL batches.' -Force | Out-Null
     Register-ScheduledTask -TaskName $names.base -Action $actions.base -Trigger $daily -Settings $settings -Principal $principal -Description 'Creates, verifies and remotely authenticates the daily FORGE physical base backup.' -Force | Out-Null

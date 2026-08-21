@@ -322,7 +322,9 @@ gates. After activation, any capacity, archiver or RPO breach returns exit code
 2 and writes an atomic non-secret status file.
 
 After the replication role and preactivation monitor pass, register the three
-CurrentUser-DPAPI workers as limited, hidden Windows tasks:
+CurrentUser-DPAPI workers as limited, console-free Windows tasks. Their actions
+use `wscript.exe` so no console is created before PowerShell applies its hidden
+window setting:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-pitr-tasks-windows.ps1
@@ -333,6 +335,15 @@ base backup runs daily at 03:00 and catches up after downtime. Installation is
 refused after activation, uses `IgnoreNew` concurrency and does not modify or
 restart PostgreSQL. `-PlanOnly` emits the exact non-secret task plan without
 registering it.
+
+Existing direct-PowerShell task actions can be repaired without rewriting
+secrets, triggers, principals or PostgreSQL configuration. Tasks remain in
+their current enabled/disabled state unless `-Enable` is supplied explicitly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repair-hidden-task-actions-windows.ps1 -PlanOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repair-hidden-task-actions-windows.ps1 -Enable
+```
 
 Activation is a separate elevated, explicit operation. Always inspect its exact
 paths and quoting first:

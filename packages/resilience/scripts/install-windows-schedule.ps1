@@ -100,9 +100,11 @@ Write-DpapiSecret $backupPassphrase $passphraseSecretPath
     database = [ordered]@{ host = $HostName; port = $Port; name = $Database; user = $BackupRole }
 } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $runtimePath -Encoding utf8
 
-$powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runnerPath`" -ConfigRoot `"$ConfigRoot`""
-$action = New-ScheduledTaskAction -Execute $powerShell -Argument $arguments
+$wscript = "$env:SystemRoot\System32\wscript.exe"
+$hiddenLauncher = Join-Path $PSScriptRoot 'run-powershell-hidden.vbs'
+if (-not (Test-Path -LiteralPath $hiddenLauncher -PathType Leaf)) { throw 'Hidden PowerShell launcher is missing.' }
+$arguments = "`"$hiddenLauncher`" `"$runnerPath`" `"-ConfigRoot`" `"$ConfigRoot`""
+$action = New-ScheduledTaskAction -Execute $wscript -Argument $arguments
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $periodicTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Hours $IntervalHours)
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 4) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 15) -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
