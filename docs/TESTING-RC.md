@@ -60,6 +60,48 @@ installed application must report `0.2.0-rc.4`.
 Semantic search and recovery are optional; test them only when deliberately
 configured.
 
+## Repeatable clean local lab
+
+Windows Sandbox can run the published candidate against a new disposable
+PostgreSQL cluster without changing the host installation or database. From a
+source checkout with dependencies already installed and built, run:
+
+```powershell
+npm ci
+npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\acceptance\windows-sandbox\Start-FORGE-WorkbenchTestLab.ps1
+```
+
+The launcher downloads the pinned public rc.4 Windows archive, verifies its
+published SHA-256 before extraction, maps all inputs read-only, disables guest
+networking and opens Workbench when the fresh schema is ready. The host receives
+only a bounded, secret-free `lab-result.json` status file. Closing Windows
+Sandbox deletes the database, configuration, credentials and application, so
+the same command starts another clean test.
+
+Use `-PlanOnly` for a non-mutating preflight. Use `-ReleaseArchive <path>` to
+test an already downloaded archive; it is still checked against the pinned
+digest. Clipboard sharing is disabled by default and can be enabled explicitly
+with `-EnableClipboard` when copying test notes is useful.
+
+This lab is the primary fast feedback loop for clean install and UI workflows.
+External testers remain valuable for different hardware and usage patterns,
+but are not required for each development iteration.
+
+If the Windows Sandbox component itself does not start, use the local fallback:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\acceptance\Start-FORGE-WorkbenchLocalTestLab.ps1
+```
+
+It runs the same pinned public package against a fresh PostgreSQL data directory,
+an isolated application directory and an isolated `%APPDATA%` profile on unused
+non-production ports. Keep its PowerShell window open while testing; pressing
+Enter stops both processes and erases the complete lab. This fallback shares
+the host Windows/browser, so it validates application workflows but does not
+replace Sandbox or VM acceptance for SmartScreen and machine-level installer
+behavior.
+
 ## Report feedback
 
 Use the GitHub bug-report template. Include the rc version, Windows and
