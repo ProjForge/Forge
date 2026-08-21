@@ -44,6 +44,9 @@ function Read-ChecksumManifest([string]$Path) {
 foreach ($required in @($stage, $workbenchZip, $workbenchManifest, $sourceZip, $releaseManifest)) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Required release path is missing: $required" }
 }
+foreach ($requiredName in @('Install-FORGE-Workbench.ps1', 'Uninstall-FORGE-Workbench.ps1', 'Export-FORGE-Diagnostics.ps1', 'RELEASE.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $stage $requiredName) -PathType Leaf)) { throw "Required Windows lifecycle file is missing: $requiredName" }
+}
 
 $release = Get-Content -LiteralPath (Join-Path $stage 'RELEASE.json') -Raw | ConvertFrom-Json
 if ($release.product -ne 'FORGE Workbench' -or

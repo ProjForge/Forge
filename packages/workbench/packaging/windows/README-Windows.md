@@ -18,6 +18,15 @@ encrypts it with Windows CurrentUser DPAPI, installs under `%LOCALAPPDATA%`,
 and creates a per-user Start Menu shortcut. No administrator permission is
 required.
 
+The package verifies its complete internal SHA-256 manifest before changing
+the installation. Running a newer package performs a transactional update and
+preserves the existing JSON configuration and DPAPI credential without asking
+for the database password again. Accidental downgrades are rejected.
+
+To deliberately change the database identity or Workbench port during an
+update, pass `-Reconfigure` together with the new values. This requires the
+runtime password and atomically replaces the encrypted credential.
+
 Configuration lives at `%APPDATA%\FORGE\workbench.json`. The password is kept
 separately in `%APPDATA%\FORGE\workbench.dpapi` and can only be decrypted by
 the same Windows user on the same machine.
@@ -30,6 +39,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\
 
 Add `-PurgeUserData` only when the encrypted credential and Workbench
 configuration should also be removed.
+
+## Safe diagnostics
+
+Create a tester support bundle with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\FORGE Workbench\Export-FORGE-Diagnostics.ps1"
+```
+
+The ZIP is allowlist-only. It reports product/Windows versions, signature and
+binary hash, boolean configuration health, bounded bootstrap state,
+PostgreSQL service state and FORGE scheduled-task results. It never copies raw
+logs, configuration, database content, DPAPI material, usernames or hostnames.
 
 ## Release limitations
 

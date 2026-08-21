@@ -17,11 +17,17 @@ same project-scoped Gateway data.
 
 The Windows x64 release candidate contains an executable with its own Node.js
 runtime, a CurrentUser DPAPI configuration assistant, a hidden launcher and an
-uninstaller. Extract the release ZIP and run:
+uninstaller. The installer verifies the package, performs transactional
+updates, preserves existing credentials and rejects accidental downgrades.
+Extract the release ZIP and run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-FORGE-Workbench.ps1
 ```
+
+Installed releases also include `Export-FORGE-Diagnostics.ps1`, which creates
+an allowlist-redacted support ZIP without copying raw configuration, secrets,
+database content or logs.
 
 No administrator permission is required. PostgreSQL and the FORGE schema remain
 prerequisites. General-user publication additionally requires a Windows

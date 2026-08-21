@@ -2,7 +2,7 @@
 
 Status: Accepted
 Date: 2026-08-11
-Amended: 2026-08-14
+Amended: 2026-08-21
 
 ## Context
 
@@ -21,7 +21,10 @@ CurrentUser DPAPI blob. Installation, Start Menu shortcut and uninstallation
 remain user-scoped and require no elevation. Unsigned packages may be published
 only as explicitly labeled technical prereleases. General-user promotion
 requires valid timestamped Authenticode, verified manifests and installation
-acceptance.
+acceptance. Updates verify the complete package before mutation, stage beside
+the destination and swap transactionally. Normal updates preserve shared JSON
+and CurrentUser DPAPI material; connection changes require explicit
+reconfiguration and downgrades require explicit operator authorization.
 
 ## Consequences
 
@@ -31,3 +34,5 @@ and optional LM Studio models remain prerequisites. The release pipeline binds
 artifacts to a clean annotated tag, verifies internal and external SHA-256
 coverage, and records build provenance without automatically publishing.
 SmartScreen warnings remain expected for explicitly unsigned prereleases.
+Tester diagnostics are generated from an explicit allowlist rather than copied
+from raw configuration or logs.
