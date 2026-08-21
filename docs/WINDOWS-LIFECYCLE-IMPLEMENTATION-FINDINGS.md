@@ -45,3 +45,13 @@ directory. Separate `moved` and `published` flags now ensure cleanup removes onl
 new artifacts created by the transaction; previous application/configuration
 files are restored only from explicit sibling backups. Broad and reparse-point
 managed paths are rejected before mutation.
+
+## DIST-019 — Upgrade evidence must start from the published predecessor
+
+Two locally generated fixtures cannot prove compatibility with an already
+published package. The release gate now downloads the public rc.2 Workbench ZIP,
+requires its pinned SHA-256
+`F8517E7A86DE6F8892DD23401ADBC594837862E6EDB5732372622A7462B4D0BB`, installs
+it in an isolated user-scoped root, applies the candidate and proves
+configuration/DPAPI preservation, safe diagnostics and data-preserving
+uninstall. The first rc.2-to-rc.3 candidate execution passed on 2026-08-21.

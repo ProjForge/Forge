@@ -15,7 +15,7 @@ For an official release, create an annotated `v<package-version>` tag and bind
 the build to it:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 -ExpectedTag v0.2.0-rc.2
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 -ExpectedTag v0.2.0-rc.3
 ```
 
 The builder fails on dirty source, lightweight or mismatched tags, checksum

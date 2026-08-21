@@ -1,4 +1,4 @@
-# FORGE Workbench 0.2.0-rc.2
+# FORGE Workbench 0.2.0-rc.3
 
 The local human-facing client for FORGE. It runs locally, exposes an operational
 task board, assigned-agent catalog and execution history, lists memories and
@@ -9,7 +9,7 @@ execution lifecycle: start, compile a durable continuation snapshot, then
 finish with version-checked status. The recovery panel presents sanitized,
 read-only freshness for authenticated logical replicas, WAL transport, physical
 base backups and the PITR monitor without exposing filesystem paths or secrets.
-The rc.2 interface groups these capabilities into Resumen, Operación,
+The interface groups these capabilities into Resumen, Operación,
 Conocimiento and Continuidad views and derives project health metrics from the
 same project-scoped Gateway data.
 

@@ -49,7 +49,7 @@ The official geometric identity and usage rules live in the
 | `embedding-worker` | 0.1.6 | Provider-pluggable indexing worker |
 | `semantic-bridge` | 0.1.4 | Natural-language search and optional reranking |
 | `resilience` | 0.4.0 | Encrypted logical/physical recovery, immutable replication and safe restore |
-| `workbench` | 0.2.0-rc.2 | Local human-facing web application |
+| `workbench` | 0.2.0-rc.3 | Local human-facing web application |
 
 ## Architecture
 
