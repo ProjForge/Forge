@@ -39,7 +39,7 @@ jobs:
             $arguments += @('-ExpectedTag', $env:FORGE_EXPECTED_TAG)
           }
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\Build-FORGE-WindowsRelease.ps1 @arguments
-      - name: Validate update from published rc.2
+      - name: Validate update from published rc.3
         shell: powershell
         env:
           FORGE_OUTPUT_ROOT: ${{ runner.temp }}\forge-release

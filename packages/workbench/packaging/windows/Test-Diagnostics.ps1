@@ -12,7 +12,7 @@ try {
     $archive = Join-Path $fixtureRoot 'diagnostics.zip'
     New-Item -ItemType Directory -Path $installRoot, $configRoot | Out-Null
     [IO.File]::WriteAllText((Join-Path $installRoot 'FORGE-Workbench.exe'), 'fixture', [Text.UTF8Encoding]::new($false))
-    [ordered]@{ product='FORGE Workbench'; version='0.2.0-rc.3'; sourceCommit=$secret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $installRoot 'RELEASE.json') -Encoding utf8
+    [ordered]@{ product='FORGE Workbench'; version='0.2.0-rc.4'; sourceCommit=$secret } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $installRoot 'RELEASE.json') -Encoding utf8
     [ordered]@{
         database=[ordered]@{host=$secret;port=5432;name=$secret;user=$secret;credentialFile='workbench.dpapi'}
         workbench=[ordered]@{port=7334}
