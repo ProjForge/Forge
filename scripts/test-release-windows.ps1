@@ -7,6 +7,7 @@ $builder = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Build-FORGE-Window
 $verifier = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Test-FORGE-WindowsRelease.ps1') -Raw
 $packager = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\packages\workbench\packaging\windows\Build-Windows-Package.ps1') -Raw
 $installer = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\packages\workbench\packaging\windows\Install-FORGE-Workbench.ps1') -Raw
+$upgradeTest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'test-windows-release-upgrade.ps1') -Raw
 
 foreach ($required in @(
     'status --porcelain --untracked-files=all',
@@ -40,5 +41,8 @@ if ($packager -notmatch 'node_modules\\npm\\bin\\npm-cli\.js' -or
 }
 foreach ($required in @('Test-Distribution','Refusing to downgrade','requires -Reconfigure','DPAPI credential were preserved','forge-workbench-backup')) {
     if ($installer -notmatch $required) { throw "Workbench installer lost lifecycle invariant: $required" }
+}
+foreach ($required in @('F8517E7A86DE6F8892DD23401ADBC594837862E6EDB5732372622A7462B4D0BB','configuration or DPAPI material','Export-FORGE-Diagnostics','Uninstall-FORGE-Workbench')) {
+    if ($upgradeTest -notmatch $required) { throw "Published-baseline upgrade test lost invariant: $required" }
 }
 Write-Output 'PASS: Windows release assembly remains clean, tag-bound and fail-closed.'
