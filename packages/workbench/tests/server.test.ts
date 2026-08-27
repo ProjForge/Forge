@@ -51,16 +51,74 @@ test('serves the loopback API with token and origin protections', async (context
   assert.match(index, />Trabajo<\/strong><small>Tareas y agentes/)
   assert.match(index, /id="metric-open-tasks"/)
   assert.match(index, /data-views="operation knowledge continuity"/)
+  assert.match(index, /id="import-project"/)
+  assert.match(index, /id="export-project"/)
+  assert.match(index, /id="import-dialog"/)
 
   const client = await (await fetch(`${base}/app.js`)).text()
   assert.match(client, /function setView\(view\)/)
   assert.match(client, /function renderNextStep\(\)/)
   assert.match(client, /function showSearchMessage\(message, error = false\)/)
   assert.match(client, /metric-running-executions/)
+  assert.match(client, /\/api\/imports\/repository/)
+  assert.match(client, /\/api\/imports\/forge-project/)
 
   const styles = await (await fetch(`${base}/styles.css`)).text()
   assert.match(styles, /\.project-stats/)
   assert.match(styles, /\[hidden\]/)
+})
+
+test('exports downloadable bundles and validates portable imports before forwarding', async (context) => {
+  const calls: unknown[] = []
+  const payload = {
+    formatVersion: 1 as const,
+    sourceSchemaVersion: '0.1.3' as const,
+    project: { projectKey: 'portable-app', name: 'Portable App', description: null, metadata: {} },
+    agents: [], tasks: [], memories: [], decisions: [],
+    omitted: ['embeddings', 'executions', 'context_packages', 'events', 'audit_log'] as const,
+  }
+  const { createPortableProjectBundle } = await import('../src/project-portability.js')
+  const bundle = createPortableProjectBundle(payload, '2026-08-21T00:00:00.000Z')
+  const service = {
+    exportProject: async (scope: string) => { calls.push({ export: scope }); return bundle },
+    importProject: async (input: unknown) => { calls.push(input); return { project: { id: projectId }, imported: {} } },
+  } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve(process.cwd(), 'public'), token: 'test-token' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const headers = { 'content-type': 'application/json', 'x-forge-token': 'test-token' }
+
+  const exported = await fetch(`${base}/api/projects/${projectId}/export`, { headers })
+  assert.equal(exported.status, 200)
+  assert.equal(exported.headers.get('content-type'), 'application/vnd.forge.project+json; charset=utf-8')
+  assert.match(exported.headers.get('content-disposition') ?? '', /portable-app\.forge-project/)
+  assert.deepEqual(await exported.json(), bundle)
+
+  const imported = await fetch(`${base}/api/imports/forge-project`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ bundle, targetProjectKey: 'portable-copy', targetProjectName: 'Portable Copy', mode: 'create', idempotencyKey: 'import-1' }),
+  })
+  assert.equal(imported.status, 201)
+  assert.deepEqual(calls[0], { export: projectId })
+  assert.deepEqual(calls[1], { bundle, targetProjectKey: 'portable-copy', targetProjectName: 'Portable Copy', mode: 'create', idempotencyKey: 'import-1' })
+})
+
+test('forwards bounded repository onboarding requests', async (context) => {
+  let observed: unknown
+  const service = {
+    onboardProject: async (input: unknown) => { observed = input; return { project: { id: projectId }, imported: { memories: 1 } } },
+  } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve(process.cwd(), 'public'), token: 'test-token' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const response = await fetch(`${base}/api/imports/repository`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forge-token': 'test-token' },
+    body: JSON.stringify({ projectKey: 'existing-app', name: 'Existing App', files: [{ path: 'README.md', content: '# Existing App' }], idempotencyKey: 'repository-1' }),
+  })
+  assert.equal(response.status, 201)
+  assert.deepEqual(observed, { projectKey: 'existing-app', name: 'Existing App', files: [{ path: 'README.md', content: '# Existing App' }], idempotencyKey: 'repository-1' })
 })
 
 test('validates and forwards project-scoped human task workflow', async (context) => {

@@ -1,4 +1,5 @@
 .project-filter { display: block; margin: 0 7px 10px; }
+.rail-actions { display: flex; align-items: center; gap: 6px; }
 .project-filter input {
   width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 9px;
   outline: 0; background: var(--surface); color: var(--text); font-size: 11px;
@@ -15,6 +16,10 @@
 .inspect-button { width: 100%; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; color: inherit; cursor: pointer; }
 .inspect-button:hover,.inspect-button:focus-visible { border-color: var(--forge-cyan); background: rgba(255,255,255,.025); }
 .context-dialog { width: min(44rem,calc(100vw - 2rem)); }
+.import-dialog { width: min(42rem,calc(100vw - 2rem)); }
+.field-help,.import-preview { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.field-help { margin: -7px 0 14px; }
+.import-preview { padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
 .context-detail { display: grid; gap: .8rem; max-height: 65vh; overflow: auto; }
 .context-detail h3,.context-detail h4,.context-detail p,.context-detail ul { margin: 0; }
 .package-hash { overflow-wrap: anywhere; color: var(--forge-cyan); }

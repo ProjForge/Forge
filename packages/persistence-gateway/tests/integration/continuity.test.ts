@@ -9,6 +9,7 @@ import {
   IdempotencyConflictError,
   NotFoundError,
   OptimisticLockError,
+  type PortableProjectPayloadV1,
 } from '../../src/index.js'
 
 const connectionString = process.env.FORGE_DATABASE_URL
@@ -570,6 +571,78 @@ test('persists and reconstructs a complete task continuation flow', {
       gateway.loadContinuationContext(otherProject.id, packageId),
       NotFoundError,
     )
+  } finally {
+    await gateway.close().catch(() => undefined)
+  }
+})
+
+test('exports and imports portable projects atomically and idempotently', {
+  skip: connectionString ? false : 'FORGE_DATABASE_URL is not configured',
+  timeout: 30_000,
+}, async () => {
+  if (!connectionString) return
+
+  const suffix = randomUUID()
+  const gateway = ForgePersistenceGateway.connect({ connectionString })
+  const sourceKey = `portable-source-${suffix}`
+  const targetKey = `portable-target-${suffix}`
+  const agentKey = `portable-agent-${suffix}`
+  const payload: PortableProjectPayloadV1 = {
+    formatVersion: 1,
+    sourceSchemaVersion: '0.1.3',
+    project: { projectKey: sourceKey, name: 'Portable source', description: 'Portable integration fixture', metadata: { suite: 'portability' } },
+    agents: [{ agentKey, name: 'Portable Agent', role: 'developer', capabilities: { import: true }, metadata: {}, assignmentRole: 'maintainer' }],
+    tasks: [{ taskKey: 'PORTABLE-1', title: 'Move safely', objective: 'Preserve domain state', assignedAgentKey: agentKey, status: 'in_progress', priority: 'high', metadata: {} }],
+    memories: [{
+      portableId: `memory-${suffix}`, taskKey: 'PORTABLE-1', createdByAgentKey: agentKey,
+      memoryType: 'project', epistemicState: 'verified', trustLevel: 'internal', title: 'Portable memory',
+      content: 'This content must survive the move.', summary: 'Portable state', importance: 'high', metadata: { portable: true },
+      provenance: [{ sourceKind: 'document', sourceRef: 'README.md', sourceVersion: 'sha256:fixture', evidence: { imported: true } }],
+    }],
+    decisions: [
+      { decisionKey: 'DEC-OLD', taskKey: 'PORTABLE-1', createdByAgentKey: agentKey, title: 'Old decision', decisionText: 'Use the old path.', rationale: null, alternatives: [], consequences: [], status: 'superseded', supersedesDecisionKey: null, metadata: {} },
+      { decisionKey: 'DEC-NEW', taskKey: 'PORTABLE-1', createdByAgentKey: agentKey, title: 'New decision', decisionText: 'Use portable bundles.', rationale: 'Preserves state safely.', alternatives: [], consequences: [], status: 'accepted', supersedesDecisionKey: 'DEC-OLD', metadata: {} },
+    ],
+    omitted: ['embeddings', 'executions', 'context_packages', 'events', 'audit_log'],
+  }
+  const bundleHash = 'a'.repeat(64)
+
+  try {
+    const imported = await gateway.importPortableProject({ payload, bundleHash, targetProjectKey: targetKey, targetProjectName: 'Portable target', mode: 'create', idempotencyKey: `create-${suffix}` })
+    assert.deepEqual(imported.imported, { agents: 1, tasks: 1, memories: 1, decisions: 2 })
+
+    const replay = await gateway.importPortableProject({ payload, bundleHash, targetProjectKey: targetKey, targetProjectName: 'Portable target', mode: 'create', idempotencyKey: `create-${suffix}` })
+    assert.equal(replay.project.id, imported.project.id)
+    assert.deepEqual(replay.imported, imported.imported)
+
+    const merged = await gateway.importPortableProject({ payload, bundleHash, targetProjectKey: targetKey, targetProjectName: 'Portable target', mode: 'merge', idempotencyKey: `merge-${suffix}` })
+    assert.deepEqual(merged.imported, { agents: 0, tasks: 0, memories: 0, decisions: 0 })
+
+    const exported = await gateway.exportPortableProject(imported.project.id)
+    assert.equal(exported.project.projectKey, targetKey)
+    assert.equal(exported.agents[0]?.agentKey, agentKey)
+    assert.equal(exported.tasks[0]?.assignedAgentKey, agentKey)
+    assert.equal(exported.memories[0]?.content, payload.memories[0]?.content)
+    assert.deepEqual(exported.memories[0]?.provenance, payload.memories[0]?.provenance)
+    assert.equal(exported.decisions.find((decision) => decision.decisionKey === 'DEC-NEW')?.supersedesDecisionKey, 'DEC-OLD')
+
+    const incompatible = structuredClone(payload)
+    incompatible.tasks[0]!.title = 'Conflicting title'
+    await assert.rejects(
+      gateway.importPortableProject({ payload: incompatible, bundleHash: 'b'.repeat(64), targetProjectKey: targetKey, mode: 'merge', idempotencyKey: `conflict-${suffix}` }),
+      ConflictError,
+    )
+    assert.equal((await gateway.getTaskByKey(imported.project.id, 'PORTABLE-1')).title, 'Move safely')
+
+    const invalid = structuredClone(payload)
+    invalid.project.projectKey = `invalid-source-${suffix}`
+    invalid.tasks[0]!.assignedAgentKey = 'missing-agent'
+    const invalidTargetKey = `portable-invalid-${suffix}`
+    await assert.rejects(
+      gateway.importPortableProject({ payload: invalid, bundleHash: 'c'.repeat(64), targetProjectKey: invalidTargetKey, mode: 'create', idempotencyKey: `invalid-${suffix}` }),
+      ConflictError,
+    )
+    await assert.rejects(gateway.getProjectByKey(invalidTargetKey), NotFoundError)
   } finally {
     await gateway.close().catch(() => undefined)
   }

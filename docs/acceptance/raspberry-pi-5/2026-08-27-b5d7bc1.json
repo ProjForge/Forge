@@ -1,0 +1,29 @@
+{
+  "formatVersion": 1,
+  "product": "FORGE",
+  "suite": "raspberry-pi-5-arm64-acceptance",
+  "status": "PASS",
+  "stage": "complete",
+  "sourceCommit": "b5d7bc18f0873791d0e3ce5933f09adba3a6fb7f",
+  "startedAt": "2026-08-27T16:08:05Z",
+  "finishedAt": "2026-08-27T16:09:44Z",
+  "platform": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "kernel": "6.18.39+rpt-rpi-2712",
+    "architecture": "aarch64"
+  },
+  "runtime": {
+    "node": "v22.23.2",
+    "npm": "10.9.8",
+    "docker": "29.7.2",
+    "postgresql": "14.23 (Debian 14.23-1.pgdg12+1)",
+    "pgvector": "0.8.2"
+  },
+  "safety": {
+    "loopbackOnly": true,
+    "disposableDatabase": true,
+    "hostDatabaseTouched": false,
+    "secretsIncluded": false
+  }
+}

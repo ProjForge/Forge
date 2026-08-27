@@ -269,7 +269,7 @@ async function selectProject(project) {
   renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
-  for (const selector of ['#add-agent', '#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
+  for (const selector of ['#export-project', '#add-agent', '#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
   $('#tasks').textContent = 'Cargando…'
   $('#executions').textContent = 'Cargando…'
   $('#memories').textContent = 'Cargando…'
@@ -419,10 +419,153 @@ for (const cancel of document.querySelectorAll('dialog [value="cancel"]')) {
   })
 }
 $('#new-project').addEventListener('click', () => openDialog('#project-dialog'))
+$('#import-project').addEventListener('click', () => openDialog('#import-dialog'))
 $('#add-agent').addEventListener('click', () => openDialog('#agent-dialog'))
 $('#add-task').addEventListener('click', () => openDialog('#task-dialog'))
 $('#add-memory').addEventListener('click', () => openDialog('#memory-dialog'))
 $('#add-decision').addEventListener('click', () => openDialog('#decision-dialog'))
+
+function downloadName(response, fallback) {
+  const match = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/i)
+  return match?.[1] || fallback
+}
+
+$('#export-project').addEventListener('click', async () => {
+  if (!state.project) return
+  const button = $('#export-project')
+  button.disabled = true
+  showMessage('Preparando paquete portable…')
+  try {
+    const response = await fetch(`/api/projects/${state.project.id}/export`, { headers: { 'x-forge-token': state.token } })
+    if (!response.ok) {
+      const payload = await response.json()
+      throw new Error(payload.error?.message || 'No se pudo exportar el proyecto')
+    }
+    const url = URL.createObjectURL(await response.blob())
+    const link = document.createElement('a')
+    link.href = url
+    link.download = downloadName(response, `${state.project.projectKey}.forge-project`)
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    showMessage('Proyecto exportado. Contiene conocimiento del proyecto: protégelo como los datos originales.')
+  } catch (error) { showMessage(error.message, true) }
+  finally { button.disabled = false }
+})
+
+const blockedRepositorySegment = /^(\.git|node_modules|vendor|dist|build|target|coverage|\.next|\.venv|venv)$/i
+const blockedRepositoryName = /(^|[._-])(env|secret|secrets|credential|credentials|token|tokens|password|passwd|api[_-]?key|access[_-]?key|private[_-]?key|id_rsa|id_ed25519)([._-]|$)|^(\.npmrc|\.pypirc|\.netrc|\.aws)$|\.(pem|key|pfx|p12|keystore)$/i
+const supportedRootFile = /^(readme|agents|changelog|contributing|security|roadmap)(\.(md|mdx|txt|rst))?$|^(package\.json|cargo\.toml|pyproject\.toml|go\.mod|requirements\.txt|pom\.xml|build\.gradle(?:\.kts)?|composer\.json)$/i
+const supportedDocument = /\.(md|mdx|txt|rst)$/i
+
+function repositoryRelativePath(file) {
+  const path = (file.webkitRelativePath || file.name).replaceAll('\\', '/')
+  const parts = path.split('/').filter(Boolean)
+  return parts.length > 1 ? parts.slice(1).join('/') : parts[0]
+}
+
+function supportedRepositoryFile(file) {
+  const path = repositoryRelativePath(file)
+  const parts = path.split('/')
+  const name = parts.at(-1)
+  if (!path || parts.some((part) => blockedRepositorySegment.test(part) || blockedRepositoryName.test(part))) return false
+  return parts.length === 1 ? supportedRootFile.test(name) : /^(docs?|documentation|adr|architecture|decisions)$/i.test(parts[0]) && supportedDocument.test(name)
+}
+
+function selectedRepositoryFiles() {
+  return [...$('#repository-files').files].filter(supportedRepositoryFile).slice(0, 64)
+}
+
+function updateImportSource() {
+  const source = $('#import-source').value
+  for (const panel of document.querySelectorAll('[data-import-source]')) panel.hidden = panel.dataset.importSource !== source
+  $('#import-preview').textContent = source === 'repository'
+    ? 'Selecciona una carpeta. FORGE mostrará cuántos documentos seguros puede importar.'
+    : 'Selecciona un paquete .forge-project. Su checksum se verificará antes de escribir.'
+}
+
+$('#import-source').addEventListener('change', updateImportSource)
+$('#repository-files').addEventListener('change', () => {
+  const all = [...$('#repository-files').files]
+  const supported = selectedRepositoryFiles()
+  const root = all[0]?.webkitRelativePath?.split('/')[0] || ''
+  const form = $('#import-form')
+  if (root) {
+    if (!form.elements.name.value) form.elements.name.value = root
+    if (!form.elements.projectKey.value) form.elements.projectKey.value = root.toLocaleLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+  }
+  $('#import-preview').textContent = `${supported.length} documentos compatibles · ${all.length - supported.length} archivos excluidos`
+})
+
+$('#bundle-file').addEventListener('change', async () => {
+  const file = $('#bundle-file').files[0]
+  if (!file) return
+  try {
+    const bundle = JSON.parse(await file.text())
+    if (bundle.format !== 'forge-project' || bundle.formatVersion !== 1 || !bundle.payload?.project) throw new Error('Formato no reconocido')
+    const form = $('#import-form')
+    form.elements.projectKey.value = `${bundle.payload.project.projectKey}-import`
+    form.elements.name.value = bundle.payload.project.name
+    form.elements.description.value = bundle.payload.project.description || ''
+    $('#import-preview').textContent = `${bundle.payload.memories?.length || 0} memorias · ${bundle.payload.decisions?.length || 0} decisiones · ${bundle.payload.tasks?.length || 0} tareas`
+  } catch (error) { $('#import-preview').textContent = `Paquete no válido: ${error.message}` }
+})
+
+$('#import-form').addEventListener('submit', async (event) => {
+  if (event.submitter?.value === 'cancel') return
+  event.preventDefault()
+  const form = event.currentTarget
+  const error = form.querySelector('.form-error')
+  const submit = form.querySelector('button.primary')
+  error.textContent = ''
+  submit.disabled = true
+  try {
+    const source = form.elements.sourceType.value
+    let result
+    if (source === 'repository') {
+      const files = selectedRepositoryFiles()
+      if (!files.length) throw new Error('La carpeta no contiene documentación compatible.')
+      let total = 0
+      const contents = []
+      for (const file of files) {
+        if (file.size > 128 * 1024) throw new Error(`El documento ${repositoryRelativePath(file)} es demasiado grande.`)
+        const content = await file.text()
+        total += content.length
+        if (content.length > 32_000 || total > 1_000_000) throw new Error('La documentación seleccionada supera los límites seguros de importación.')
+        contents.push({ path: repositoryRelativePath(file), content })
+      }
+      result = await api('/api/imports/repository', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectKey: form.elements.projectKey.value,
+          name: form.elements.name.value,
+          description: form.elements.description.value || undefined,
+          files: contents,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      })
+    } else {
+      const file = $('#bundle-file').files[0]
+      if (!file || file.size > 4 * 1024 * 1024) throw new Error('Selecciona un paquete FORGE de hasta 4 MiB.')
+      result = await api('/api/imports/forge-project', {
+        method: 'POST',
+        body: JSON.stringify({
+          bundle: JSON.parse(await file.text()),
+          targetProjectKey: form.elements.projectKey.value,
+          targetProjectName: form.elements.name.value,
+          mode: form.elements.mode.value,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      })
+    }
+    state.projects = await api('/api/projects')
+    form.reset()
+    updateImportSource()
+    form.closest('dialog').close()
+    await selectProject(result.project)
+    showMessage(`Importación completa: ${result.imported.memories} memorias, ${result.imported.decisions} decisiones y ${result.imported.tasks} tareas.`)
+  } catch (cause) { error.textContent = cause.message }
+  finally { submit.disabled = false }
+})
 
 function bindForm(formSelector, submit) {
   const form = $(formSelector)

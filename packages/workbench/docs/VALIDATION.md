@@ -4,7 +4,14 @@ Validated on 2026-08-21 with Node.js 24, PostgreSQL 18.4, Schema 0.1.3,
 pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 
 - TypeScript strict production build: PASS
-- Unit/HTTP/configuration/recovery-health tests: 17/17 PASS
+- Unit/HTTP/configuration/recovery-health/portability tests: 24/24 PASS
+- Native PostgreSQL 18.4 project portability: PASS
+- Repository onboarding to provenance-bound memories: PASS
+- Checksummed export, tamper rejection and destination import over HTTP: PASS
+- Create replay and merge idempotency: PASS
+- Incompatible stable-key merge rejection with full transaction rollback: PASS
+- Portable decision supersession and agent/task references: PASS
+- Ephemeral portability cluster shutdown and deletion: PASS
 - Gateway native continuation integration: PASS
 - Assigned-agent catalog and registration/assignment: PASS
 - Optimistic task reassignment and stale-version rejection: PASS

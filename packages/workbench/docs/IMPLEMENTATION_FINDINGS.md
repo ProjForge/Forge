@@ -129,3 +129,44 @@ message element. Once the workspace gained routed views, that element was hidden
 outside Inicio and Memoria, so a failed mutation could appear to do nothing. A
 view-independent live region now reports operational failures while search keeps
 its own local progress and result status.
+
+## FINDING-WORKBENCH-18 — Portable state must not forge operational history
+
+A selective project export cannot safely replay executions, immutable context
+packages, events or audit rows into another installation. The version 1 format
+therefore carries domain state only and explicitly declares those omissions.
+The destination records one truthful local import event and audit entry.
+
+## FINDING-WORKBENCH-19 — Idempotent create was blocked before idempotency lookup
+
+The first implementation rejected an already-created project before reaching
+the import idempotency record. Replaying a successful `create` request therefore
+failed. A create replay now accepts only the same bundle/source metadata and
+then resolves through the transactional idempotency contract.
+
+## FINDING-WORKBENCH-20 — Merge cannot equate a stable key with equal content
+
+An `ON CONFLICT DO NOTHING` merge initially reused agent, task and decision keys
+without checking their domain fields. Imports now compare existing identities
+and fail the complete transaction on incompatible data instead of silently
+combining unrelated state.
+
+## FINDING-WORKBENCH-21 — A transaction client is a sequential query boundary
+
+Portable export launched four reads concurrently on one `pg` client. Current
+drivers queued them but warned that this behavior is removed in pg 9. The
+repeatable-read snapshot now performs the bounded catalog queries sequentially.
+
+## FINDING-WORKBENCH-22 — An export must fit its own import boundary
+
+The first package writer could emit more data than the HTTP importer accepted.
+Format v1 now refuses both creation and parsing above 4 MiB; the wrapping HTTP
+request has a small separate allowance for its target and idempotency fields.
+
+## FINDING-WORKBENCH-23 — A documentation prefix is not a file type
+
+The initial root allowlist accepted any extension after names such as `README`,
+including binary extensions. Root documentation now permits only extensionless
+text or `.md`, `.mdx`, `.txt` and `.rst`; credential-like path segments are
+also rejected. Content still requires human review because names cannot prove
+that a valid document contains no secret.

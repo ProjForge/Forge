@@ -1,6 +1,6 @@
 # Windows bootstrap implementation findings
 
-Date: 2026-08-14
+Date: 2026-08-21
 
 | Finding | Result |
 | --- | --- |
@@ -16,6 +16,8 @@ Date: 2026-08-14
 | BOOT-10 — Sandbox plan mode required installed pgvector binaries despite promising a non-mutating preview | Fixed: runtime inputs are validated only when acceptance executes; plan mode is side-effect free even when those paths are absent |
 | BOOT-11 — Workbench packaging looked for package-local tools that npm workspaces hoists to the repository root | Fixed: clean workspace tools and an absolute bundle entrypoint are used; the executable and ZIP build passed locally and in ephemeral CI |
 | BOOT-12 — a bootstrap regression check encoded deployment-specific sentinel literals | Fixed: generic secret and UUID detection replaces literal values |
+| BOOT-13 — automated clean-machine acceptance did not leave an interactive disposable UI for rapid product testing | Fixed: a pinned-release Windows Sandbox lab now provisions fresh PostgreSQL, installs the verified public Workbench and remains open until the tester closes it |
+| BOOT-14 — the local Windows Sandbox component can close before executing any guest command | Mitigated: a verified local fallback isolates PostgreSQL data, application files and `%APPDATA%` on non-production ports, then erases them after the session; Sandbox/VM remains required for OS and SmartScreen acceptance |
 
 No plaintext credential was written to source, JSON, status output or process
 arguments. PostgreSQL data and recovery artifacts are outside rollback scope by

@@ -38,6 +38,9 @@ The official geometric identity and usage rules live in the
   idempotent write contracts.
 - **Verified recovery:** authenticated encrypted backups restore only into an
   empty database and prove migration checksums and table counts afterwards.
+- **Project portability:** onboard existing repositories from a conservative
+  documentation allowlist or move checksummed project state between FORGE
+  installations without replaying fabricated operational history.
 
 ## Components
 
@@ -72,7 +75,9 @@ flowchart LR
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) and the
-[decision records](docs/decisions/) for boundaries and trade-offs.
+[decision records](docs/decisions/) for boundaries and trade-offs. The
+[project portability guide](docs/PROJECT-PORTABILITY.md) documents repository
+onboarding and the `.forge-project` format.
 
 ## Quick start for contributors
 
@@ -104,6 +109,11 @@ Studio validation are opt-in; see each package README:
 - [Semantic Bridge](packages/semantic-bridge/README.md)
 - [Resilience](packages/resilience/README.md)
 - [Workbench](packages/workbench/README.md)
+- [Raspberry Pi 5 ARM64 acceptance](docs/RASPBERRY-PI-5-ACCEPTANCE.md)
+
+Raspberry Pi 5 Model B Rev 1.1 has passed the complete optional ARM64 technical
+acceptance gate on Debian 13. This is a verified test platform, not a runtime
+dependency or a claim of support for every ARM64 distribution.
 
 ## Security model
 

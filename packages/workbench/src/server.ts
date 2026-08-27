@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import type { ForgeWorkbenchService } from './service.js'
 
 const jsonLimit = 64 * 1024
+const portableJsonLimit = 5 * 1024 * 1024
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const publicFiles = new Set([
   '/index.html', '/app.js', '/styles.css', '/workspace.css', '/brand.css',
@@ -38,18 +39,26 @@ function json(response: ServerResponse, status: number, value: unknown): void {
   response.end(JSON.stringify(value))
 }
 
-async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function body(request: IncomingMessage, limit = jsonLimit): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = []
   let length = 0
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     length += buffer.length
-    if (length > jsonLimit) throw new TypeError('Request body exceeds 64 KiB')
+    if (length > limit) throw new TypeError(`Request body exceeds ${Math.floor(limit / 1024)} KiB`)
     chunks.push(buffer)
   }
   const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('JSON body must be an object')
   return parsed as Record<string, unknown>
+}
+
+function jsonDownload(response: ServerResponse, filename: string, value: unknown): void {
+  securityHeaders(response)
+  response.statusCode = 200
+  response.setHeader('content-type', 'application/vnd.forge.project+json; charset=utf-8')
+  response.setHeader('content-disposition', `attachment; filename="${filename}"`)
+  response.end(JSON.stringify(value, null, 2))
 }
 
 function text(input: Record<string, unknown>, key: string, max: number, optional = false): string | undefined {
@@ -140,6 +149,13 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
 
       if (request.method === 'GET' && url.pathname === '/api/status') { json(response, 200, { result: await service.status() }); return }
       if (request.method === 'GET' && url.pathname === '/api/projects') { json(response, 200, { result: await service.projects() }); return }
+      const exportMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/export$/)
+      if (request.method === 'GET' && exportMatch) {
+        const bundle = await service.exportProject(projectId(exportMatch[1]))
+        const filename = `${bundle.payload.project.projectKey.replace(/[^a-z0-9._-]+/gi, '-')}.forge-project`
+        jsonDownload(response, filename, bundle)
+        return
+      }
       const catalogMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/catalog$/)
       if (request.method === 'GET' && catalogMatch) { json(response, 200, { result: await service.catalog(projectId(catalogMatch[1])) }); return }
 
@@ -148,6 +164,30 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
         json(response, 201, { result: await service.registerProject({
           projectKey: text(input, 'projectKey', 200)!, name: text(input, 'name', 500)!,
           ...(text(input, 'description', 4_000, true) ? { description: text(input, 'description', 4_000, true)! } : {}),
+        }) })
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/imports/forge-project') {
+        const input = await body(request, portableJsonLimit)
+        json(response, 201, { result: await service.importProject({
+          bundle: input.bundle,
+          targetProjectKey: text(input, 'targetProjectKey', 200)!,
+          ...(text(input, 'targetProjectName', 500, true) ? { targetProjectName: text(input, 'targetProjectName', 500, true)! } : {}),
+          mode: choice(input, 'mode', ['create', 'merge'] as const, 'create'),
+          idempotencyKey: text(input, 'idempotencyKey', 500)!,
+        }) })
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/imports/repository') {
+        const input = await body(request, portableJsonLimit)
+        json(response, 201, { result: await service.onboardProject({
+          projectKey: text(input, 'projectKey', 200)!,
+          name: text(input, 'name', 500)!,
+          ...(text(input, 'description', 4_000, true) ? { description: text(input, 'description', 4_000, true)! } : {}),
+          files: input.files as { path: string; content: string }[],
+          idempotencyKey: text(input, 'idempotencyKey', 500)!,
         }) })
         return
       }
