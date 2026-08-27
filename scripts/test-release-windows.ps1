@@ -42,7 +42,7 @@ if ($packager -notmatch 'node_modules\\npm\\bin\\npm-cli\.js' -or
 foreach ($required in @('Test-Distribution','Refusing to downgrade','requires -Reconfigure','DPAPI credential were preserved','forge-workbench-backup')) {
     if ($installer -notmatch $required) { throw "Workbench installer lost lifecycle invariant: $required" }
 }
-foreach ($required in @('E1C352730AEF252D3B26C0433DF4ACC29E966E1F3E6A19FA71C7735801840AA2','configuration or DPAPI material','Export-FORGE-Diagnostics','Uninstall-FORGE-Workbench')) {
+foreach ($required in @('A3BDDEDC78BE78B675BD2A450584BEA9AB675CB7F892B54C96A70BA5E3F36C25','configuration or DPAPI material','Export-FORGE-Diagnostics','Uninstall-FORGE-Workbench')) {
     if ($upgradeTest -notmatch $required) { throw "Published-baseline upgrade test lost invariant: $required" }
 }
 Write-Output 'PASS: Windows release assembly remains clean, tag-bound and fail-closed.'

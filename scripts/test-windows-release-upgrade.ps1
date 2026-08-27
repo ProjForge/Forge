@@ -2,8 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$CandidateArchive,
     [Parameter(Mandatory = $true)][string]$ExpectedVersion,
-    [string]$BaselineUrl = 'https://github.com/ProjForge/Forge/releases/download/v0.2.0-rc.3/FORGE-Workbench-0.2.0-rc.3-Windows-x64.zip',
-    [ValidatePattern('^[0-9A-Fa-f]{64}$')][string]$BaselineSha256 = 'E1C352730AEF252D3B26C0433DF4ACC29E966E1F3E6A19FA71C7735801840AA2',
+    [string]$BaselineUrl = 'https://github.com/ProjForge/Forge/releases/download/v0.2.0-rc.4/FORGE-Workbench-0.2.0-rc.4-Windows-x64.zip',
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')][string]$BaselineSha256 = 'A3BDDEDC78BE78B675BD2A450584BEA9AB675CB7F892B54C96A70BA5E3F36C25',
     [string]$WorkingRoot = ([IO.Path]::GetTempPath())
 )
 
@@ -43,7 +43,7 @@ try {
     New-Item -ItemType Directory -Path $testRoot | Out-Null
     Invoke-WebRequest -UseBasicParsing -Uri $BaselineUrl -OutFile $baselineZip
     $baselineHash = Get-Sha256 $baselineZip
-    if ($baselineHash -ne $BaselineSha256.ToUpperInvariant()) { throw 'The public rc.3 baseline digest does not match the pinned release asset.' }
+    if ($baselineHash -ne $BaselineSha256.ToUpperInvariant()) { throw 'The public rc.4 baseline digest does not match the pinned release asset.' }
     Expand-Archive -LiteralPath $baselineZip -DestinationPath $baselineRoot
     Expand-Archive -LiteralPath $CandidateArchive -DestinationPath $candidateRoot
     $baselineDistribution = Find-DistributionRoot $baselineRoot
@@ -73,7 +73,7 @@ try {
     if ((Test-Path -LiteralPath $installRoot) -or -not (Test-Path -LiteralPath $configPath -PathType Leaf) -or -not (Test-Path -LiteralPath $credentialPath -PathType Leaf)) { throw 'The post-update uninstaller did not preserve user configuration.' }
     [ordered]@{
         passed = $true
-        baselineVersion = '0.2.0-rc.3'
+        baselineVersion = '0.2.0-rc.4'
         candidateVersion = $ExpectedVersion
         baselineSha256 = $baselineHash
         configurationPreserved = $true

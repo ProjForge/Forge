@@ -34,8 +34,8 @@ try {
     $v2 = Join-Path $fixtureRoot 'v2'
     $installRoot = Join-Path $fixtureRoot 'installed'
     $configRoot = Join-Path $fixtureRoot 'config'
-    New-TestDistribution $v1 '0.2.0-rc.3' 'payload-v1'
-    New-TestDistribution $v2 '0.2.0-rc.4' 'payload-v2'
+    New-TestDistribution $v1 '0.2.0-rc.4' 'payload-v1'
+    New-TestDistribution $v2 '0.2.0-rc.5' 'payload-v2'
     $password = ConvertTo-SecureString 'fixture-runtime-password' -AsPlainText -Force
 
     & (Join-Path $v1 'Install-FORGE-Workbench.ps1') -InstallRoot $installRoot -ConfigRoot $configRoot -DatabasePassword $password -NoShortcuts -NoLaunch | Out-Null
@@ -54,7 +54,7 @@ try {
         (Get-FileHash -LiteralPath $credentialPath -Algorithm SHA256).Hash -ne $credentialBefore.Hash) {
         throw 'Normal update changed shared configuration or DPAPI material.'
     }
-    if ((Get-Content -Raw -LiteralPath (Join-Path $installRoot 'RELEASE.json') | ConvertFrom-Json).version -ne '0.2.0-rc.4') { throw 'Installed release metadata was not updated.' }
+    if ((Get-Content -Raw -LiteralPath (Join-Path $installRoot 'RELEASE.json') | ConvertFrom-Json).version -ne '0.2.0-rc.5') { throw 'Installed release metadata was not updated.' }
 
     $changeRejected = $false
     try { & (Join-Path $v2 'Install-FORGE-Workbench.ps1') -InstallRoot $installRoot -ConfigRoot $configRoot -WorkbenchPort 7444 -NoShortcuts -NoLaunch | Out-Null }

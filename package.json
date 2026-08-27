@@ -1,6 +1,6 @@
 {
   "name": "forge-monorepo",
-  "version": "0.2.0-rc.4",
+  "version": "0.2.0-rc.5",
   "private": true,
   "description": "Durable, project-scoped memory and semantic retrieval for AI agents and developer tools.",
   "license": "Apache-2.0",
