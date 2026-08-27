@@ -109,6 +109,7 @@ Studio validation are opt-in; see each package README:
 - [Semantic Bridge](packages/semantic-bridge/README.md)
 - [Resilience](packages/resilience/README.md)
 - [Workbench](packages/workbench/README.md)
+- [Raspberry Pi 5 ARM64 acceptance](docs/RASPBERRY-PI-5-ACCEPTANCE.md)
 
 ## Security model
 

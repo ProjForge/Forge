@@ -16,3 +16,4 @@ coverage/
 !.env.example
 packages/forge-workbench-windows-*/
 artifacts/
+forge-pi5-acceptance-result.json

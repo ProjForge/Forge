@@ -32,6 +32,12 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - if: runner.os == 'Linux'
+        name: Validate Raspberry Pi 5 acceptance contract
+        run: |
+          bash -n scripts/acceptance/test-forge-pi5.sh
+          scripts/acceptance/test-forge-pi5.sh --plan-only
+          node --check scripts/acceptance/write-pi5-result.mjs
       - run: npm run check
       - if: runner.os == 'Windows'
         shell: powershell
