@@ -6,7 +6,7 @@ param(
     [string]$ReleaseRoot = 'C:\FORGE\Input\Release',
     [string]$OutputRoot = 'C:\FORGE\Output',
     [string]$WorkRoot = 'C:\FORGE\Lab',
-    [string]$ExpectedVersion = '0.2.0-rc.4'
+    [string]$ExpectedVersion = '0.2.0-rc.5'
 )
 
 $ErrorActionPreference = 'Stop'
