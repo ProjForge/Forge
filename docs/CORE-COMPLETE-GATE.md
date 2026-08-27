@@ -1,7 +1,7 @@
 # FORGE Core Complete gate
 
-Date: 2026-08-21
-Status: Core Complete for source; unsigned rc.4 published for bounded testing
+Date: 2026-08-27
+Status: Core Complete for source; unsigned rc.5 published for bounded testing
 
 Core Complete means FORGE's principal local workflows are complete, recoverable
 and operable by a new user. It does not mean high availability, automatic
@@ -20,11 +20,11 @@ failover, every model provider or unlimited-scale vector search.
 | Physical recovery | Encrypted base/WAL chain and named-target recovery without modifying production | PASS | Production AWS chain restored 53 projects/100 memories |
 | Recovery visibility | A human can see backup, replica and PITR freshness without reading task files or using PowerShell | PASS | Fail-closed reader and sanitized Workbench panel validated against installed logical, WAL, base-backup and PITR state on desktop/mobile |
 | Installation | A new Windows user can install/configure schema, least-privilege roles, clients and optional recovery coherently | PASS | Ephemeral Windows Server 2022 acceptance passed bootstrap, DPAPI/MCP, installed Workbench, PostgreSQL restart, resume and data-safe rollback on PostgreSQL 14.23 + pgvector 0.8.2 ([run 31833285751](https://github.com/ProjForge/Forge/actions/runs/31833285751)) |
-| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Unsigned `v0.2.0-rc.4` is published after a verified update from the exact public rc.3 archive. Signed general-user Windows publication remains a separate distribution gate. |
+| Clean release | Clean install, CI, audit, manifests, licenses, release notes and rollback are reproducible | PASS WITH LIMIT | Unsigned `v0.2.0-rc.5` is published after a verified update from the exact public rc.4 archive, tag-bound assembly and post-publication artifact verification. Signed general-user Windows publication remains a separate distribution gate. |
 
 ## Release decision
 
-FORGE Core is complete. `v0.2.0-rc.4` is available as an explicitly unsigned
+FORGE Core is complete. `v0.2.0-rc.5` is available as an explicitly unsigned
 technical prerelease for bounded tester evaluation. This does not authorize a
 general-user binary until the remaining distribution checklist is complete.
 The next release order is:

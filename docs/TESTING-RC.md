@@ -72,7 +72,7 @@ npm run build
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\acceptance\windows-sandbox\Start-FORGE-WorkbenchTestLab.ps1
 ```
 
-The launcher downloads the pinned public rc.4 Windows archive, verifies its
+The launcher downloads the pinned public rc.5 Windows archive, verifies its
 published SHA-256 before extraction, maps all inputs read-only, disables guest
 networking and opens Workbench when the fresh schema is ready. The host receives
 only a bounded, secret-free `lab-result.json` status file. Closing Windows
