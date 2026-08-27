@@ -52,7 +52,7 @@ DOCKER_VERSION='unavailable'
 SOURCE_COMMIT='unavailable'
 
 write_result() {
-  command -v node >/dev/null 2>&1 || return 0
+  command -v node >/dev/null 2>&1 || return 1
   FORGE_PI_RESULT_STATUS="$STATUS" \
   FORGE_PI_RESULT_STAGE="$STAGE" \
   FORGE_PI_RESULT_STARTED_AT="$STARTED_AT" \
@@ -67,7 +67,7 @@ write_result() {
   FORGE_PI_RESULT_COMMIT="$SOURCE_COMMIT" \
   FORGE_PI_RESULT_POSTGRES="$POSTGRES_VERSION" \
   FORGE_PI_RESULT_VECTOR="$VECTOR_VERSION" \
-    node "$SCRIPT_DIR/write-pi5-result.mjs" "$OUTPUT_PATH" || true
+    node "$SCRIPT_DIR/write-pi5-result.mjs" "$OUTPUT_PATH"
 }
 
 cleanup() {
@@ -76,19 +76,30 @@ cleanup() {
   if ((COMPOSE_STARTED)); then
     docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" down -v --remove-orphans >/dev/null 2>&1
   fi
-  write_result
+  local result_written=0
+  write_result && result_written=1
   if [[ "$STATUS" == 'PASS' ]]; then
-    printf '\nPASS: Raspberry Pi 5 acceptance completed.\nResult: %s\n' "$OUTPUT_PATH"
+    printf '\nPASS: Raspberry Pi 5 acceptance completed.\n'
   else
-    printf '\nFAIL: Raspberry Pi 5 acceptance stopped at stage: %s\nResult: %s\n' "$STAGE" "$OUTPUT_PATH" >&2
+    printf '\nFAIL: Raspberry Pi 5 acceptance stopped at stage: %s\n' "$STAGE" >&2
+  fi
+  if ((result_written)); then
+    printf 'Result: %s\n' "$OUTPUT_PATH"
+  else
+    printf 'Result not written because Node.js is unavailable.\n' >&2
   fi
   exit "$exit_code"
 }
 trap cleanup EXIT
 
+missing_tools=()
 for tool in node npm git docker; do
-  command -v "$tool" >/dev/null 2>&1 || { printf 'Missing required tool: %s\n' "$tool" >&2; exit 1; }
+  command -v "$tool" >/dev/null 2>&1 || missing_tools+=("$tool")
 done
+if ((${#missing_tools[@]})); then
+  printf 'Missing required tools: %s\n' "${missing_tools[*]}" >&2
+  exit 1
+fi
 docker compose version >/dev/null
 docker info >/dev/null
 
