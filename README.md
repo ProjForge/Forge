@@ -111,6 +111,10 @@ Studio validation are opt-in; see each package README:
 - [Workbench](packages/workbench/README.md)
 - [Raspberry Pi 5 ARM64 acceptance](docs/RASPBERRY-PI-5-ACCEPTANCE.md)
 
+Raspberry Pi 5 Model B Rev 1.1 has passed the complete optional ARM64 technical
+acceptance gate on Debian 13. This is a verified test platform, not a runtime
+dependency or a claim of support for every ARM64 distribution.
+
 ## Security model
 
 FORGE treats PostgreSQL as the source of persistent truth. The Workbench binds

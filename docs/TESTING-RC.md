@@ -90,11 +90,12 @@ but are not required for each development iteration.
 
 ## Raspberry Pi 5 ARM64 acceptance
 
-A Raspberry Pi 5 with 8 GB RAM can provide optional Linux ARM64 evidence for
-Core, native PostgreSQL continuity and project portability. It does not test the
-Windows package or require users to own ARM hardware. Follow
-[`RASPBERRY-PI-5-ACCEPTANCE.md`](RASPBERRY-PI-5-ACCEPTANCE.md); the runner uses
-a disposable loopback Docker database and removes its volume on exit.
+A Raspberry Pi 5 with 8 GB RAM provides optional Linux ARM64 evidence for Core,
+native PostgreSQL continuity and project portability. The gate passed on a Pi 5
+Model B Rev 1.1 running Debian 13. It does not test the Windows package or
+require users to own ARM hardware. Follow
+[`RASPBERRY-PI-5-ACCEPTANCE.md`](RASPBERRY-PI-5-ACCEPTANCE.md) for the exact
+evidence and runner; its loopback Docker database and volume are disposable.
 
 If the Windows Sandbox component itself does not start, use the local fallback:
 

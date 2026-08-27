@@ -21,6 +21,22 @@ LM Studio, local embedding throughput, Windows packaging, DPAPI, SmartScreen and
 physical recovery are deliberately outside this ARM64 gate. Semantic providers
 remain external to Core.
 
+## Verified configuration
+
+The acceptance suite passed on 2026-08-27 for the following exact technical
+test configuration:
+
+- Raspberry Pi 5 Model B Rev 1.1 with 8 GB RAM;
+- Debian GNU/Linux 13 (trixie), kernel `6.18.39+rpt-rpi-2712`, `aarch64`;
+- Node.js 22.23.2, npm 10.9.8 and Docker 29.7.2;
+- disposable PostgreSQL 14.23 with pgvector 0.8.2;
+- FORGE source commit `b5d7bc18f0873791d0e3ce5933f09adba3a6fb7f`.
+
+The secret-free machine result is retained as
+[`2026-08-27-b5d7bc1.json`](acceptance/raspberry-pi-5/2026-08-27-b5d7bc1.json).
+This evidence validates Raspberry Pi 5 for technical testing on that
+configuration; it does not certify every ARM64 system or production deployment.
+
 ## Prerequisites
 
 - Raspberry Pi 5 with 8 GB RAM;
@@ -62,9 +78,9 @@ non-ARM64 host fails before mutation.
 
 ## Interpretation
 
-A PASS certifies this exact Pi hardware/OS/runtime combination for technical
+A PASS validates the exact Pi hardware/OS/runtime combination for technical
 testing. It does not make every ARM64 distribution certified. Record the JSON
-result with the RC evidence before advertising Raspberry Pi support.
+result with the RC evidence before advertising Raspberry Pi compatibility.
 
 Upstream references:
 
