@@ -10,7 +10,7 @@ not signed general-user releases.
 - Download `SHA256SUMS.txt` with the archives and verify the selected file:
 
 ```powershell
-Get-FileHash .\FORGE-Workbench-0.2.0-rc.4-Windows-x64.zip -Algorithm SHA256
+Get-FileHash .\FORGE-Workbench-0.2.0-rc.5-Windows-x64.zip -Algorithm SHA256
 ```
 
 The result must equal the corresponding value in `SHA256SUMS.txt`. Stop if it
@@ -28,7 +28,7 @@ run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-FORGE-Workbench.ps1
 ```
 
-## Update from rc.3
+## Update from rc.4
 
 Before updating, record hashes of the shared configuration and encrypted
 credential. Do not copy or publish either file:
@@ -40,10 +40,10 @@ Get-FileHash (Join-Path $forgeConfigRoot 'workbench.json') -Algorithm SHA256
 Get-FileHash (Join-Path $forgeConfigRoot ([string]$forgeConfig.database.credentialFile)) -Algorithm SHA256
 ```
 
-Run the rc.4 installer normally, without database parameters. It must identify
+Run the rc.5 installer normally, without database parameters. It must identify
 the existing installation as an update, must not request the PostgreSQL
 password, and both hashes must remain unchanged. `RELEASE.json` under the
-installed application must report `0.2.0-rc.4`.
+installed application must report `0.2.0-rc.5`.
 
 ## Smoke test
 
