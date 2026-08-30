@@ -33,7 +33,7 @@
           <h1 id="project-name">Selecciona un proyecto</h1>
           <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
         </div>
-        <div class="top-actions">
+        <div class="top-actions" data-project-required>
           <button id="export-project" class="secondary" disabled>Exportar</button>
           <button id="add-agent" class="secondary" data-action-views="operation" disabled>Nuevo agente</button>
           <button id="add-task" class="secondary" data-action-views="overview operation" data-primary-views="overview operation" disabled>Nueva tarea</button>
@@ -42,7 +42,7 @@
         </div>
       </header>
 
-      <nav class="workspace-tabs" aria-label="Secciones del proyecto">
+      <nav class="workspace-tabs" aria-label="Secciones del proyecto" data-project-required>
         <button type="button" class="view-tab active" data-view="overview" aria-current="page"><strong>Inicio</strong><small>Qué requiere atención</small></button>
         <button type="button" class="view-tab" data-view="operation"><strong>Trabajo</strong><small>Tareas y agentes</small></button>
         <button type="button" class="view-tab" data-view="knowledge"><strong>Memoria</strong><small>Buscar y registrar</small></button>
@@ -51,7 +51,7 @@
 
       <div id="workspace-message" class="workspace-message" role="status" aria-live="polite" hidden></div>
 
-      <section class="project-stats" aria-label="Resumen del proyecto">
+      <section class="project-stats" aria-label="Resumen del proyecto" data-project-required>
         <button type="button" class="stat-card" data-target-view="operation"><span>Trabajo pendiente</span><strong id="metric-open-tasks">—</strong><small>Ver tareas activas</small></button>
         <button type="button" class="stat-card" data-target-view="operation"><span>Ahora mismo</span><strong id="metric-running-executions">—</strong><small>Ver ejecuciones</small></button>
         <button type="button" class="stat-card" data-target-view="knowledge"><span>Memoria</span><strong id="metric-knowledge">—</strong><small>Buscar y consultar</small></button>
@@ -64,10 +64,13 @@
           <h2 id="next-step-title">Selecciona un proyecto</h2>
           <p id="next-step-description" class="muted">FORGE te indicará la acción más útil según el estado del proyecto.</p>
         </div>
-        <button id="next-step-action" type="button" class="primary" hidden>Continuar</button>
+        <div class="next-step-actions">
+          <button id="next-step-secondary" type="button" class="secondary" hidden>Crear desde cero</button>
+          <button id="next-step-action" type="button" class="primary" hidden>Continuar</button>
+        </div>
       </section>
 
-      <section class="search-panel workspace-view" data-views="overview knowledge" aria-labelledby="search-title">
+      <section class="search-panel workspace-view" data-views="overview knowledge" data-project-required aria-labelledby="search-title">
         <div class="search-copy">
           <p class="eyebrow">Recuperación semántica</p>
           <h2 id="search-title">Pregunta a la memoria del proyecto</h2>
@@ -84,7 +87,7 @@
         <div id="results" class="results"></div>
       </section>
 
-      <section class="recovery-panel workspace-view" data-views="overview continuity" aria-labelledby="recovery-title">
+      <section class="recovery-panel workspace-view" data-views="overview continuity" data-project-required aria-labelledby="recovery-title">
         <div class="section-heading">
           <div><p class="eyebrow">Supervivencia</p><h2 id="recovery-title">Salud de recuperación</h2></div>
           <span id="recovery-overall" class="health-badge unconfigured">Sin configurar</span>

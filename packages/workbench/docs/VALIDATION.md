@@ -42,6 +42,7 @@ pgvector 0.8.2, LM Studio and Qwen3 Embedding 0.6B Q8.
 - Four-area workspace navigation and project metric asset contract: PASS
 - Human-oriented Inicio/Trabajo/Memoria/Recuperación navigation: PASS
 - Catalog-derived next-action guidance and contextual creation actions: PASS
+- Empty-workspace onboarding exposes import-existing and create-empty paths: PASS
 - Global operation errors remain visible outside the search view: PASS
 - Responsive 2x2 mobile navigation at 390×844: PASS; no horizontal overflow
 - Updated small-text contrast against raised surfaces: 5.04:1 minimum

@@ -5,8 +5,10 @@ function setView(view) {
   state.view = view
   document.documentElement.dataset.workspaceView = view
   for (const section of document.querySelectorAll('[data-views]')) {
-    section.hidden = !section.dataset.views.split(' ').includes(view)
+    const requiresProject = section.hasAttribute('data-project-required')
+    section.hidden = !section.dataset.views.split(' ').includes(view) || (requiresProject && !state.project)
   }
+  for (const section of document.querySelectorAll('[data-project-required]:not([data-views])')) section.hidden = !state.project
   for (const tab of document.querySelectorAll('.view-tab')) {
     const active = tab.dataset.view === view
     tab.classList.toggle('active', active)
@@ -49,6 +51,11 @@ function renderProjects() {
   const projects = filter
     ? state.projects.filter((project) => `${project.name} ${project.projectKey}`.toLocaleLowerCase().includes(filter))
     : state.projects
+  if (!projects.length) {
+    const message = item('p', 'project-empty', filter ? 'No hay coincidencias.' : 'Aún no hay proyectos.')
+    container.append(message)
+    return
+  }
   for (const project of projects) {
     const button = item('button', `project-button${state.project?.id === project.id ? ' active' : ''}`, '')
     button.type = 'button'
@@ -265,6 +272,7 @@ function renderExecutions(executions) {
 
 async function selectProject(project) {
   state.project = project
+  setView(state.view)
   showMessage('')
   renderProjects()
   $('#project-name').textContent = project.name
@@ -321,7 +329,19 @@ function renderNextStep() {
   const title = $('#next-step-title')
   const description = $('#next-step-description')
   const action = $('#next-step-action')
-  if (!state.project) { action.hidden = true; return }
+  const secondary = $('#next-step-secondary')
+  if (!state.project) {
+    title.textContent = 'Trae tu primer proyecto a FORGE'
+    description.textContent = 'Importa la documentación segura de un repositorio existente para conservar su contexto, o crea un espacio vacío si empiezas desde cero.'
+    action.dataset.nextAction = 'import'
+    action.textContent = 'Importar proyecto existente'
+    action.hidden = false
+    secondary.dataset.nextAction = 'create'
+    secondary.textContent = 'Crear desde cero'
+    secondary.hidden = false
+    return
+  }
+  secondary.hidden = true
 
   let recommendation
   if (!state.agents.length) recommendation = ['Asigna el primer agente', 'Un agente asignado permite convertir una tarea en una ejecución trazable.', 'agent', 'Asignar agente']
@@ -343,13 +363,17 @@ function renderNextStep() {
   action.hidden = false
 }
 
-$('#next-step-action').addEventListener('click', () => {
-  const action = $('#next-step-action').dataset.nextAction
+function followNextStep(action) {
   if (action === 'agent') openDialog('#agent-dialog')
   else if (action === 'task') openDialog('#task-dialog')
   else if (action === 'memory') openDialog('#memory-dialog')
+  else if (action === 'import') openDialog('#import-dialog')
+  else if (action === 'create') openDialog('#project-dialog')
   else setView('operation')
-})
+}
+
+$('#next-step-action').addEventListener('click', () => followNextStep($('#next-step-action').dataset.nextAction))
+$('#next-step-secondary').addEventListener('click', () => followNextStep($('#next-step-secondary').dataset.nextAction))
 
 const recoveryLabels = {
   logical: 'Copia lógica', pitr: 'PITR', walTransport: 'Transporte WAL', baseBackup: 'Base física',
@@ -613,6 +637,7 @@ async function boot() {
     renderProjects()
     const initial = projects.find((project) => project.projectKey === 'forge-core') || projects[0]
     if (initial) await selectProject(initial)
+    else renderNextStep()
   } catch (error) {
     $('#health').textContent = 'FORGE no disponible'
     showMessage(error.message, true)
