@@ -46,6 +46,11 @@ test('serves the loopback API with token and origin protections', async (context
   assert.match(index, /class="workspace-tabs"/)
   assert.match(index, /data-view="overview"/)
   assert.match(index, /Siguiente paso recomendado/)
+  assert.match(index, /id="next-step-secondary"/)
+  assert.match(index, /class="top-actions" data-project-required/)
+  assert.match(index, /class="workspace-tabs"[^>]+data-project-required/)
+  assert.match(index, /class="project-stats"[^>]+data-project-required/)
+  assert.match(index, /data-views="overview knowledge" data-project-required/)
   assert.match(index, /data-action-views="overview operation"/)
   assert.match(index, /id="workspace-message"/)
   assert.match(index, />Trabajo<\/strong><small>Tareas y agentes/)
@@ -57,7 +62,12 @@ test('serves the loopback API with token and origin protections', async (context
 
   const client = await (await fetch(`${base}/app.js`)).text()
   assert.match(client, /function setView\(view\)/)
+  assert.match(client, /requiresProject && !state\.project/)
   assert.match(client, /function renderNextStep\(\)/)
+  assert.match(client, /Trae tu primer proyecto a FORGE/)
+  assert.match(client, /function followNextStep\(action\)/)
+  assert.match(client, /action === 'import'/)
+  assert.match(client, /action === 'create'/)
   assert.match(client, /function showSearchMessage\(message, error = false\)/)
   assert.match(client, /metric-running-executions/)
   assert.match(client, /\/api\/imports\/repository/)
@@ -65,6 +75,7 @@ test('serves the loopback API with token and origin protections', async (context
 
   const styles = await (await fetch(`${base}/styles.css`)).text()
   assert.match(styles, /\.project-stats/)
+  assert.match(styles, /\.next-step-actions/)
   assert.match(styles, /\[hidden\]/)
 })
 

@@ -170,3 +170,18 @@ including binary extensions. Root documentation now permits only extensionless
 text or `.md`, `.mdx`, `.txt` and `.rst`; credential-like path segments are
 also rejected. Content still requires human review because names cannot prove
 that a valid document contains no secret.
+
+## FINDING-WORKBENCH-24 — The empty workspace hid the first useful action
+
+When no project existed, Workbench asked the user to select one while rendering
+an empty project list. Creating or importing was possible only through two
+unlabelled rail icons, so the main workspace looked blocked to a first-time
+operator.
+
+The empty state now recommends importing an existing project, offers creation
+from scratch as an explicit alternative, and explains the bounded documentation
+boundary. Both actions reuse the existing dialogs and server contracts; no new
+persistent onboarding state or privileged surface was introduced. Disabled
+project actions, project navigation, empty metrics, search and recovery controls
+remain hidden until a project exists so the first-use actions stay prominent on
+narrow screens.
