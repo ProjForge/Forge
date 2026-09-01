@@ -12,7 +12,7 @@
     "test:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-docker.ps1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.4",
+    "@electric-sql/pglite": "0.5.8",
     "@electric-sql/pglite-pgvector": "0.0.5",
     "pg": "8.23.0"
   },
