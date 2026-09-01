@@ -30,7 +30,7 @@
     "test:all": "npm run build && npm run test:unit && npm run test:integration"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1107.0",
+    "@aws-sdk/client-s3": "3.1121.0",
     "pg": "8.23.0"
   },
   "devDependencies": {
