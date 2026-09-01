@@ -39,7 +39,7 @@
     "@modelcontextprotocol/sdk": "1.30.0",
     "forge-embedding-worker": "0.1.6",
     "forge-persistence-gateway": "0.1.5",
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
