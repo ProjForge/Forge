@@ -36,7 +36,7 @@
     "smoke:live": "node scripts/live-smoke.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "forge-embedding-worker": "0.1.6",
     "forge-persistence-gateway": "0.1.5",
     "zod": "4.4.3"
