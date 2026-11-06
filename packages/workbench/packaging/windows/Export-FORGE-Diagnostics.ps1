@@ -14,6 +14,8 @@ if ((Test-Path -LiteralPath $OutputPath) -and -not $Force) { throw 'The diagnost
 
 function Read-JsonSafe([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    $file = Get-Item -LiteralPath $Path
+    if ($file.Length -gt 65536 -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return [pscustomobject]@{invalid=$true} }
     try { return Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json }
     catch { return [pscustomobject]@{ invalid = $true } }
 }
@@ -85,6 +87,15 @@ $sourceCommit = [string](Get-OptionalProperty $release 'sourceCommit')
 if ($sourceCommit -notmatch '^[0-9a-f]{40}$') { $sourceCommit = $null }
 $bootstrapStatus = Get-AllowedValue (Get-OptionalProperty $bootstrap 'status') @('PASS','FAIL','RUNNING','ROLLED_BACK')
 $bootstrapPhase = Get-AllowedValue (Get-OptionalProperty $bootstrap 'phase') @('preflight','dependencies','build','database','runtime-config','codex-mcp','embedding-worker','workbench','logical-recovery','rollback','complete')
+$worker = Read-JsonSafe (Join-Path $ConfigRoot 'embedding-worker-status.json')
+$workerTime = Get-IsoTimestamp (Get-OptionalProperty $worker 'updatedAt')
+$pitrPolicy = Read-JsonSafe (Join-Path $ConfigRoot 'pitr-policy.json')
+$physicalOutput = Get-OptionalProperty $pitrPolicy 'outputDirectory'
+$wal = $null
+if ($physicalOutput -is [string] -and [IO.Path]::IsPathRooted($physicalOutput)) {
+    $wal = Read-JsonSafe (Join-Path (Split-Path -Parent $physicalOutput) 'status\physical-uploader.json')
+}
+$pending = Get-OptionalProperty $wal 'pendingCount'
 $diagnostics = [ordered]@{
     formatVersion = 1
     generatedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -120,7 +131,18 @@ $diagnostics = [ordered]@{
         completedPhaseCount = if ($bootstrapValid) { @(Get-OptionalProperty $bootstrap 'completed').Count } else { 0 }
         updatedAt = if ($bootstrapValid) { Get-IsoTimestamp (Get-OptionalProperty $bootstrap 'updatedAt') } else { $null }
     }
+    indexing = [ordered]@{
+        status = Get-AllowedValue (Get-OptionalProperty $worker 'status') @('PASS','FAIL','RETRY')
+        updatedAt = $workerTime
+        stale = $null -eq $workerTime -or ([datetime]::UtcNow - [datetime]$workerTime).TotalMinutes -gt 3
+    }
     postgresqlServices = $services
+    walTransport = [ordered]@{
+        status = Get-AllowedValue (Get-OptionalProperty $wal 'status') @('PASS','FAIL')
+        updatedAt = Get-IsoTimestamp (Get-OptionalProperty $wal 'completedAt')
+        pendingCount = if (($pending -is [int] -or $pending -is [long]) -and $pending -ge 0) { $pending } else { $null }
+        oldestPendingAt = Get-IsoTimestamp (Get-OptionalProperty $wal 'oldestPendingAt')
+    }
     scheduledTasks = $tasks
 }
 

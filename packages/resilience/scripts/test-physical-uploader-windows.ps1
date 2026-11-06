@@ -31,7 +31,50 @@ try {
     if ($status.status -ne 'PASS' -or $status.results[0].status -ne 'packaged') { throw 'Package-only worker did not pass.' }
     & (Join-Path $PSScriptRoot 'run-physical-uploader-windows.ps1') -ConfigRoot $config -PitrRoot $pitr -PackageOnly | Out-Null
     if (@(Get-ChildItem -LiteralPath (Join-Path $pitr 'encrypted') -Filter '*.forge-physical.json').Count -ne 1) { throw 'Worker replay was not idempotent.' }
-    Write-Output 'PASS: physical uploader packages, verifies and replays WAL idempotently without AWS.'
+    # A full batch of historical receipts must not starve later pending WAL.
+    $receipts = Join-Path $pitr 'receipts'
+    New-Item -ItemType Directory -Force -Path $receipts | Out-Null
+    foreach ($n in 1..18) {
+        $name = '0000000100000000{0:X8}' -f $n
+        [IO.File]::WriteAllBytes((Join-Path (Join-Path $pitr 'wal') $name),(New-Object byte[] 4096))
+        if ($n -le 16) { '{}' | Set-Content -LiteralPath (Join-Path $receipts "wal-$name.receipt.json") }
+    }
+    & (Join-Path $PSScriptRoot 'run-physical-uploader-windows.ps1') -ConfigRoot $config -PitrRoot $pitr -MaxItems 1 -PackageOnly | Out-Null
+    $status = Get-Content -LiteralPath (Join-Path $pitr 'status/physical-uploader.json') -Raw | ConvertFrom-Json
+    if ($status.results[0].wal -ne '000000010000000000000011' -or $status.pendingCount -ne 2 -or -not $status.oldestPendingAt) { throw 'Receipted history starved the next batch or queue metadata is incorrect.' }
+    '{}' | Set-Content -LiteralPath (Join-Path $receipts 'wal-000000010000000000000011.receipt.json')
+    & (Join-Path $PSScriptRoot 'run-physical-uploader-windows.ps1') -ConfigRoot $config -PitrRoot $pitr -MaxItems 1 -PackageOnly | Out-Null
+    $status = Get-Content -LiteralPath (Join-Path $pitr 'status/physical-uploader.json') -Raw | ConvertFrom-Json
+    if ($status.results[0].wal -ne '000000010000000000000012') { throw 'Second batch did not advance.' }
+    # Simulate remote transport, preserving the first receipt when the second item fails.
+    $fakeCli = Join-Path $root 'fake-cli.mjs'
+    @'
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+const manifest = process.argv[process.argv.indexOf('--manifest') + 1] || '';
+if (process.argv.includes('physical-upload-s3')) {
+  if (existsSync(join(import.meta.dirname, 'fail')) && manifest.includes('00000012')) process.exit(1);
+  console.log(JSON.stringify({ manifestLocation: 'fake://manifest', payloadLocation: 'fake://payload' }));
+}
+'@ | Set-Content -LiteralPath $fakeCli -Encoding utf8
+    [ordered]@{nodePath=$node;cliPath=$fakeCli}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $config 'resilience-runtime.json') -Encoding utf8
+    foreach ($key in @('resilience-aws-access-key-id.dpapi','resilience-aws-secret-access-key.dpapi')) {
+        [Convert]::ToBase64String($protected) | Set-Content -LiteralPath (Join-Path $config $key) -Encoding ascii
+    }
+    Remove-Item -LiteralPath (Join-Path $receipts 'wal-000000010000000000000011.receipt.json')
+    'fail' | Set-Content -LiteralPath (Join-Path $root 'fail')
+    $failed = $false
+    try { & (Join-Path $PSScriptRoot 'run-physical-uploader-windows.ps1') -ConfigRoot $config -PitrRoot $pitr -MaxItems 2 | Out-Null } catch { $failed=$true }
+    if (-not $failed) { throw 'Transport failure was hidden.' }
+    $firstReceipt = Join-Path $receipts 'wal-000000010000000000000011.receipt.json'
+    $before = Get-Content -LiteralPath $firstReceipt -Raw
+    $status = Get-Content -LiteralPath (Join-Path $pitr 'status/physical-uploader.json') -Raw | ConvertFrom-Json
+    if ($status.status -ne 'FAIL' -or $status.pendingCount -ne 1) { throw 'Partial failure lost progress or queue state.' }
+    Remove-Item -LiteralPath (Join-Path $root 'fail')
+    & (Join-Path $PSScriptRoot 'run-physical-uploader-windows.ps1') -ConfigRoot $config -PitrRoot $pitr -MaxItems 2 | Out-Null
+    $status = Get-Content -LiteralPath (Join-Path $pitr 'status/physical-uploader.json') -Raw | ConvertFrom-Json
+    if ($status.pendingCount -ne 0 -or $null -ne $status.oldestPendingAt -or (Get-Content -LiteralPath $firstReceipt -Raw) -ne $before) { throw 'Resume failed or rewrote a receipt.' }
+    Write-Output 'PASS: WAL batches advance past old receipts, preserve progress after transport failure and resume idempotently without AWS.'
 }
 finally {
     if ($plain) { [Array]::Clear($plain,0,$plain.Length) }

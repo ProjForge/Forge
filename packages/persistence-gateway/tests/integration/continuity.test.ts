@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import test from 'node:test'
+import pg from 'pg'
 import {
   ConflictError,
   type EmbeddingCandidate,
@@ -576,18 +577,10 @@ test('persists and reconstructs a complete task continuation flow', {
   }
 })
 
-test('exports and imports portable projects atomically and idempotently', {
-  skip: connectionString ? false : 'FORGE_DATABASE_URL is not configured',
-  timeout: 30_000,
-}, async () => {
-  if (!connectionString) return
-
-  const suffix = randomUUID()
-  const gateway = ForgePersistenceGateway.connect({ connectionString })
+function portablePayload(suffix: string): PortableProjectPayloadV1 {
   const sourceKey = `portable-source-${suffix}`
-  const targetKey = `portable-target-${suffix}`
   const agentKey = `portable-agent-${suffix}`
-  const payload: PortableProjectPayloadV1 = {
+  return {
     formatVersion: 1,
     sourceSchemaVersion: '0.1.3',
     project: { projectKey: sourceKey, name: 'Portable source', description: 'Portable integration fixture', metadata: { suite: 'portability' } },
@@ -605,6 +598,31 @@ test('exports and imports portable projects atomically and idempotently', {
     ],
     omitted: ['embeddings', 'executions', 'context_packages', 'events', 'audit_log'],
   }
+}
+
+test('exports and imports portable projects atomically and idempotently', {
+  skip: connectionString ? false : 'FORGE_DATABASE_URL is not configured',
+  timeout: 30_000,
+}, async () => {
+  if (!connectionString) return
+  if (process.env.FORGE_TEST_REQUIRE_LIMITED_ROLE === '1') {
+    const client = new pg.Client({ connectionString })
+    await client.connect()
+    try {
+      const privileges = await client.query(`SELECT rolsuper,
+        has_table_privilege(current_user, 'forge.projects', 'UPDATE') AS project_update,
+        has_table_privilege(current_user, 'forge.decisions', 'UPDATE') AS decision_update
+        FROM pg_roles WHERE rolname = current_user`)
+      assert.deepEqual(privileges.rows[0], { rolsuper: false, project_update: false, decision_update: false })
+    } finally { await client.end() }
+  }
+  const suffix = randomUUID()
+  const gateway = ForgePersistenceGateway.connect({ connectionString })
+  const targetKey = `portable-target-${suffix}`
+  const agentKey = `portable-agent-${suffix}`
+  const payload = portablePayload(suffix)
+  // Valid bundles need not list superseded decisions before their successors.
+  payload.decisions.reverse()
   const bundleHash = 'a'.repeat(64)
 
   try {
@@ -646,4 +664,68 @@ test('exports and imports portable projects atomically and idempotently', {
   } finally {
     await gateway.close().catch(() => undefined)
   }
+})
+
+test('serializes portable imports across connections, including a previously absent target', {
+  skip: !connectionString, timeout: 30_000,
+}, async () => {
+  if (!connectionString) return
+  const gateways = [ForgePersistenceGateway.connect({ connectionString }), ForgePersistenceGateway.connect({ connectionString })]
+  const suffix = randomUUID()
+  const input = { payload: portablePayload(suffix), bundleHash: 'd'.repeat(64), targetProjectKey: `concurrent-${suffix}`, mode: 'create' as const, idempotencyKey: `same-${suffix}` }
+  try {
+    const replays = await Promise.all(gateways.map((gateway) => gateway.importPortableProject(input)))
+    assert.deepEqual(replays[0], replays[1])
+    const targetProjectKey = `distinct-${suffix}`
+    const distinct = await Promise.all(gateways.map((gateway, index) => gateway.importPortableProject({ ...input, targetProjectKey, idempotencyKey: `distinct-${suffix}-${index}` })))
+    assert.equal(distinct[0]!.project.id, distinct[1]!.project.id)
+    assert.deepEqual(distinct.map((result) => result.imported.memories).sort(), [0, 1])
+    const exported = await gateways[0]!.exportPortableProject(distinct[0]!.project.id)
+    assert.equal(exported.memories.length, 1)
+    assert.equal(exported.tasks.length, 1)
+    assert.equal(exported.agents.length, 1)
+    assert.equal(exported.decisions.length, 2)
+    const beforeDecisions = await gateways[0]!.listDecisions({ projectId: distinct[0]!.project.id })
+    const merges = await Promise.all(gateways.map((gateway, index) => gateway.importPortableProject({ ...input, targetProjectKey, mode: 'merge', idempotencyKey: `merge-${suffix}-${index}` })))
+    for (const merge of merges) assert.deepEqual(merge.imported, { agents: 0, tasks: 0, memories: 0, decisions: 0 })
+    const after = await gateways[0]!.exportPortableProject(distinct[0]!.project.id)
+    assert.deepEqual(after, exported)
+    assert.deepEqual(await gateways[0]!.listDecisions({ projectId: distinct[0]!.project.id }), beforeDecisions)
+    const registrationTarget = `register-race-${suffix}`
+    const race = await Promise.allSettled([
+      gateways[0]!.registerProject({ projectKey: registrationTarget, name: 'Concurrent registration' }),
+      gateways[1]!.importPortableProject({ ...input, targetProjectKey: registrationTarget, idempotencyKey: 'registration-race' }),
+    ])
+    assert.equal(race.filter((result) => result.status === 'fulfilled').length, 1)
+    const rejected = race.find((result) => result.status === 'rejected')
+    assert.ok(rejected?.status === 'rejected' && rejected.reason instanceof ConflictError)
+  } finally { await Promise.all(gateways.map((gateway) => gateway.close())) }
+})
+
+test('rejects unresolved, cyclic or incompatible decision ancestry without partial imports', {
+  skip: !connectionString, timeout: 30_000,
+}, async () => {
+  if (!connectionString) return
+  const gateway = ForgePersistenceGateway.connect({ connectionString })
+  const suffix = randomUUID()
+  try {
+    for (const malformed of ['missing', 'cycle']) {
+      const payload = portablePayload(`${suffix}-${malformed}`)
+      payload.decisions[0]!.supersedesDecisionKey = malformed === 'cycle' ? 'DEC-NEW' : 'MISSING'
+      const targetProjectKey = `invalid-ancestry-${suffix}-${malformed}`
+      await assert.rejects(gateway.importPortableProject({ payload, bundleHash: 'e'.repeat(64), targetProjectKey, mode: 'create', idempotencyKey: malformed }), ConflictError)
+      await assert.rejects(gateway.getProjectByKey(targetProjectKey), NotFoundError)
+      // A failed transaction must release its logical-target lock and retry key.
+      const retry = await gateway.importPortableProject({ payload: portablePayload(`${suffix}-${malformed}`), bundleHash: 'e'.repeat(64), targetProjectKey, mode: 'create', idempotencyKey: malformed })
+      assert.equal(retry.imported.memories, 1)
+    }
+    const payload = portablePayload(suffix)
+    const input = { payload, bundleHash: 'f'.repeat(64), targetProjectKey: `ancestry-${suffix}`, mode: 'create' as const, idempotencyKey: 'initial' }
+    const initial = await gateway.importPortableProject(input)
+    const exported = await gateway.exportPortableProject(initial.project.id)
+    payload.decisions[1]!.supersedesDecisionKey = null
+    payload.memories.push({ ...payload.memories[0]!, portableId: 'must-rollback', content: 'Must not survive the rejected merge' })
+    await assert.rejects(gateway.importPortableProject({ ...input, mode: 'merge', idempotencyKey: 'bad-merge' }), ConflictError)
+    assert.deepEqual(await gateway.exportPortableProject(initial.project.id), exported)
+  } finally { await gateway.close() }
 })

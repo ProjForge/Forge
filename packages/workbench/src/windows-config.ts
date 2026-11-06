@@ -11,6 +11,7 @@ export interface WindowsWorkbenchConfig {
   }
   workbench: { port: number }
   embedding: {
+    projectId?: string
     baseUrl: string
     model: string
     profileKey: string
@@ -72,6 +73,7 @@ export function parseWindowsConfig(value: unknown): WindowsWorkbenchConfig {
     },
     workbench: { port: integer(workbench.port, 'workbench.port', 7334, 1, 65_535) },
     embedding: {
+      ...(embedding.projectId === undefined ? {} : { projectId: string(embedding.projectId, 'embedding.projectId') }),
       baseUrl: string(embedding.baseUrl, 'embedding.baseUrl', defaultWindowsConfig.embedding.baseUrl),
       model: string(embedding.model, 'embedding.model', defaultWindowsConfig.embedding.model),
       profileKey: string(embedding.profileKey, 'embedding.profileKey', defaultWindowsConfig.embedding.profileKey),

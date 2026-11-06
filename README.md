@@ -48,6 +48,7 @@ The official geometric identity and usage rules live in the
 | --- | ---: | --- |
 | `schema` | 0.1.3 | PostgreSQL migrations and invariant tests |
 | `persistence-gateway` | 0.1.5 | Typed transactions and domain workflows |
+| `coordinator` | 0.1.0 | External trusted-host pilot: scoped leases, fenced publication and crash recovery |
 | `mcp-server` | 0.1.5 | Strict stdio MCP adapter |
 | `embedding-worker` | 0.1.6 | Provider-pluggable indexing worker |
 | `semantic-bridge` | 0.1.4 | Natural-language search and optional reranking |
@@ -61,6 +62,8 @@ flowchart LR
     Agents["Agents / MCP clients"] --> MCP["MCP Server"]
     Humans["Browser on loopback"] --> WB["Workbench"]
     MCP --> GW["Persistence Gateway"]
+    Coordinator["External coordinator pilot"] --> GW
+    Coordinator --> Control["Separate coordination state"]
     WB --> GW
     WB --> SB["Semantic Bridge"]
     SB --> GW
@@ -80,6 +83,10 @@ See [Architecture](docs/ARCHITECTURE.md) and the
 onboarding and the `.forge-project` format.
 
 ## Quick start for contributors
+
+See [Daily operations and acceptance](docs/guides/DAILY-OPERATIONS.md) for
+Windows model startup, indexing health, WAL queue recovery and isolated restore
+checks. Current implementation status is recorded in [PROJECT_STATE](docs/PROJECT_STATE.md).
 
 Prerequisites: Node.js 20+ and npm 10+.
 
@@ -104,6 +111,7 @@ Studio validation are opt-in; see each package README:
 
 - [Schema and migrations](packages/schema/README.md)
 - [Persistence Gateway](packages/persistence-gateway/README.md)
+- [External agent coordinator pilot](packages/coordinator/README.md)
 - [MCP Server](packages/mcp-server/README.md)
 - [Embedding Worker](packages/embedding-worker/README.md)
 - [Semantic Bridge](packages/semantic-bridge/README.md)

@@ -52,6 +52,17 @@ test('composes bounded project catalogs without bypassing the gateway', async ()
   ])
 })
 
+test('adds semantic and indexing state while keeping database status available during provider failure', async () => {
+  const gateway = { assertReady: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: null }) } as unknown as WorkbenchGateway
+  const semantic = { state: 'failed' as const, updatedAt: null, summary: 'provider offline' }
+  const indexing = { state: 'degraded' as const, updatedAt: null, summary: 'stale', projectId: project.id }
+  const service = new ForgeWorkbenchService(gateway, { search: async () => [] }, undefined, { read: async () => ({ semantic, indexing }) })
+  const status = await service.status()
+  assert.equal(status.serverVersion, '18.4')
+  assert.deepEqual(status.semantic, semantic)
+  assert.deepEqual(status.indexing, indexing)
+})
+
 test('forwards precision mode to the semantic bridge unchanged', async () => {
   let observed: unknown
   const gateway = {

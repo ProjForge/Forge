@@ -39,6 +39,17 @@ test('serves the loopback API with token and origin protections', async (context
   assert.equal(favicon.headers.get('content-type'), 'image/svg+xml')
   assert.match(await favicon.text(), /FORGE favicon/)
 
+  for (const [resource, mime] of [
+    ['/theme.js', 'text/javascript; charset=utf-8'],
+    ['/brand/forge-mark-mono-dark.svg', 'image/svg+xml'],
+  ]) {
+    const asset = await fetch(`${base}${resource}`)
+    assert.equal(asset.status, 200)
+    assert.equal(asset.headers.get('content-type'), mime)
+    assert.ok(asset.headers.get('content-security-policy'))
+    await asset.arrayBuffer()
+  }
+
   const unapproved = await fetch(`${base}/brand/not-approved.svg`)
   assert.equal(unapproved.status, 404)
 

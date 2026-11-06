@@ -16,7 +16,7 @@ test('reports authenticated logical and physical recovery as healthy without exp
   }
   await writeFile(paths.logicalStatusPath, JSON.stringify({ status: 'ok', completedAt: '2026-08-14T00:30:00Z', manifestPath: 'secret-path', replicas: [{ target: 'disk' }, { target: 'cloud' }] }))
   await writeFile(paths.pitrStatusPath, `\uFEFF${JSON.stringify({ status: 'PASS', enabled: true, checkedAt: '2026-08-14T00:56:00Z', checks: [{ name: 'archive-state', status: 'PASS', detail: 'archive_mode=on' }] })}`)
-  await writeFile(paths.walTransportStatusPath, JSON.stringify({ status: 'PASS', completedAt: '2026-08-14T00:55:00Z', packageOnly: false, results: [] }))
+  await writeFile(paths.walTransportStatusPath, JSON.stringify({ status: 'PASS', completedAt: '2026-08-14T00:55:00Z', packageOnly: false, pendingCount: 0, oldestPendingAt: null, results: [] }))
   await writeFile(paths.baseBackupStatusPath, JSON.stringify({ status: 'PASS', completedAt: '2026-08-13T23:00:00Z', packageOnly: false, result: {} }))
 
   const health = await new FileRecoveryHealth(paths, () => now).read()
@@ -50,4 +50,15 @@ test('degrades successful status outside its freshness window', async (context) 
   const health = await new FileRecoveryHealth({ logicalStatusPath }, () => now).read()
   assert.equal(health.overall, 'degraded')
   assert.equal(health.logical.state, 'degraded')
+})
+
+
+test('WAL backlog degrades transport even after a successful cycle', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'forge-backlog-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const walTransportStatusPath = join(root, 'wal.json')
+  await writeFile(walTransportStatusPath, JSON.stringify({ status: 'PASS', completedAt: now.toISOString(), pendingCount: 172, oldestPendingAt: '2026-08-21T00:00:00Z' }))
+  const health = await new FileRecoveryHealth({ walTransportStatusPath }, () => now).read()
+  assert.equal(health.walTransport.state, 'degraded')
+  assert.equal(health.walTransport.pendingCount, 172)
 })

@@ -6,6 +6,7 @@ export interface WorkbenchConfig {
   port: number
   semantic: SemanticBridgeConfig
   recovery: RecoveryHealthConfig
+  indexing?: { statusPath?: string; projectId?: string }
 }
 
 function port(env: NodeJS.ProcessEnv): number {
@@ -23,6 +24,10 @@ export function loadWorkbenchConfig(env: NodeJS.ProcessEnv = process.env): Workb
   }
   return {
     host, port: port(env), semantic: loadSemanticBridgeConfig(env),
+    indexing: {
+      ...(env.FORGE_EMBEDDING_STATUS_FILE ? { statusPath: env.FORGE_EMBEDDING_STATUS_FILE } : {}),
+      ...(env.FORGE_PROJECT_ID ? { projectId: env.FORGE_PROJECT_ID } : {}),
+    },
     recovery: {
       ...(env.FORGE_LOGICAL_RECOVERY_STATUS ? { logicalStatusPath: env.FORGE_LOGICAL_RECOVERY_STATUS } : {}),
       ...(env.FORGE_PITR_MONITOR_STATUS ? { pitrStatusPath: env.FORGE_PITR_MONITOR_STATUS } : {}),

@@ -449,13 +449,27 @@ export class ForgePersistenceGateway {
     const bundleHash = nonEmpty('bundleHash', input.bundleHash)
     if (input.mode !== 'create' && input.mode !== 'merge') throw new TypeError('mode must be create or merge')
     return this.transaction(async (client) => {
-      const existing = await client.query<DatabaseRow>(
-        'SELECT * FROM forge.projects WHERE project_key = $1 FOR UPDATE',
+      // Lock the logical target even before its row exists, without UPDATE grants.
+      // All imports into this target serialize, including different retry keys.
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('forge.project.import.v1:' || $1::text, 0))",
         [targetProjectKey],
       )
-      let project: Project
-      if (existing.rowCount === 1) {
-        project = mapProject(firstRow(existing.rows, 'project'))
+      const metadata = {
+        ...input.payload.project.metadata,
+        forgeImport: { formatVersion: 1, bundleHash, sourceProjectKey: input.payload.project.projectKey },
+      }
+      // Registration can race with import without taking the advisory lock.
+      const inserted = await client.query<DatabaseRow>(
+        `INSERT INTO forge.projects(project_key, name, description, metadata)
+         VALUES ($1, $2, $3, $4::jsonb) ON CONFLICT (project_key) DO NOTHING RETURNING *`,
+        [targetProjectKey, targetProjectName, input.payload.project.description, JSON.stringify(metadata)],
+      )
+      const resolved = inserted.rowCount === 1 ? inserted : await client.query<DatabaseRow>(
+        'SELECT * FROM forge.projects WHERE project_key = $1', [targetProjectKey],
+      )
+      const project = mapProject(firstRow(resolved.rows, 'project'))
+      if (inserted.rowCount !== 1) {
         const importMetadata = project.metadata.forgeImport
         const samePortableSource = importMetadata !== null
           && typeof importMetadata === 'object'
@@ -465,17 +479,6 @@ export class ForgePersistenceGateway {
         if (input.mode === 'create' && !samePortableSource) {
           throw new ConflictError(`Project key already exists: ${targetProjectKey}`)
         }
-      } else {
-        const metadata = {
-          ...input.payload.project.metadata,
-          forgeImport: { formatVersion: 1, bundleHash, sourceProjectKey: input.payload.project.projectKey },
-        }
-        const inserted = await client.query<DatabaseRow>(
-          `INSERT INTO forge.projects(project_key, name, description, metadata)
-           VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
-          [targetProjectKey, targetProjectName, input.payload.project.description, JSON.stringify(metadata)],
-        )
-        project = mapProject(firstRow(inserted.rows, 'project'))
       }
 
       return runIdempotent(client, {
@@ -580,7 +583,13 @@ export class ForgePersistenceGateway {
 
         const decisionIds = new Map<string, string>()
         let importedDecisions = 0
-        for (const decision of input.payload.decisions) {
+        const pendingDecisions = [...input.payload.decisions]
+        while (pendingDecisions.length) {
+          // Resolve ancestry before INSERT: the runtime cannot mutate decisions.
+          const index = pendingDecisions.findIndex((decision) => !decision.supersedesDecisionKey || decisionIds.has(decision.supersedesDecisionKey))
+          if (index < 0) throw new ConflictError('Decision supersession reference is unresolved or cyclic')
+          const decision = pendingDecisions.splice(index, 1)[0]!
+          const supersedesId = decision.supersedesDecisionKey ? decisionIds.get(decision.supersedesDecisionKey)! : null
           const taskId = decision.taskKey ? taskIds.get(decision.taskKey) : undefined
           const agentId = decision.createdByAgentKey ? agentIds.get(decision.createdByAgentKey) : undefined
           if (decision.taskKey && !taskId) throw new ConflictError(`Decision references an unknown task: ${decision.taskKey}`)
@@ -589,12 +598,12 @@ export class ForgePersistenceGateway {
           const inserted = await client.query<DatabaseRow>(
             `INSERT INTO forge.decisions(
                project_id, task_id, created_by_agent_id, decision_key, title, decision_text,
-               rationale, alternatives, consequences, status, metadata
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb)
+               rationale, alternatives, consequences, status, metadata, supersedes_id
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12)
              ON CONFLICT (project_id, decision_key) DO NOTHING RETURNING id`,
             [project.id, taskId ?? null, agentId ?? null, decision.decisionKey, decision.title,
               decision.decisionText, decision.rationale, JSON.stringify(decision.alternatives),
-              JSON.stringify(decision.consequences), decision.status, JSON.stringify(metadata)],
+              JSON.stringify(decision.consequences), decision.status, JSON.stringify(metadata), supersedesId],
           )
           const existingDecision = inserted.rowCount === 1 ? null : await client.query<DatabaseRow>(
             'SELECT * FROM forge.decisions WHERE project_id = $1 AND decision_key = $2',
@@ -612,20 +621,11 @@ export class ForgePersistenceGateway {
               && stableStringify(row.alternatives ?? []) === stableStringify(decision.alternatives)
               && stableStringify(row.consequences ?? []) === stableStringify(decision.consequences)
               && String(row.status) === decision.status
+              && (row.supersedes_id === null ? null : String(row.supersedes_id)) === supersedesId
             if (!matches) throw new ConflictError(`Decision key has incompatible data: ${decision.decisionKey}`)
           }
           decisionIds.set(decision.decisionKey, String(id))
           if (inserted.rowCount === 1) importedDecisions += 1
-        }
-        for (const decision of input.payload.decisions) {
-          if (!decision.supersedesDecisionKey) continue
-          const id = decisionIds.get(decision.decisionKey)
-          const supersedesId = decisionIds.get(decision.supersedesDecisionKey)
-          if (!id || !supersedesId) throw new ConflictError(`Decision supersession reference is unresolved: ${decision.decisionKey}`)
-          await client.query(
-            'UPDATE forge.decisions SET supersedes_id = $1 WHERE id = $2 AND supersedes_id IS NULL',
-            [supersedesId, id],
-          )
         }
 
         await this.appendEvent(client, {

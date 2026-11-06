@@ -10,6 +10,8 @@ export interface RecoveryHealthComponent {
   updatedAt: string | null
   summary: string
   checks?: readonly { name: string; status: 'PASS' | 'INFO' | 'FAIL'; detail: string }[]
+  pendingCount?: number
+  oldestPendingAt?: string | null
 }
 
 export interface RecoveryHealth {
@@ -53,14 +55,15 @@ function timestamp(value: unknown): string {
 }
 
 function stale(updatedAt: string, maximumAgeMs: number, now: Date): boolean {
-  return now.getTime() - Date.parse(updatedAt) > maximumAgeMs
+  const age = now.getTime() - Date.parse(updatedAt)
+  return age > maximumAgeMs || age < -60_000
 }
 
 function bounded(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 500) : fallback
 }
 
-async function statusFile(path: string | undefined): Promise<Record<string, unknown> | null> {
+export async function statusFile(path: string | undefined): Promise<Record<string, unknown> | null> {
   if (!path) return null
   if (!isAbsolute(path)) throw new Error('Recovery status path must be absolute')
   try {
@@ -113,6 +116,14 @@ function pitr(root: Record<string, unknown>): RecoveryHealthComponent {
 function physical(root: Record<string, unknown>, label: string): RecoveryHealthComponent {
   const updatedAt = timestamp(root.completedAt)
   if (root.status !== 'PASS' || root.packageOnly === true) return { state: 'failed', updatedAt, summary: `${label} no confirmó transporte remoto autenticado.` }
+  if ('pendingCount' in root) {
+    if (!Number.isSafeInteger(root.pendingCount) || (root.pendingCount as number) < 0) throw new Error('Invalid queue count')
+    const pendingCount = root.pendingCount as number
+    const oldestPendingAt = pendingCount > 0 ? timestamp(root.oldestPendingAt) : null
+    return { state: pendingCount > 0 ? 'degraded' : 'healthy', updatedAt, pendingCount, oldestPendingAt,
+      summary: pendingCount > 0 ? `${pendingCount} archivos WAL pendientes de autenticar.` : 'Cola autenticada sin archivos pendientes; cobertura verificada por el monitor PITR.' }
+  }
+  if (label === 'Transporte WAL') return { state: 'degraded', updatedAt, summary: 'El uploader terminó; esta versión no informa la cola pendiente. Revisa el monitor PITR.' }
   return { state: 'healthy', updatedAt, summary: `${label} se completó y autenticó.` }
 }
 
