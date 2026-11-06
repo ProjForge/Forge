@@ -3,6 +3,10 @@ import { ForgePersistenceGateway } from 'forge-persistence-gateway'
 import { Coordinator, PostgresJobStore } from '../src/index.js'
 import type { CorePort } from '../src/index.js'
 
+if (process.env.FORGE_COORDINATOR_TEST_ADMIN_URL || process.env.FORGE_ADMIN_DATABASE_URL || process.env.FORGE_RUNTIME_PASSWORD) {
+  throw new Error('Worker fixture must not inherit provisioning credentials')
+}
+
 const [projectId, agentId, workerId, mode = 'normal'] = process.argv.slice(2) as [string, string, string, string?]
 const core = ForgePersistenceGateway.connect({ connectionString: process.env.FORGE_DATABASE_URL!, maxConnections: 2 })
 const store = new PostgresJobStore(process.env.FORGE_COORDINATOR_DATABASE_URL!, 3_000)

@@ -38,8 +38,9 @@ powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/acce
 It creates a disposable loopback cluster, migrates Core, creates its limited
 runtime role, provisions a separate coordinator-state owner, and runs native
 acceptance. It then stops and removes the cluster. It does not read production
-credentials, call a model or register a scheduled task. A sanitized result is
-written to `.run/coordinator-pilot-result.json` only after successful cleanup.
+credentials, call a model or register a scheduled task. Sanitized RUNNING/FAIL
+status replaces prior results in `.run/coordinator-pilot-result.json`; PASS is
+written only after successful cleanup.
 
 Acceptance uses three registered logical agents and six competing worker
 processes on twelve tasks. It kills additional workers after start, after the

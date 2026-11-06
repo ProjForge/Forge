@@ -41,6 +41,12 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   await state.query(await readFile(new URL('../../sql/setup.sql', import.meta.url), 'utf8'))
   const store = new PostgresJobStore(stateUrl.toString(), 3_000)
   const core = ForgePersistenceGateway.connect({ connectionString: coreUrl!, maxConnections: 2 })
+  const workerEnv: NodeJS.ProcessEnv = {}
+  for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'HOME', 'USERPROFILE', 'TEMP', 'TMP']) {
+    if (process.env[key] !== undefined) workerEnv[key] = process.env[key]
+  }
+  workerEnv.FORGE_DATABASE_URL = coreUrl!
+  workerEnv.FORGE_COORDINATOR_DATABASE_URL = stateUrl.toString()
   const children: ChildProcess[] = []
   context.after(async () => {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
@@ -68,7 +74,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   }
   function spawn(agentId: string, workerId: string, mode = 'normal') {
     const child = fork(fileURLToPath(new URL('./worker.js', import.meta.url)), [project.id, agentId, workerId, mode], {
-      env: { ...process.env, FORGE_COORDINATOR_DATABASE_URL: stateUrl.toString() }, silent: true,
+      env: workerEnv, silent: true,
     })
     children.push(child)
     child.stdout?.resume(); child.stderr?.resume()
@@ -192,7 +198,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   await context.test('the pilot CLI enqueues, runs and inspects without exposing saved content', async () => {
     const task = await core.createTask({ projectId: project.id, taskKey: 'cli-pilot', title: 'CLI pilot', assignedAgentId: agents[1]!.id, status: 'ready', idempotencyKey: 'cli-pilot' })
     const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
-    const env = { ...process.env, FORGE_COORDINATOR_DATABASE_URL: stateUrl.toString(), FORGE_COORDINATOR_PROJECT_KEY: project.projectKey, FORGE_COORDINATOR_AGENT_KEY: agents[1]!.agentKey }
+    const env = { ...workerEnv, FORGE_COORDINATOR_PROJECT_KEY: project.projectKey, FORGE_COORDINATOR_AGENT_KEY: agents[1]!.agentKey }
     const invoke = (args: string[]) => promisify(execFile)(process.execPath, [cli, ...args], { env, timeout: 15_000 })
     const queued = JSON.parse((await invoke(['enqueue', project.projectKey, task.taskKey])).stdout) as { jobId: string; state: string }
     assert.equal(queued.state, 'queued')

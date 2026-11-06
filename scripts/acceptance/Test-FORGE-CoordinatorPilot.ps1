@@ -9,6 +9,9 @@ $started=$false
 $names=@('FORGE_DATABASE_URL','FORGE_ADMIN_DATABASE_URL','FORGE_RUNTIME_PASSWORD','FORGE_COORDINATOR_TEST_ADMIN_URL','FORGE_COORDINATOR_TEST_ALLOW_SETUP')
 $previous=@{}
 foreach ($name in $names) { $previous[$name]=[Environment]::GetEnvironmentVariable($name) }
+New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
+@{status='RUNNING';checkedAt=[datetime]::UtcNow.ToString('o');scope='isolated coordinator pilot'} |
+    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
 Push-Location $workspace
 try {
     New-Item -ItemType Directory -Force -Path $root | Out-Null
@@ -36,6 +39,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Coordinator pilot acceptance failed' }
     & npm.cmd run test:runtime-role -w forge-postgresql-schema
     if ($LASTEXITCODE -ne 0) { throw 'Core runtime privilege contract failed' }
+} catch {
+    @{status='FAIL';checkedAt=[datetime]::UtcNow.ToString('o');errorCode='COORDINATOR_PILOT_FAILED'} |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
+    throw
 } finally {
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name,$previous[$name]) }
     Pop-Location
