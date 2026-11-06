@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 Updated: 2026-11-06
-Status: PR #66 open; initial cross-platform CI passed; Workbench project-response isolation implemented; real-login pending
+Status: PR #66 CI passed at f0206b2; limited-role import fixed and locally validated; updated CI pending
 
 ## Objective
 
@@ -27,6 +27,7 @@ physical WAL/PITR are separate recovery layers.
 - `packages/` — seven existing components
 - `docs/guides/DAILY-OPERATIONS.md` — startup, acceptance and recovery activation
 - `scripts/acceptance/` — isolated acceptance tools
+- `docs/guides/AGENTIC-READINESS.md` — deployment verdict, evidence and agent-runtime limits
 
 ## Current Decisions
 
@@ -39,10 +40,24 @@ physical WAL/PITR are separate recovery layers.
 - Exclude authenticated WAL before applying the batch limit.
 - Distinguish uploader execution, pending queue and PITR coverage.
 - No core data migration or release publication in this work.
+- FORGE provides agent memory/continuity; external hosts own dispatch, worker
+  leases and caller authorization. Project scoping is not a per-caller ACL.
+- Portable imports serialize by target key with a transaction-scoped advisory
+  lock. Decision ancestry is set on INSERT; runtime grants remain unchanged.
 
 ## Current Work
 
 NOW:
+- Agentic assessment: native MCP continuation and concurrent-client probes passed
+  on disposable PostgreSQL 18.4 with the generated limited runtime role.
+  Different execution keys can start two runs of one task; no exclusive claim.
+  See `AGENTIC-READINESS.md` for evidence and deployment bounds.
+- Fixed both limited-role import failures: project row locking and decision-link
+  updates. Four native Gateway tests pass, covering creation/replay/merge,
+  concurrent imports and registration, unordered ancestry, conflicts, rollback
+  and retry. Exact privilege validation and native MCP continuation pass.
+  PostgreSQL CI and clean-Windows acceptance now run those limited-role checks.
+- All four PR CI jobs passed at the previous head `f0206b2`.
 - PR #66 contains the Windows stabilization and redesign. All four CI jobs passed
   at `a8a186f`: Linux Node 20, Windows Node 22, PostgreSQL 14/pgvector and clean
   Windows bootstrap. This does not validate the separate Linux/Obsidian machine.
@@ -80,6 +95,7 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
+- Review updated PR CI, including limited-role import acceptance on PostgreSQL 14.
 - Operator logout/login acceptance. The controlled task test does not simulate
   a fresh Windows session or a completely stopped LM Studio application.
 - Reload Codex when convenient: existing connections still run historical
@@ -92,6 +108,7 @@ LATER:
 ## Known Risks
 
 - Archive-end restore does not certify a new named target or unarchived writes.
+- Agent task claims, leases, heartbeat and per-caller ACLs are outside current Core.
 - Existing MCP clients still use their historical checkout until separately reloaded.
 - Linux Obsidian duplicate-path issue remains historical and unverified.
 - A model catalog response does not certify inference or retrieval quality.
@@ -108,6 +125,8 @@ LATER:
 
 ## Recent Changes
 
+- Fixed limited-role import without grant changes, serialized concurrent targets
+  and preserved decision ancestry on insertion; added native regressions to CI.
 - Prevented late catalog/search/continuation responses from replacing current
   project content; added clean loading/failure counts and catalog retry.
 - Redesigned Workbench with theme-aware surfaces and persisted light/dark/Auto
