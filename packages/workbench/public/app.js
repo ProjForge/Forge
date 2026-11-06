@@ -56,7 +56,7 @@ function renderProjects() {
     container.append(message)
     return
   }
-  for (const project of projects) {
+  for (const project of [...projects].sort((a, b) => Number(b.id === state.project?.id) - Number(a.id === state.project?.id))) {
     const button = item('button', `project-button${state.project?.id === project.id ? ' active' : ''}`, '')
     button.type = 'button'
     button.append(item('strong', '', project.name), item('span', '', project.projectKey))
@@ -388,6 +388,7 @@ function renderRecoveryHealth(recovery) {
   metric.textContent = healthLabels[recovery.overall] || 'Desconocido'
   metric.className = recovery.overall
   const container = $('#recovery-health')
+  const expanded = new Set([...container.querySelectorAll('.recovery-details[open]')].map((details) => details.dataset.component))
   container.replaceChildren()
   for (const key of ['logical', 'pitr', 'walTransport', 'baseBackup']) {
     const component = recovery[key]
@@ -399,7 +400,11 @@ function renderRecoveryHealth(recovery) {
     if (Array.isArray(component.checks) && component.checks.length) {
       const checks = item('ul', 'recovery-checks', '')
       for (const check of component.checks) checks.append(item('li', check.status.toLowerCase(), `${check.name}: ${check.detail}`))
-      card.append(checks)
+      const details = item('details', 'recovery-details', '')
+      details.dataset.component = key
+      details.open = expanded.has(key)
+      details.append(item('summary', '', 'Ver comprobaciones'), checks)
+      card.append(details)
     }
     container.append(card)
   }

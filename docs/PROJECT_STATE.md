@@ -30,6 +30,8 @@ physical WAL/PITR are separate recovery layers.
 
 ## Current Decisions
 
+- Workbench uses the FORGE palette in light/dark themes; Auto follows the OS.
+  Only the browser theme preference is persisted; project storage is unchanged.
 - Preserve independent Windows/Linux databases and the existing vector profile.
 - Reuse the existing hidden, limited worker task for login startup and retries.
 - Exclude authenticated WAL before applying the batch limit.
@@ -39,6 +41,11 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Soft-panel Workbench redesign implemented with horizontal navigation, adaptive
+  project rail and accessible Claro/Oscuro/Auto controls. Browser QA covered
+  320–1440 px, all mobile views, reload/system theme changes and blocked storage.
+- Workbench build and 28 tests pass after the UI change. Theme tokens and
+  verification bounds are documented in `docs/guides/WORKBENCH-THEMES.md`.
 - Local branch `fix/daily-reliability`, based on main `007a03c`.
 - WAL fix, regression, dependency updates and operational health implemented.
 - Qwen 0.6B Q8 real 1024d probe and semantic search passed; worker activated.
@@ -90,6 +97,8 @@ LATER:
 
 ## Recent Changes
 
+- Redesigned Workbench with theme-aware surfaces and persisted light/dark/Auto
+  preference, preserving FORGE colors and using official logo variants.
 - Stable checkout created in the current workspace; historical installation kept.
 - Fixed WAL batch starvation and exposed queue freshness.
 - Updated SDK MCP/Zod and compatible locked dependencies; audit reports zero.
