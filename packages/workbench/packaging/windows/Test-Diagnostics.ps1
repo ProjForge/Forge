@@ -20,6 +20,7 @@ try {
         privateNote=$secret
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $configRoot 'workbench.json') -Encoding utf8
     $secret | Set-Content -LiteralPath (Join-Path $configRoot 'workbench.dpapi') -Encoding ascii
+    @{status='PASS';updatedAt='2026-08-14T00:00:00Z';message=$secret} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $configRoot 'embedding-worker-status.json') -Encoding utf8
     [ordered]@{status='PASS';phase=$secret;completed=@('database');detail=$secret;configurationHash=$secret;updatedAt='2026-08-21T00:00:00Z'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $configRoot 'bootstrap-status.json') -Encoding utf8
 
     & (Join-Path $PSScriptRoot 'Export-FORGE-Diagnostics.ps1') -InstallRoot $installRoot -ConfigRoot $configRoot -OutputPath $archive | Out-Null
@@ -31,6 +32,7 @@ try {
     $json = Get-Content -Raw -LiteralPath (Join-Path $expanded 'diagnostics.json') | ConvertFrom-Json
     if (-not $json.configuration.valid -or -not $json.configuration.credentialPresent -or -not $json.configuration.precisionConfigured) { throw 'Diagnostics lost safe configuration health.' }
     if ($json.bootstrap.status -ne 'PASS' -or $json.bootstrap.completedPhaseCount -ne 1) { throw 'Diagnostics lost safe bootstrap health.' }
+    if (-not $json.indexing.stale -or $json.indexing.status -ne 'PASS') { throw 'Diagnostics hid stale indexing.' }
     if ($null -ne $json.release.sourceCommit -or $null -ne $json.bootstrap.phase) { throw 'Diagnostics accepted an untrusted value in an allowlisted field.' }
     Write-Output 'PASS: diagnostics bundle is useful and allowlist-redacted.'
 } finally { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue }

@@ -37,6 +37,18 @@ function Write-AtomicJson([string]$Path, [object]$Value) {
     finally { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
 }
 
+function Get-PendingWal {
+    Get-ChildItem -LiteralPath $walRoot -File | Where-Object {
+        $_.Name -match $validWalName -and -not (Test-Path -LiteralPath (Join-Path $receiptRoot "wal-$($_.Name).receipt.json") -PathType Leaf)
+    } | Sort-Object Name
+}
+
+function Get-QueueState {
+    $pending = @(Get-PendingWal)
+    $oldest = $pending | Sort-Object LastWriteTimeUtc | Select-Object -First 1
+    return @{ pendingCount=$pending.Count; oldestPendingAt=if ($oldest) { $oldest.LastWriteTimeUtc.ToString('o') } else { $null } }
+}
+
 New-Item -ItemType Directory -Force -Path $encryptedRoot,$receiptRoot,$statusRoot | Out-Null
 $statusPath = Join-Path $statusRoot 'physical-uploader.json'
 $startedAt = (Get-Date).ToUniversalTime().ToString('o')
@@ -48,7 +60,8 @@ try {
         $env:AWS_SECRET_ACCESS_KEY = Read-Dpapi $secretKeyPath
         $env:AWS_REGION = [string]$physical.s3.region
     }
-    $files = @(Get-ChildItem -LiteralPath $walRoot -File | Where-Object Name -Match $validWalName | Sort-Object Name | Select-Object -First $MaxItems)
+    # Receipted files must not consume the batch budget or later WAL starves forever.
+    $files = @(Get-PendingWal | Select-Object -First $MaxItems)
     $results = foreach ($file in $files) {
         $label = "wal-$($file.Name)"
         $manifestPath = Join-Path $encryptedRoot "$label.forge-physical.json"
@@ -83,11 +96,13 @@ try {
         })
         [ordered]@{ wal=$file.Name; status='authenticated'; receipt=$receiptPath }
     }
-    Write-AtomicJson $statusPath ([ordered]@{ status='PASS'; startedAt=$startedAt; completedAt=(Get-Date).ToUniversalTime().ToString('o'); packageOnly=[bool]$PackageOnly; results=@($results) })
+    $queue = Get-QueueState
+    Write-AtomicJson $statusPath ([ordered]@{ status='PASS'; startedAt=$startedAt; completedAt=(Get-Date).ToUniversalTime().ToString('o'); packageOnly=[bool]$PackageOnly; results=@($results); pendingCount=$queue.pendingCount; oldestPendingAt=$queue.oldestPendingAt })
     $results | ConvertTo-Json -Depth 6
 }
 catch {
-    Write-AtomicJson $statusPath ([ordered]@{ status='FAIL'; startedAt=$startedAt; completedAt=(Get-Date).ToUniversalTime().ToString('o'); error=$_.Exception.Message })
+    $queue = Get-QueueState
+    Write-AtomicJson $statusPath ([ordered]@{ status='FAIL'; startedAt=$startedAt; completedAt=(Get-Date).ToUniversalTime().ToString('o'); pendingCount=$queue.pendingCount; oldestPendingAt=$queue.oldestPendingAt; error=$_.Exception.Message })
     throw
 }
 finally {

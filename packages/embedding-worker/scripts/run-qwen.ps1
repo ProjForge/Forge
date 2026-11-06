@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Continuous,
+    [switch]$EnsureProvider,
     [string]$ConfigRoot = $(if ($env:FORGE_CONFIG_ROOT) { $env:FORGE_CONFIG_ROOT } else { Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'FORGE' }),
     [switch]$ValidateConfiguration
 )
@@ -52,6 +53,7 @@ $passwordBytes = $null
 $password = $null
 
 try {
+    if ($EnsureProvider) { & (Join-Path $PSScriptRoot 'start-local-provider.ps1') -ConfigRoot $ConfigRoot | Out-Null }
     Add-Type -AssemblyName System.Security -ErrorAction Stop
     if (-not (Test-Path -LiteralPath $credentialPath)) { throw 'The FORGE DPAPI credential is not configured.' }
     $protectedBytes = [Convert]::FromBase64String((Get-Content -Raw -LiteralPath $credentialPath).Trim())
@@ -71,7 +73,15 @@ try {
     $env:FORGE_EMBEDDING_ERROR_DELAY_MS = '15000'
     $env:FORGE_EMBEDDING_STATUS_FILE = $statusPath
     & (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $packageRoot 'dist\cli.js')
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) { throw 'Embedding worker process failed.' }
+    exit 0
+} catch {
+    $temporary = "$statusPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        @{status='FAIL';updatedAt=[datetime]::UtcNow.ToString('o');code='WORKER_START_FAILED'} | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding utf8
+        Move-Item -LiteralPath $temporary -Destination $statusPath -Force
+    } finally { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
+    throw 'FORGE worker startup failed; verify the local provider and shared configuration.'
 } finally {
     $password = $null
     if ($null -ne $passwordBytes) { [Array]::Clear($passwordBytes, 0, $passwordBytes.Length) }

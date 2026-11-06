@@ -46,7 +46,11 @@ async function main(): Promise<void> {
     const windowsConfig = loadWindowsConfig(configRoot)
     passwordBuffer = decryptPassword(join(configRoot, windowsConfig.database.credentialFile))
     password = passwordBuffer.toString('utf8')
-    const env = runtimeEnvironment(windowsConfig, password, { ...recoveryHealthEnvironment(configRoot), ...process.env })
+    const env = runtimeEnvironment(windowsConfig, password, {
+      FORGE_EMBEDDING_STATUS_FILE: join(configRoot, 'embedding-worker-status.json'),
+      ...(windowsConfig.embedding.projectId ? { FORGE_PROJECT_ID: windowsConfig.embedding.projectId } : {}),
+      ...recoveryHealthEnvironment(configRoot), ...process.env,
+    })
     await runWorkbench(loadWorkbenchConfig(env))
   } finally {
     passwordBuffer?.fill(0); passwordBuffer = undefined; password = undefined

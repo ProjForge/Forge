@@ -81,6 +81,10 @@ onboarding and the `.forge-project` format.
 
 ## Quick start for contributors
 
+See [Daily operations and acceptance](docs/guides/DAILY-OPERATIONS.md) for
+Windows model startup, indexing health, WAL queue recovery and isolated restore
+checks. Current implementation status is recorded in [PROJECT_STATE](docs/PROJECT_STATE.md).
+
 Prerequisites: Node.js 20+ and npm 10+.
 
 For the guided Windows installation, start with the non-mutating plan in the

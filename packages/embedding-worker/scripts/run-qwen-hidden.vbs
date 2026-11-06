@@ -7,7 +7,7 @@ Set fileSystem = CreateObject("Scripting.FileSystemObject")
 scriptDirectory = fileSystem.GetParentFolderName(WScript.ScriptFullName)
 launcher = fileSystem.BuildPath(scriptDirectory, "run-qwen.ps1")
 
-command = "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & launcher & """"
+command = "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & launcher & """ -EnsureProvider"
 exitCode = shell.Run(command, 0, True)
 
 WScript.Quit exitCode

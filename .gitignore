@@ -17,3 +17,5 @@ coverage/
 packages/forge-workbench-windows-*/
 artifacts/
 forge-pi5-acceptance-result.json
+.playwright-cli/
+output/playwright/

@@ -626,12 +626,30 @@ bindForm('#decision-form', async (data) => {
   await selectProject(state.project)
 })
 
+function renderOperationalHealth(status) {
+  for (const [key, title] of [['semantic', 'Búsqueda semántica'], ['indexing', 'Indexación']]) {
+    const health = status[key]
+    if (!health) continue
+    const card = item('article', `recovery-card ${health.state}`, '')
+    const heading = item('div', 'recovery-card-heading', '')
+    heading.append(item('strong', '', title), item('span', `health-badge ${health.state}`, healthLabels[health.state]))
+    card.append(heading, item('p', '', health.summary))
+    if (health.updatedAt) card.append(item('small', '', new Date(health.updatedAt).toLocaleString()))
+    if (health.projectId) {
+      const project = state.projects.find((project) => project.id === health.projectId)
+      card.append(item('p', '', `Proyecto indexado: ${project ? project.name : health.projectId}`))
+    }
+    $('#recovery-health').append(card)
+  }
+}
+
 async function boot() {
   try {
     state.token = (await (await fetch('/api/bootstrap')).json()).token
     const [status, projects] = await Promise.all([api('/api/status'), api('/api/projects')])
     state.projects = projects
     renderRecoveryHealth(status.recovery)
+    renderOperationalHealth(status)
     $('#health-dot').classList.add('good')
     $('#health').textContent = `PostgreSQL ${status.serverVersion} · Schema ${status.schemaVersion}`
     renderProjects()
@@ -645,3 +663,15 @@ async function boot() {
 }
 
 void boot()
+
+setInterval(async () => {
+  if (document.hidden || !state.token) return
+  try {
+    const status = await api('/api/status')
+    renderRecoveryHealth(status.recovery)
+    renderOperationalHealth(status)
+  } catch {
+    $('#health').textContent = 'No se pudo actualizar el estado de FORGE'
+    $('#health-dot').classList.remove('good')
+  }
+}, 30000)
