@@ -1,5 +1,11 @@
 const state = { token: '', projects: [], project: null, agents: [], tasks: [], executions: [], contextPackages: [], view: 'overview' }
 const $ = (selector) => document.querySelector(selector)
+let projectRevision = 0
+let searchRevision = 0
+let contextRevision = 0
+const catalogSections = ['tasks', 'executions', 'memories', 'decisions', 'agents', 'context-packages']
+const catalogCounts = ['task', 'execution', 'memory', 'decision', 'agent', 'context']
+const catalogMetrics = ['open-tasks', 'running-executions', 'knowledge']
 
 function setView(view) {
   state.view = view
@@ -169,11 +175,14 @@ function renderAgents(agents) {
 }
 
 async function inspectContinuation(summary) {
+  const revision = ++contextRevision
+  const project = state.project
   const content = $('#context-detail')
   content.textContent = 'Cargando paquete…'
   openDialog('#context-dialog')
   try {
-    const context = await api(`/api/projects/${state.project.id}/context-packages/${summary.id}`)
+    const context = await api(`/api/projects/${project.id}/context-packages/${summary.id}`)
+    if (revision !== contextRevision) return
     content.replaceChildren()
     content.append(item('h3', '', context.task.title))
     const meta = item('div', 'meta', '')
@@ -191,7 +200,7 @@ async function inspectContinuation(summary) {
       if (!records.length) list.append(item('li', 'muted', 'Ninguna incluida.'))
       content.append(list)
     }
-  } catch (error) { content.textContent = error.message }
+  } catch (error) { if (revision === contextRevision) content.textContent = error.message }
 }
 
 function renderContextPackages(packages) {
@@ -271,22 +280,33 @@ function renderExecutions(executions) {
 }
 
 async function selectProject(project) {
+  // Identity alone cannot distinguish an old response after A -> B -> A.
+  const revision = ++projectRevision
+  ++searchRevision
+  ++contextRevision
   state.project = project
+  state.agents = []; state.tasks = []; state.executions = []; state.contextPackages = []
+  populateAgentOptions()
+  $('#context-dialog').close()
+  $('#context-detail').replaceChildren()
+  $('#results').replaceChildren()
+  showSearchMessage('')
   setView(state.view)
   showMessage('')
   renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
   for (const selector of ['#export-project', '#add-agent', '#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
-  $('#tasks').textContent = 'Cargando…'
-  $('#executions').textContent = 'Cargando…'
-  $('#memories').textContent = 'Cargando…'
-  $('#decisions').textContent = 'Cargando…'
-  $('#agents').textContent = 'Cargando…'
-  $('#context-packages').textContent = 'Cargando…'
-  for (const selector of ['#metric-open-tasks', '#metric-running-executions', '#metric-knowledge']) $(selector).textContent = '…'
+  for (const section of catalogSections) $(`#${section}`).textContent = 'Cargando…'
+  for (const count of catalogCounts) $(`#${count}-count`).textContent = '…'
+  for (const metric of catalogMetrics) $(`#metric-${metric}`).textContent = '…'
+  $('#next-step-title').textContent = 'Cargando proyecto…'
+  $('#next-step-description').textContent = 'Consultando el trabajo y conocimiento de este proyecto.'
+  $('#next-step-action').hidden = true
+  $('#next-step-secondary').hidden = true
   try {
     const catalog = await api(`/api/projects/${project.id}/catalog`)
+    if (revision !== projectRevision) return
     $('#task-count').textContent = String(catalog.tasks.length)
     $('#execution-count').textContent = String(catalog.executions.length)
     $('#memory-count').textContent = String(catalog.memories.length)
@@ -308,7 +328,18 @@ async function selectProject(project) {
     renderAgents(catalog.agents)
     renderContextPackages(catalog.contextPackages)
     renderNextStep()
-  } catch (error) { showMessage(error.message, true) }
+  } catch (error) {
+    if (revision !== projectRevision) return
+    for (const section of catalogSections) $(`#${section}`).textContent = 'No se pudo cargar el contenido.'
+    for (const count of catalogCounts) $(`#${count}-count`).textContent = '—'
+    for (const metric of catalogMetrics) $(`#metric-${metric}`).textContent = '—'
+    $('#next-step-title').textContent = 'No se pudo cargar el proyecto'
+    $('#next-step-description').textContent = 'Vuelve a intentarlo para consultar su contenido.'
+    $('#next-step-action').dataset.nextAction = 'retry'
+    $('#next-step-action').textContent = 'Reintentar carga'
+    $('#next-step-action').hidden = false
+    showMessage(error.message, true)
+  }
 }
 
 function showMessage(message, error = false) {
@@ -364,7 +395,8 @@ function renderNextStep() {
 }
 
 function followNextStep(action) {
-  if (action === 'agent') openDialog('#agent-dialog')
+  if (action === 'retry') void selectProject(state.project)
+  else if (action === 'agent') openDialog('#agent-dialog')
   else if (action === 'task') openDialog('#task-dialog')
   else if (action === 'memory') openDialog('#memory-dialog')
   else if (action === 'import') openDialog('#import-dialog')
@@ -430,14 +462,19 @@ $('#search-form').addEventListener('submit', async (event) => {
   if (!state.project) return
   const query = $('#query').value.trim()
   if (!query) return
+  const revision = ++searchRevision
+  const project = state.project
+  const rerank = $('#rerank').checked
+  $('#results').replaceChildren()
   $('#search-button').disabled = true
-  showSearchMessage($('#rerank').checked ? 'Buscando y reordenando localmente…' : 'Buscando…')
+  showSearchMessage(rerank ? 'Buscando y reordenando localmente…' : 'Buscando…')
   try {
-    const results = await api('/api/search', { method: 'POST', body: JSON.stringify({ projectId: state.project.id, query, rerank: $('#rerank').checked }) })
+    const results = await api('/api/search', { method: 'POST', body: JSON.stringify({ projectId: project.id, query, rerank }) })
+    if (revision !== searchRevision) return
     renderResults(results)
-    showSearchMessage(`${results.length} resultados · ${$('#rerank').checked ? 'precisión local' : 'búsqueda rápida'}`)
-  } catch (error) { showSearchMessage(error.message, true) }
-  finally { $('#search-button').disabled = false }
+    showSearchMessage(`${results.length} resultados · ${rerank ? 'precisión local' : 'búsqueda rápida'}`)
+  } catch (error) { if (revision === searchRevision) showSearchMessage(error.message, true) }
+  finally { if (revision === searchRevision) $('#search-button').disabled = false }
 })
 
 function openDialog(selector) { $(selector).showModal() }

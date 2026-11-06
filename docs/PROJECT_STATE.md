@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 Updated: 2026-11-06
-Status: Windows scheduled startup and fresh MCP clients verified; real-login acceptance pending; Linux deferred
+Status: PR #66 open; initial cross-platform CI passed; Workbench project-response isolation implemented; real-login pending
 
 ## Objective
 
@@ -32,6 +32,8 @@ physical WAL/PITR are separate recovery layers.
 
 - Workbench uses the FORGE palette in light/dark themes; Auto follows the OS.
   Only the browser theme preference is persisted; project storage is unchanged.
+- Workbench applies only the latest catalog/search/continuation response; changing
+  project clears prior content, counts and agent choices before loading.
 - Preserve independent Windows/Linux databases and the existing vector profile.
 - Reuse the existing hidden, limited worker task for login startup and retries.
 - Exclude authenticated WAL before applying the batch limit.
@@ -41,15 +43,23 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- PR #66 contains the Windows stabilization and redesign. All four CI jobs passed
+  at `a8a186f`: Linux Node 20, Windows Node 22, PostgreSQL 14/pgvector and clean
+  Windows bootstrap. This does not validate the separate Linux/Obsidian machine.
+- Fixed reproducible stale-response races across project switches, overlapping
+  searches and continuation inspection. Catalog failures offer a retry.
+  Deterministic script regressions and browser QA with delayed synthetic HTTP
+  responses cover isolation and retry without writing real project data.
+  Full monorepo check passes; Workbench now has 34 passing tests.
 - Soft-panel Workbench redesign implemented with horizontal navigation, adaptive
   project rail and accessible Claro/Oscuro/Auto controls. Browser QA covered
   320–1440 px, all mobile views, reload/system theme changes and blocked storage.
-- Workbench build and 28 tests pass after the UI change. Theme tokens and
+- Workbench build and 34 tests pass, including six response-order regressions. Theme tokens and
   verification bounds are documented in `docs/guides/WORKBENCH-THEMES.md`.
 - Local branch `fix/daily-reliability`, based on main `007a03c`.
 - WAL fix, regression, dependency updates and operational health implemented.
 - Qwen 0.6B Q8 real 1024d probe and semantic search passed; worker activated.
-- Full monorepo check passed; final Workbench suite 28/28; production audit zero.
+- Full monorepo check passed; Workbench suite 34/34; production audit zero.
 - WAL starvation, partial failure/resume, monitor and diagnostics fixtures pass.
 - Native synthetic logical restore passed; desktop/mobile QA and console clean.
 - Upload authorization obtained for the reviewed physical S3 prefix (eu-west-1,
@@ -77,7 +87,6 @@ NEXT:
 
 LATER:
 - Linux/Obsidian verification deferred until the machine is available.
-- Fresh Linux CI for this diff before publication.
 - Signing, another release, TencentDB certification and measured ANN work.
 
 ## Known Risks
@@ -86,7 +95,9 @@ LATER:
 - Existing MCP clients still use their historical checkout until separately reloaded.
 - Linux Obsidian duplicate-path issue remains historical and unverified.
 - A model catalog response does not certify inference or retrieval quality.
-- Existing rc.5 distribution is unsigned; local source changes are unpublished.
+- One local S3 SDK fixture process failed before PR creation; isolated and full
+  reruns passed, as did 12 further isolated runs. Cause remains unestablished.
+- Existing rc.5 distribution is unsigned; current source changes are in PR #66.
 
 ## Constraints / Invariants
 
@@ -97,6 +108,8 @@ LATER:
 
 ## Recent Changes
 
+- Prevented late catalog/search/continuation responses from replacing current
+  project content; added clean loading/failure counts and catalog retry.
 - Redesigned Workbench with theme-aware surfaces and persisted light/dark/Auto
   preference, preserving FORGE colors and using official logo variants.
 - Stable checkout created in the current workspace; historical installation kept.
