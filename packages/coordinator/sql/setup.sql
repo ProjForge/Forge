@@ -14,10 +14,18 @@ CREATE TABLE IF NOT EXISTS forge_coordinator.jobs (
     max_attempts integer NOT NULL CHECK (max_attempts BETWEEN 1 AND 20),
     lease_until timestamptz,
     artifact jsonb,
+    effect_kind text NOT NULL DEFAULT 'none' CHECK (effect_kind IN ('none','immutable-report-v1')),
+    effect_receipt jsonb,
+    effect_target text NOT NULL DEFAULT '',
     error_code text,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (project_id, task_id)
 );
+-- Upgrade only the separately owned pilot control state, never Core.
+ALTER TABLE forge_coordinator.jobs ADD COLUMN IF NOT EXISTS effect_kind text NOT NULL DEFAULT 'none'
+    CHECK (effect_kind IN ('none','immutable-report-v1'));
+ALTER TABLE forge_coordinator.jobs ADD COLUMN IF NOT EXISTS effect_receipt jsonb;
+ALTER TABLE forge_coordinator.jobs ADD COLUMN IF NOT EXISTS effect_target text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS jobs_dispatch ON forge_coordinator.jobs(agent_id, created_at, id)
     WHERE state IN ('queued', 'running');

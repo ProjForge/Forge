@@ -4,6 +4,8 @@ Assessment baseline: 2026-11-06, source `f0206b2`, PR #66.
 Follow-up: limited-role import corrected and validated on 2026-11-06.
 Pilot follow-up: `forge-coordinator` now provides external leases, epochs,
 heartbeat and recovery; see [its guide](../../packages/coordinator/README.md).
+Real-agent follow-up: opt-in local Qwen review and immutable report publication
+are implemented and accepted on disposable PostgreSQL; production workers remain off.
 
 ## Verdict
 
@@ -17,7 +19,7 @@ authenticated remote multi-tenant service.
 | --- | --- |
 | Local trusted agent with an MCP host | Ready for a supervised pilot |
 | Trusted agents with an external dispatcher and bounded concurrency | Conditional pilot; task ownership belongs to the dispatcher |
-| External coordinator pilot in this repository | Process-level multi-agent/crash acceptance passed; synthetic handlers |
+| External coordinator pilot in this repository | Local real-model review and immutable-report crash/retry acceptance passed |
 | Unattended workers relying on FORGE to claim/reclaim tasks exclusively | Missing native claim, lease and heartbeat semantics |
 | Mutually untrusted agents or remote tenants sharing one runtime credential | No per-caller authorization boundary established |
 | Project onboarding through portable import with the generated limited role | Validated after the follow-up fix; original permissions retained |
@@ -53,9 +55,43 @@ authenticated remote multi-tenant service.
   evidence is in `.run/agentic-probes-result.json` and `.run/agentic-readiness.log`.
   Follow-up import evidence is in `.run/import-final-native.log`.
 
-The probes use deterministic synthetic tool calls, not autonomous LLM planning.
+The original MCP probes use deterministic synthetic tool calls, not autonomous LLM planning.
 No throughput, long-running unattended operation or hostile-agent acceptance was
 performed. Linux CI does not verify the unavailable Linux/Obsidian machine.
+
+## Real-agent and external-effect acceptance
+
+The opt-in coordinator host calls an existing local Qwen3.5-9B Q8 model through
+LM Studio. It sends only the bounded task title/objective, rejects tool calls
+and malformed output, and exposes no execution authority to the model. The
+trusted host publishes a report into a fixed local directory; see ADR-011.
+
+Windows acceptance with Node 22.23.4 and disposable PostgreSQL 18.4 passes all
+20 native tests: three model-backed logical agents compete through six worker
+processes, with actual process death after inference, file publication, receipt
+commit and Core completion. Saved inference and existing report bytes are reused.
+One deliberately injected HTTP 503 is retried before the output checkpoint;
+11 successful real model calls produce nine confirmed effects. A tenth,
+conflicting receiver file is rejected and remains unchanged. Every successful
+task retains one Core execution, result memory and continuation package.
+
+The same suite runs in CI against a deterministic loopback protocol fixture and
+real PostgreSQL/files; it does not require/download a model. Fast regressions
+also cover timeout/cancellation, output limits, target replacement, linked roots,
+concurrent publication and missing confirmed reports. The original Core runtime
+privilege contract passes without new grants. Only coordinator-owned control
+state gains effect columns; no production database, queue or service is changed.
+
+Local Node 24.15 intermittently exits natively with `0xC0000409` in worker/CLI
+processes. Node 22 remains the Windows acceptance/CI baseline. Native exits fail
+acceptance and are not treated as retryable model errors. Similar Windows runtime
+shutdown failures are tracked in [Node issue 56645](https://github.com/nodejs/node/issues/56645);
+this observation does not establish an exact native stack or an upstream fix.
+
+An inference can repeat after death before its output is durably saved. Effect
+protection is specific to retained trusted local files with atomic hard links;
+it does not establish exactly-once email, deployment or arbitrary HTTP effects,
+power-loss durability, state-database recovery or general review quality.
 
 ## Limits established by code and probes
 
@@ -66,7 +102,8 @@ performed. Linux CI does not verify the unavailable Linux/Obsidian machine.
    The new external pilot supplies scoped leases and fenced publication for
    trusted workers, while leaving these Core contracts unchanged. Process death,
    lost replies and stale-worker recovery are tested with real worker processes;
-   model quality, external side effects and state-database loss are not certified.
+   real review/report acceptance is described above. Other effect receivers,
+   model quality and state-database loss are not certified.
 2. **Caller identity.** The stdio process trusts its host and database credential.
    Tool arguments such as `projectId` and `agentId` identify records; they do not
    authenticate a caller. The limited role has table-wide privileges and Core
@@ -103,9 +140,8 @@ forge-mcp-server`. Run the full Gateway integration with
 `FORGE_TEST_REQUIRE_LIMITED_ROLE=1` to enforce the no-UPDATE prerequisite as well
 as import behavior. Never point these write tests at the production DB.
 
-Before broader unattended deployment, integrate and accept a real agent handler,
-protect external side effects, plan control-state backup/recovery, measure bounded
+Before broader unattended deployment, plan control-state backup/recovery, accept
+each additional external-effect receiver, measure sustained bounded
 multi-process load and complete real Windows login acceptance.
 Remote/untrusted deployment requires a separate authenticated authorization
-design. No schema migration or production configuration was changed by this
-assessment.
+design. Core schema and production configuration remain unchanged.

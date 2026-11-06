@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 Updated: 2026-11-06
-Status: external multi-agent coordinator pilot implemented; native process/crash acceptance passed; updated CI pending
+Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
 
@@ -49,16 +49,23 @@ physical WAL/PITR are separate recovery layers.
 - ADR-010 — external coordinator state has its own owner/schema. Database-clock
   leases and epochs fence publication; prepared output and stable Core keys
   reconcile process death. Core schema and runtime grants are unchanged.
+- ADR-011 — opt-in local review agent has no tool authority. Immutable local
+  reports use a frozen target, durable prepared output and verified receipts;
+  arbitrary external effects need their own receiver-side contract.
 
 ## Current Work
 
 NOW:
 - External `forge-coordinator` pilot implements project/agent-scoped ownership,
   heartbeat, bounded retries/deadlines, prepared artifacts and fenced publication.
-  Native PostgreSQL 18.4 acceptance passed three agents/six worker processes on
-  twelve tasks, worker death at three publication boundaries, stale-owner
-  rejection, heartbeat renewal and CLI operation. Agent handlers were synthetic;
-  no model or production data was used. State/database-loss recovery is not certified.
+  Its opt-in local-report host connects a real local Qwen3.5-9B review model.
+  Process acceptance covers three logical agents/six competing processes,
+  four model/report crash boundaries, stale owners, HTTP retry and CLI operation.
+  Reports are verified before Core completion; committed output avoids repeated
+  inference. Only disposable PostgreSQL/report directories are used.
+  Node 22.23.4 / PostgreSQL 18.4 live acceptance passed 20 tests: 11 real Qwen
+  inferences, nine confirmed reports and one preserved conflicting file, plus
+  an injected HTTP 503 recovered on retry. Full monorepo check passes.
 - The Windows acceptance wrapper stops/removes its disposable cluster and checks
   the unchanged Core runtime privilege contract. CI includes the pilot on
   PostgreSQL 14 and in clean Windows bootstrap.
@@ -109,9 +116,10 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Review pilot CI, then integrate a real host handler with explicit model/tool
-  budgets. Protect external side effects separately; direct Core clients bypass
-  the coordinator's fence. Exhausted jobs require operator reconciliation.
+- Plan consistent backup/recovery of coordinator state and Core before any
+  production worker activation. Exhausted jobs require operator reconciliation.
+- Accept another effect receiver only with durable idempotency/reconciliation;
+  the current contract covers immutable local reports on retained storage.
 - Operator logout/login acceptance. The controlled task test does not simulate
   a fresh Windows session or a completely stopped LM Studio application.
 - Reload Codex when convenient: existing connections still run historical
@@ -128,6 +136,9 @@ LATER:
   ACLs remain outside Core; coordinator handlers must not bypass its write fence.
 - Coordinator control state needs protected backup and consistent recovery with
   Core before relying on recovery from data loss. No production service is activated.
+- Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
+  this Windows host. Node 22 is the Windows CI baseline; the failure is not
+  classified as an agent/provider error or hidden by acceptance retries.
 - Existing MCP clients still use their historical checkout until separately reloaded.
 - Linux Obsidian duplicate-path issue remains historical and unverified.
 - A model catalog response does not certify inference or retrieval quality.
@@ -144,6 +155,9 @@ LATER:
 
 ## Recent Changes
 
+- Added local model review adapter, target-bound immutable reports, receipt
+  reconciliation and real model/process-crash acceptance (ADR-011). Only the
+  separate control-state setup gains columns; Core grants/schema stay unchanged.
 - Added external coordinator pilot, separate state owner, process-level failure
   acceptance, scoped CLI and ADR-010 without changing Core permissions/schema.
 - Fixed limited-role import without grant changes, serialized concurrent targets

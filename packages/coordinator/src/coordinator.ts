@@ -1,5 +1,6 @@
 import { NotFoundError, type Execution, type Task } from 'forge-persistence-gateway'
-import { LeaseLostError, type Artifact, type CorePort, type Handler, type Job, type JobStore, type WorkerIdentity } from './types.js'
+import { LeaseLostError, PilotFailure, type Artifact, type ArtifactPublisher, type CorePort, type Handler, type Job, type JobStore, type WorkerIdentity } from './types.js'
+import { reportIdentity } from './report-publisher.js'
 
 export function validateArtifact(value: Artifact): Artifact {
   if (typeof value?.title !== 'string' || !value.title.trim() || value.title.length > 500 ||
@@ -11,14 +12,14 @@ function executionKey(job: Job): string { return `coordinator:v1:${job.projectId
 
 export class Coordinator {
   private readonly handlerTimeoutMs: number
-  constructor(private readonly store: JobStore, private readonly core: CorePort, options: { handlerTimeoutMs?: number } = {}) {
+  constructor(private readonly store: JobStore, private readonly core: CorePort, private readonly options: { handlerTimeoutMs?: number; publisher?: ArtifactPublisher } = {}) {
     this.handlerTimeoutMs = options.handlerTimeoutMs ?? 120_000
     if (!Number.isInteger(this.handlerTimeoutMs) || this.handlerTimeoutMs < 100 || this.handlerTimeoutMs > 3_600_000) throw new RangeError('handlerTimeoutMs must be 100..3600000')
   }
 
   async runOnce(worker: WorkerIdentity, handler: Handler): Promise<'idle' | 'completed' | 'lost' | 'failed'> {
     await this.core.assertReady()
-    const claim = await this.store.claim(worker)
+    const claim = await this.store.claim(worker, { kind: this.options.publisher?.kind ?? 'none', targetId: this.options.publisher?.targetId ?? '' })
     if (!claim) return 'idle'
     const controller = new AbortController()
     let timer: ReturnType<typeof setInterval> | undefined
@@ -26,11 +27,15 @@ export class Coordinator {
     const stopHeartbeat = async () => { clearInterval(timer); await beat }
     try {
       const prepared = await this.store.fenced(claim, async (current) => {
+        if (current.effectKind !== (this.options.publisher?.kind ?? 'none') || current.effectTarget !== (this.options.publisher?.targetId ?? '')) throw new PilotFailure('EFFECT_POLICY_MISMATCH')
         const task = await this.task(current)
         const execution = await this.execution(current, task)
         if (execution.status === 'succeeded') {
           if (task.status !== 'done') throw new Error('Completed execution has an inconsistent task')
-          return { value: { task, completed: true }, completed: true }
+          if (!this.options.publisher) return { value: { task, completed: true }, completed: true }
+          if (!current.effectReceipt || !current.artifact) throw new PilotFailure('EFFECT_UNCONFIRMED')
+          // An external effect is still verified before reconciling completion.
+          return { value: { task, completed: false } }
         }
         // Execution admission may have advanced a ready task's version/status.
         return { value: { task: await this.task(current), completed: false } }
@@ -50,7 +55,19 @@ export class Coordinator {
       } else { await stopHeartbeat() }
       if (controller.signal.aborted) throw new LeaseLostError()
       const output = validateArtifact(artifact)
+      const publisher = this.options.publisher
+      if (publisher) {
+        await this.store.fenced(claim, async (current) => {
+          const key = `${executionKey(current)}:report`
+          const receipt = await publisher.publish({ key, artifact: output, signal: controller.signal,
+            ...(current.effectReceipt ? { expected: current.effectReceipt } : {}) })
+          const expected = reportIdentity(key, output, publisher.targetId).receipt
+          if (receipt.kind !== expected.kind || receipt.key !== key || receipt.sha256 !== expected.sha256 || receipt.filename !== expected.filename || receipt.targetId !== publisher.targetId) throw new PilotFailure('EFFECT_UNCONFIRMED')
+          return { value: undefined, effectReceipt: receipt }
+        })
+      }
       await this.store.fenced(claim, async (current) => {
+        if (current.effectKind !== 'none' && !current.effectReceipt) throw new PilotFailure('EFFECT_UNCONFIRMED')
         let task = await this.task(current)
         const execution = await this.execution(current, task)
         if (execution.status !== 'succeeded') {
@@ -68,7 +85,7 @@ export class Coordinator {
       return 'completed'
     } catch (error) {
       if (error instanceof LeaseLostError) return 'lost'
-      await this.store.fail(claim)
+      await this.store.fail(claim, error instanceof PilotFailure ? error.code : 'WORKER_FAILED')
       return 'failed'
     } finally { controller.abort(); await stopHeartbeat() }
   }

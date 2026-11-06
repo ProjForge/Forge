@@ -15,7 +15,7 @@ test('rejects unsafe lease intervals without opening a connection', () => {
 })
 
 const job: Job = { id: 'job', projectId: 'project', taskId: 'task', taskKey: 'key', agentId: 'agent', state: 'running',
-  epoch: 1, owner: 'worker', attempts: 1, maxAttempts: 3, artifact: null }
+  epoch: 1, owner: 'worker', attempts: 1, maxAttempts: 3, artifact: null, effectKind: 'none', effectTarget: '', effectReceipt: null }
 const claim: Claim = { job, epoch: 1, workerId: 'worker' }
 
 test('losing the fence prevents all Core operations and handler work', async () => {
