@@ -2,6 +2,8 @@
 
 Assessment baseline: 2026-11-06, source `f0206b2`, PR #66.
 Follow-up: limited-role import corrected and validated on 2026-11-06.
+Pilot follow-up: `forge-coordinator` now provides external leases, epochs,
+heartbeat and recovery; see [its guide](../../packages/coordinator/README.md).
 
 ## Verdict
 
@@ -15,6 +17,7 @@ authenticated remote multi-tenant service.
 | --- | --- |
 | Local trusted agent with an MCP host | Ready for a supervised pilot |
 | Trusted agents with an external dispatcher and bounded concurrency | Conditional pilot; task ownership belongs to the dispatcher |
+| External coordinator pilot in this repository | Process-level multi-agent/crash acceptance passed; synthetic handlers |
 | Unattended workers relying on FORGE to claim/reclaim tasks exclusively | Missing native claim, lease and heartbeat semantics |
 | Mutually untrusted agents or remote tenants sharing one runtime credential | No per-caller authorization boundary established |
 | Project onboarding through portable import with the generated limited role | Validated after the follow-up fix; original permissions retained |
@@ -60,6 +63,10 @@ performed. Linux CI does not verify the unavailable Linux/Obsidian machine.
    assignment and inserts a running execution. It provides no task claim, lease,
    worker heartbeat, automatic reassignment or fencing token. A trusted external
    dispatcher must prevent duplicate side effects and reconcile abandoned runs.
+   The new external pilot supplies scoped leases and fenced publication for
+   trusted workers, while leaving these Core contracts unchanged. Process death,
+   lost replies and stale-worker recovery are tested with real worker processes;
+   model quality, external side effects and state-database loss are not certified.
 2. **Caller identity.** The stdio process trusts its host and database credential.
    Tool arguments such as `projectId` and `agentId` identify records; they do not
    authenticate a caller. The limited role has table-wide privileges and Core
@@ -96,8 +103,9 @@ forge-mcp-server`. Run the full Gateway integration with
 `FORGE_TEST_REQUIRE_LIMITED_ROLE=1` to enforce the no-UPDATE prerequisite as well
 as import behavior. Never point these write tests at the production DB.
 
-Before broader unattended deployment, implement/test dispatcher ownership and crash recovery;
-measure bounded multi-process load; and complete real Windows login acceptance.
+Before broader unattended deployment, integrate and accept a real agent handler,
+protect external side effects, plan control-state backup/recovery, measure bounded
+multi-process load and complete real Windows login acceptance.
 Remote/untrusted deployment requires a separate authenticated authorization
 design. No schema migration or production configuration was changed by this
 assessment.

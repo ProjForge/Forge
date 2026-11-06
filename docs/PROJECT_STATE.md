@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 Updated: 2026-11-06
-Status: PR #66 CI passed at f0206b2; limited-role import fixed and locally validated; updated CI pending
+Status: external multi-agent coordinator pilot implemented; native process/crash acceptance passed; updated CI pending
 
 ## Objective
 
@@ -24,7 +24,9 @@ physical WAL/PITR are separate recovery layers.
 
 ## Important Paths
 
-- `packages/` — seven existing components
+- `packages/` — eight components, including the separate coordinator pilot
+- `packages/coordinator/` — durable ownership, fenced Core publication and agent-host API
+- `scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1` — isolated multi-process pilot acceptance
 - `docs/guides/DAILY-OPERATIONS.md` — startup, acceptance and recovery activation
 - `scripts/acceptance/` — isolated acceptance tools
 - `docs/guides/AGENTIC-READINESS.md` — deployment verdict, evidence and agent-runtime limits
@@ -44,10 +46,22 @@ physical WAL/PITR are separate recovery layers.
   leases and caller authorization. Project scoping is not a per-caller ACL.
 - Portable imports serialize by target key with a transaction-scoped advisory
   lock. Decision ancestry is set on INSERT; runtime grants remain unchanged.
+- ADR-010 — external coordinator state has its own owner/schema. Database-clock
+  leases and epochs fence publication; prepared output and stable Core keys
+  reconcile process death. Core schema and runtime grants are unchanged.
 
 ## Current Work
 
 NOW:
+- External `forge-coordinator` pilot implements project/agent-scoped ownership,
+  heartbeat, bounded retries/deadlines, prepared artifacts and fenced publication.
+  Native PostgreSQL 18.4 acceptance passed three agents/six worker processes on
+  twelve tasks, worker death at three publication boundaries, stale-owner
+  rejection, heartbeat renewal and CLI operation. Agent handlers were synthetic;
+  no model or production data was used. State/database-loss recovery is not certified.
+- The Windows acceptance wrapper stops/removes its disposable cluster and checks
+  the unchanged Core runtime privilege contract. CI includes the pilot on
+  PostgreSQL 14 and in clean Windows bootstrap.
 - Agentic assessment: native MCP continuation and concurrent-client probes passed
   on disposable PostgreSQL 18.4 with the generated limited runtime role.
   Different execution keys can start two runs of one task; no exclusive claim.
@@ -57,7 +71,7 @@ NOW:
   concurrent imports and registration, unordered ancestry, conflicts, rollback
   and retry. Exact privilege validation and native MCP continuation pass.
   PostgreSQL CI and clean-Windows acceptance now run those limited-role checks.
-- All four PR CI jobs passed at the previous head `f0206b2`.
+- All four PR CI jobs passed for the limited-role import fix at `cf59d4b`.
 - PR #66 contains the Windows stabilization and redesign. All four CI jobs passed
   at `a8a186f`: Linux Node 20, Windows Node 22, PostgreSQL 14/pgvector and clean
   Windows bootstrap. This does not validate the separate Linux/Obsidian machine.
@@ -95,7 +109,9 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Review updated PR CI, including limited-role import acceptance on PostgreSQL 14.
+- Review pilot CI, then integrate a real host handler with explicit model/tool
+  budgets. Protect external side effects separately; direct Core clients bypass
+  the coordinator's fence. Exhausted jobs require operator reconciliation.
 - Operator logout/login acceptance. The controlled task test does not simulate
   a fresh Windows session or a completely stopped LM Studio application.
 - Reload Codex when convenient: existing connections still run historical
@@ -108,7 +124,10 @@ LATER:
 ## Known Risks
 
 - Archive-end restore does not certify a new named target or unarchived writes.
-- Agent task claims, leases, heartbeat and per-caller ACLs are outside current Core.
+- Claims/leases/heartbeat exist only in the external trusted-host pilot. Per-caller
+  ACLs remain outside Core; coordinator handlers must not bypass its write fence.
+- Coordinator control state needs protected backup and consistent recovery with
+  Core before relying on recovery from data loss. No production service is activated.
 - Existing MCP clients still use their historical checkout until separately reloaded.
 - Linux Obsidian duplicate-path issue remains historical and unverified.
 - A model catalog response does not certify inference or retrieval quality.
@@ -125,6 +144,8 @@ LATER:
 
 ## Recent Changes
 
+- Added external coordinator pilot, separate state owner, process-level failure
+  acceptance, scoped CLI and ADR-010 without changing Core permissions/schema.
 - Fixed limited-role import without grant changes, serialized concurrent targets
   and preserved decision ancestry on insertion; added native regressions to CI.
 - Prevented late catalog/search/continuation responses from replacing current

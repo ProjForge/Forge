@@ -126,6 +126,12 @@ jobs:
         run: |
           npm run build -w forge-persistence-gateway
           npm run test:integration -w forge-mcp-server
+      - name: Validate external coordinator multi-agent pilot
+        env:
+          FORGE_DATABASE_URL: postgresql://forge_runtime:forge_ci_runtime_local_only@127.0.0.1:55432/forge_test
+          FORGE_COORDINATOR_TEST_ADMIN_URL: postgresql://forge_test:forge_test_local_only@127.0.0.1:55432/forge_test
+          FORGE_COORDINATOR_TEST_ALLOW_SETUP: "1"
+        run: npm run test:integration -w forge-coordinator
       - name: Stop PostgreSQL 14
         if: always()
         run: docker compose -f packages/schema/compose.yaml down -v
