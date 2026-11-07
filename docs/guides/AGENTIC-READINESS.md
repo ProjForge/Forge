@@ -75,6 +75,50 @@ One deliberately injected HTTP 503 is retried before the output checkpoint;
 conflicting receiver file is rejected and remains unchanged. Every successful
 task retains one Core execution, result memory and continuation package.
 
+Recovery-guard follow-up, 2026-11-07 (local worktree based on `91cd11d`):
+Windows portable Node 22.23.4 compiles the current source and passes all 18 normal
+coordinator tests, including all eight recovery regressions; `npm.cmd run check`
+passes. This replaces the earlier WSL source-only/absent-tsc validation limit.
+The two new native cases now pass: retained receipt with lost artifact following
+real worker death after receipt commit, and ready task without Core execution.
+A distinct diagnosis run used the documented invocation once, without LiveAgent:
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1
+```
+
+With process-only PATH selecting portable Node 22.23.4, Windows PowerShell
+5.1.26100.9818 completed disposable PostgreSQL 18.4 acceptance: 22/22 native tests
+(21 subtests plus parent), no skips/failures, and 1/1 exact runtime-role test.
+The latter checks the exact per-table privilege allowlist, CONNECT/schema USAGE,
+no database/schema CREATE, no elevated role attributes or memberships, connection
+limit 20, and denied DDL/migration writes/event updates/project deletes.
+Diagnostics: protocol-fixture, realCalls=0, totalCalls=13, reports=12,
+completedConfirmedEffects=9, retainedReceiptsOnRejectedJobs=2, conflictsRejected=1.
+Retained receipts are rejected work, not completed effects. Both new cases verify
+pre-admission rejection, unchanged Core snapshots and preserved receipt/report
+bytes/inode/mtime. One HTTP 503 is deliberately injected before checkpoint.
+
+The wrapper reached final PASS at 2026-11-07T01:09:26.9891577Z after stopping and
+removing its cluster; no listener remained on 55441. Evidence belongs to worker
+job `e516e0ce-492c-4021-ba29-7f3010a2a8ba`; its private worktree contains
+`.agentic-tmp/native-legacy.stdout.log` and `native-legacy.stderr.log` (empty).
+The process launcher returned 0; the child OS exit code was not captured before
+it exited, so final PASS/logs are the success evidence rather than a measured
+child exit code. No repeat was performed to recover that code.
+
+The prior direct PowerShell 7.6.9 run stalled after startup before createdb;
+manually stopping its owned cluster released the wait and caused createdb and
+second-stop failure (exit 1). Windows PowerShell passed without wrapper changes.
+This supports using the documented shell; output-handle inheritance remains an
+unproven explanation, since shell and launch/redirection context differ. Wrapper,
+guard, eight unit recovery regressions and native tests remain intact. No full
+check repeat was needed for documentation-only closeout. Earlier live-model
+acceptance above remains historical; this run made no real inference.
+The guard still cannot detect loss of both artifact and receipt, certify backup
+restore or arbitrary external effects; bounded retries and operator reconciliation
+remain unchanged. Core schema/grants/dependencies and production services are unchanged.
+
 The same suite runs in CI against a deterministic loopback protocol fixture and
 real PostgreSQL/files; it does not require/download a model. Fast regressions
 also cover timeout/cancellation, output limits, target replacement, linked roots,
@@ -145,3 +189,114 @@ each additional external-effect receiver, measure sustained bounded
 multi-process load and complete real Windows login acceptance.
 Remote/untrusted deployment requires a separate authenticated authorization
 design. Core schema and production configuration remain unchanged.
+
+## Opt-in synthetic joint logical restore (2026-11-07)
+
+Run from the checkout with the existing portable Node 22.23.4 directory first
+in process PATH. Use Windows PowerShell 5.1; the wrapper rejects combining this
+flag with `-LiveAgent`. Normal checks/CI do not enable restoration.
+
+```powershell
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1 -JointRestore
+```
+
+For hidden redirected acceptance, retain the process handle before waiting so
+Windows PowerShell 5.1 exposes the actual child exit (or use `-Wait -PassThru`):
+
+```powershell
+$script = Join-Path $PWD 'scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1'
+$child = Start-Process powershell.exe -WindowStyle Hidden -PassThru -WorkingDirectory $PWD -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $script + '"'), '-JointRestore') -RedirectStandardOutput (Join-Path $PWD 'joint.stdout.log') -RedirectStandardError (Join-Path $PWD 'joint.stderr.log')
+$handle = $child.Handle
+$child.WaitForExit()
+$child.Refresh()
+$child.ExitCode
+```
+
+Observed child OS exit **0**, stderr empty, final PASS at
+2026-11-07T19:45:32.5538386Z: native **23/23**, no skips/failures, and exact Core
+runtime-role contract **1/1**. Normal coordinator compile/tests **18/18**, exit 0; full `npm run check` exit 0.
+Evidence logs are retained locally under .run/evidence/joint-restore-20261107/ (ignored).
+No real model or production access. The existing protocol diagnostics (13
+requests, 12 reports, 9 completed confirmed effects, 2 rejected retained receipts)
+precede the extra restore fixture; that fixture makes one additional synthetic
+request/report and zero provider calls during restore/resume.
+
+The drill kills the existing worker after durable file publication and receipt
+commit, before memory/context/completion writes. All fixture workers exit before
+the backup; the source database and receiver are quiescent during a real custom
+`pg_dump` of Core and coordinator schemas together and a report-byte backup.
+`pg_restore --exit-on-error` restores into a generated empty `template0` database
+in the same disposable loopback cluster. Database name and OID must differ.
+Existing cluster roles/privileges are reused, including `forge_runtime` for Core
+and the separate state owner. This does not test role/cluster reconstruction.
+
+Restored state preserves the full job row and execution/task IDs. A copied
+report in a relocated directory has a different target fingerprint: claim stays
+idle and state is unchanged (no silent rebind). Removing the original confirmed
+file yields `EFFECT_UNCONFIRMED`, no regenerated file, no memory/context, and no
+done task. Restoring backed-up bytes into the **original retained receiver
+directory**, with unchanged canonical path/device/directory inode, permits resume.
+ADR-011 intentionally pins that directory; the restored report file itself may
+have a new inode. Resume then preserves its bytes/inode/mtime and yields exactly
+one succeeded execution, memory and continuation package. A second poll is idle;
+the handler must never run. Source state remains unchanged. Generated restored
+database, dump, byte backup, relocated receiver, reports and cluster are cleaned.
+
+This is **logical database restore plus report-byte restore with retained receiver
+directory**. Total disk/directory loss, mixed-generation backups, separate Core
+and coordinator databases, production backup consistency, role loss, real model
+inference and simultaneous receipt+artifact loss remain distinct untested gaps.
+No runtime rebind, Core grants/schema/dependency change or backup product is added.
+Production coordinator activation remains blocked on an operational recovery plan.
+## Isolated full receiver loss acceptance (2026-11-07)
+
+ADR-012 and [the operator procedure](CONFIRMED-REPORT-RECOVERY.md) add explicit
+one-shot exact-task verification after replacing the complete report directory.
+Normal worker/enqueue pinning and persisted effect_target/receipt are unchanged.
+
+Windows Node 22.23.4 / disposable PostgreSQL 18.4 JointRestore: 23/23 native
+checks plus exact runtime-role 1/1; hidden redirected Windows PowerShell 5.1
+OS exit 0 with Process.Handle retained, stderr empty, 2026-11-07T20:01:33Z.
+The initial fixture run failed EISDIR while inventorying a shared test receiver;
+the corrected drill owns its own mkdtemp receiver. Both runs stopped/removed their
+clusters. Evidence: .run/evidence/full-receiver-loss/{native,isolated}.stdout.log,
+final.stdout.log, final.stderr.log and final-process.json in the authorized worktree.
+
+The drill holds the emptied moved-original inode until creating a fresh receiver,
+then removes the entire old directory and asserts its absence. Original and fresh
+identities differ. Wrong old proof/path, absent and wrong report bytes cannot
+complete Core or regenerate/publish. Restored bytes reconcile through two real
+CLI callers with exactly one completion; replay is idle. One pending same-agent
+job remains byte-for-byte unchanged. Original receipt/target/artifact, execution
+identity, report inode/mtime and audit cardinality are asserted. No provider replay.
+
+Full npm run check passed; focused verifier regressions cover linked reports,
+wrong checkpoint/receipt, pinned replacement drift and missing original execution.
+This is a quiescent trusted-filesystem synthetic logical drill with retained
+checkpoints/pre-loss metadata. It does not certify production backup generations,
+hostile filesystem races, physical disk/power loss or real inference.
+
+### Proof-file / attempt preservation follow-up (2026-11-07)
+
+Recovery now accepts a UTF-8 proof FILE, with or without BOM, instead of JSON
+argv. Capture can write an exclusive UTF-8 file without database configuration.
+The exact project/task checkpoint is read internally, verified with the existing
+verification-only publisher before claiming, and verified again inside the existing
+lease fence. Status exposes neither prepared output nor the raw receipt. Invalid
+backup data and missing output/receipt refuse before changing any row field;
+normal claim budgets, schemas, grants and post-claim failure handling stay intact.
+
+Hidden redirected Windows PowerShell 5.1 -JointRestore passed native 23/23 and
+runtime-role 1/1, real OS exit 0 with Process.Handle retained at
+2026-11-07T20:06:58.6390618Z; stderr empty, disposable cluster stopped/removed.
+Full npm run check exited 0. Evidence in the authorized worktree:
+.run/evidence/report-review-followup/{process.json,joint.stdout.log,joint.stderr.log,check.log}.
+Native capture+recover uses the documented proof-file contract with spaces,
+non-ASCII paths and an optional UTF-8 BOM; exclusive capture refuses overwrite.
+Negative checks compare the entire row, including attempts and epoch, after
+wrong proof/path, malformed JSON, absent/corrupt report and missing checkpoints.
+A maxAttempts=3 job survives these refusals after its crash, completes on attempt 2
+with one concurrent completion, and replays idle with its original receipt.
+No real model, production, downloads or publication; prior synthetic-drill limits
+still apply. This exercises native argv/file semantics under the PS5.1 acceptance
+host; it does not separately automate the guide's interactive shell commands.

@@ -1,13 +1,13 @@
 [CmdletBinding()]
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin', [ValidateRange(1024,65535)][int]$Port=55441,
-    [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
+    [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runRoot=[IO.Path]::GetFullPath((Join-Path $workspace '.run'))
 $root=[IO.Path]::GetFullPath((Join-Path $runRoot ('coordinator-pilot-'+[Guid]::NewGuid().ToString('N'))))
 if (-not $root.StartsWith($runRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe pilot root' }
 $started=$false
-$names=@('FORGE_DATABASE_URL','FORGE_ADMIN_DATABASE_URL','FORGE_RUNTIME_PASSWORD','FORGE_COORDINATOR_TEST_ADMIN_URL','FORGE_COORDINATOR_TEST_ALLOW_SETUP','FORGE_COORDINATOR_LIVE_BASE_URL','FORGE_COORDINATOR_LIVE_MODEL')
+$names=@('FORGE_COORDINATOR_TEST_RESTORE','FORGE_COORDINATOR_TEST_PG_BIN','FORGE_DATABASE_URL','FORGE_ADMIN_DATABASE_URL','FORGE_RUNTIME_PASSWORD','FORGE_COORDINATOR_TEST_ADMIN_URL','FORGE_COORDINATOR_TEST_ALLOW_SETUP','FORGE_COORDINATOR_LIVE_BASE_URL','FORGE_COORDINATOR_LIVE_MODEL')
 $previous=@{}
 foreach ($name in $names) { $previous[$name]=[Environment]::GetEnvironmentVariable($name) }
 New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
@@ -15,6 +15,7 @@ New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
 Push-Location $workspace
 try {
+    if ($JointRestore -and $LiveAgent) { throw 'Joint restore requires the synthetic provider' }
     if ($LiveAgent -and ([string]::IsNullOrWhiteSpace($AgentModel) -or [string]::IsNullOrWhiteSpace($AgentBaseUrl))) { throw 'Live agent model and loopback base URL must not be blank' }
     New-Item -ItemType Directory -Force -Path $root | Out-Null
     $data=Join-Path $root 'data'
@@ -41,6 +42,8 @@ try {
     } else {
         Remove-Item Env:FORGE_COORDINATOR_LIVE_BASE_URL,Env:FORGE_COORDINATOR_LIVE_MODEL -ErrorAction SilentlyContinue
     }
+    $env:FORGE_COORDINATOR_TEST_RESTORE=if ($JointRestore) {'1'} else {'0'}
+    $env:FORGE_COORDINATOR_TEST_PG_BIN=$PostgresBin
     & npm.cmd run build -w forge-persistence-gateway
     if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
     & npm.cmd run test:integration -w forge-coordinator

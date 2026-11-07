@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-06
+Updated: 2026-11-07
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -56,6 +56,44 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- ADR-012 — explicit exact-task confirmed-report recovery after full receiver
+  directory loss. Original receipt/target stay immutable; pre-loss canonical
+  path/dev/inode proof authorizes verification only on a pinned replacement.
+  Existing execution, artifact, receipt and retry budget required; no agent replay.
+  Follow-up: UTF-8 proof FILE (optional BOM), exclusive UTF-8 capture without DB,
+  internal exact checkpoint read and verification before claim; status omits raw
+  receipt/artifact. Invalid backup/checkpoint leaves the entire row untouched;
+  normal post-claim attempts and fenced reverification remain unchanged.
+  Default three-attempt budget recovers on attempt 2 after rejected operator input.
+  Follow-up JointRestore: 23/23 + role 1/1, PS5.1 real exit 0/retained Handle,
+  2026-11-07T20:06:58.6390618Z; npm run check exit 0. Evidence:
+  .run/evidence/report-review-followup/{process.json,joint.stdout.log,check.log}.
+  Native JointRestore passed 23/23 plus limited-role 1/1, hidden PowerShell 5.1
+  OS exit 0 (2026-11-07T20:01:33Z); full npm run check exit 0.
+  Wrong proof/path/bytes, missing report, concurrent CLI/replay and unrelated
+  same-agent task isolation covered. Operator guide: CONFIRMED-REPORT-RECOVERY.md.
+  Still a synthetic disposable pilot, not production/disk-loss certification.
+- Opt-in synthetic joint restore passed on Windows Node 22.23.4 / PostgreSQL
+  18.4: actual quiescent Core+coordinator pg_dump/pg_restore into a generated
+  empty database, plus report-byte backup/restore in the retained original
+  receiver directory (path/dev/inode). Real receipt-committed worker death,
+  missing-file and relocated-target negatives pass; resume preserves task/run
+  identity with one final memory/context/execution and no handler/model replay.
+  Native 23/23 plus exact runtime-role 1/1; hidden PowerShell 5.1 child exit 0.
+  This is logical restore with retained receiver storage, not total disk loss
+  or a production backup plan. Run instructions: AGENTIC-READINESS.md.
+- Local recovery safety rejects receipt-without-artifact with `EFFECT_UNCONFIRMED`
+  inside the initial fence, before handler invocation or Core admission.
+  Windows Node 22.23.4 compiles and passes 18 normal tests (8 recovery cases),
+  full npm run check and 22 native PostgreSQL 18.4 tests. The exact limited-role
+  contract also passes. Two new native cases cover checkpoint loss after worker
+  death and a ready task without an execution; Core, receipts and report bytes
+  remain unchanged. Diagnostics separate 9 completed effects from 2 retained
+  receipts on rejected jobs. No real model calls or production activation.
+  Acceptance job e516e0ce-492c-4021-ba29-7f3010a2a8ba reached PASS and removed
+  its disposable cluster. Child OS exit was not captured. Documented Windows
+  PowerShell 5.1 passed; the prior direct PowerShell 7 setup stall has no proven
+  cause. Evidence and scope: `docs/guides/AGENTIC-READINESS.md`.
 - External `forge-coordinator` pilot implements project/agent-scoped ownership,
   heartbeat, bounded retries/deadlines, prepared artifacts and fenced publication.
   Its opt-in local-report host connects a real local Qwen3.5-9B review model.
@@ -116,7 +154,7 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Plan consistent backup/recovery of coordinator state and Core before any
+- Plan production-consistent backup/recovery beyond the synthetic joint drill before any
   production worker activation. Exhausted jobs require operator reconciliation.
 - Accept another effect receiver only with durable idempotency/reconciliation;
   the current contract covers immutable local reports on retained storage.
@@ -136,6 +174,13 @@ LATER:
   ACLs remain outside Core; coordinator handlers must not bypass its write fence.
 - Coordinator control state needs protected backup and consistent recovery with
   Core before relying on recovery from data loss. No production service is activated.
+- The missing-artifact guard requires a retained receipt; it does not detect
+  loss of both artifact and receipt, reconstruct output from a report, or certify
+  arbitrary restore/state loss. A requeued job without either checkpoint may
+  still invoke its handler before encountering an existing report conflict.
+  Operator reconciliation remains required; existing bounded failure/requeue
+  policy is unchanged. No automatic worker retry or production activation was
+  performed for this local fix.
 - Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
   this Windows host. Node 22 is the Windows CI baseline; the failure is not
   classified as an agent/provider error or hidden by acceptance retries.
@@ -155,6 +200,8 @@ LATER:
 
 ## Recent Changes
 
+- Reject receipt-without-artifact recovery before regeneration, using the
+  existing `EFFECT_UNCONFIRMED` code; Core grants/schema and dependencies unchanged.
 - Added local model review adapter, target-bound immutable reports, receipt
   reconciliation and real model/process-crash acceptance (ADR-011). Only the
   separate control-state setup gains columns; Core grants/schema stay unchanged.

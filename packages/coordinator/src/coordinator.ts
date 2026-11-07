@@ -1,5 +1,5 @@
 import { NotFoundError, type Execution, type Task } from 'forge-persistence-gateway'
-import { LeaseLostError, PilotFailure, type Artifact, type ArtifactPublisher, type CorePort, type Handler, type Job, type JobStore, type WorkerIdentity } from './types.js'
+import { LeaseLostError, PilotFailure, type Artifact, type ArtifactPublisher, type CorePort, type Handler, type Job, type JobStore, type EffectReceipt, type WorkerIdentity } from './types.js'
 import { reportIdentity } from './report-publisher.js'
 
 export function validateArtifact(value: Artifact): Artifact {
@@ -12,14 +12,14 @@ function executionKey(job: Job): string { return `coordinator:v1:${job.projectId
 
 export class Coordinator {
   private readonly handlerTimeoutMs: number
-  constructor(private readonly store: JobStore, private readonly core: CorePort, private readonly options: { handlerTimeoutMs?: number; publisher?: ArtifactPublisher } = {}) {
+  constructor(private readonly store: JobStore, private readonly core: CorePort, private readonly options: { handlerTimeoutMs?: number; publisher?: ArtifactPublisher; recovery?: { taskId: string; receipt: EffectReceipt } } = {}) {
     this.handlerTimeoutMs = options.handlerTimeoutMs ?? 120_000
     if (!Number.isInteger(this.handlerTimeoutMs) || this.handlerTimeoutMs < 100 || this.handlerTimeoutMs > 3_600_000) throw new RangeError('handlerTimeoutMs must be 100..3600000')
   }
 
   async runOnce(worker: WorkerIdentity, handler: Handler): Promise<'idle' | 'completed' | 'lost' | 'failed'> {
     await this.core.assertReady()
-    const claim = await this.store.claim(worker, { kind: this.options.publisher?.kind ?? 'none', targetId: this.options.publisher?.targetId ?? '' })
+    const claim = await this.store.claim(worker, { kind: this.options.publisher?.kind ?? 'none', targetId: this.options.publisher?.targetId ?? '' }, this.options.recovery)
     if (!claim) return 'idle'
     const controller = new AbortController()
     let timer: ReturnType<typeof setInterval> | undefined
@@ -28,6 +28,11 @@ export class Coordinator {
     try {
       const prepared = await this.store.fenced(claim, async (current) => {
         if (current.effectKind !== (this.options.publisher?.kind ?? 'none') || current.effectTarget !== (this.options.publisher?.targetId ?? '')) throw new PilotFailure('EFFECT_POLICY_MISMATCH')
+        // A prior receipt requires its prepared output, even before Core succeeds.
+        // Regeneration could conceal state loss or produce a conflicting effect.
+        if (current.effectReceipt && !current.artifact) throw new PilotFailure('EFFECT_UNCONFIRMED')
+        if (this.options.recovery && (current.taskId !== this.options.recovery.taskId || !current.artifact || !current.effectReceipt ||
+            Object.keys(this.options.recovery.receipt).some(key => current.effectReceipt![key as keyof EffectReceipt] !== this.options.recovery!.receipt[key as keyof EffectReceipt]))) throw new PilotFailure('EFFECT_UNCONFIRMED')
         const task = await this.task(current)
         const execution = await this.execution(current, task)
         if (execution.status === 'succeeded') {
@@ -113,7 +118,7 @@ export class Coordinator {
     let execution: Execution
     try { execution = await this.core.getExecutionByKey(current.projectId, key) }
     catch (error) {
-      if (!(error instanceof NotFoundError) || task.status === 'done') throw error
+      if (this.options.recovery || !(error instanceof NotFoundError) || task.status === 'done') throw error
       const running = await this.core.listExecutions({ projectId: current.projectId, taskId: current.taskId, status: 'running', limit: 1 })
       if (running.items.length) throw new Error('Task already has an uncoordinated running execution')
       if (task.status === 'ready') await this.core.updateTaskStatus({ projectId: current.projectId, taskId: task.id, expectedVersion: task.version, status: 'in_progress' })

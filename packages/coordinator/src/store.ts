@@ -28,6 +28,12 @@ export class PostgresJobStore implements JobStore {
     return result.rows[0] ?? null
   }
 
+  // Internal exact-task checkpoint; never exposed by the status projection.
+  async recoveryCheckpoint(projectId: string, taskId: string): Promise<Job | null> {
+    const result = await this.pool.query('SELECT * FROM forge_coordinator.jobs WHERE project_id=$1 AND task_id=$2', [projectId, taskId])
+    return result.rows[0] ? job(result.rows[0]) : null
+  }
+
   async enqueue(input: Pick<Job, 'projectId' | 'taskId' | 'taskKey' | 'agentId'>, maxAttempts = 3, effect: EffectPolicy = { kind: 'none', targetId: '' }): Promise<Job> {
     if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 20) throw new RangeError('maxAttempts must be 1..20')
     if ((effect.kind === 'none' && effect.targetId !== '') || (effect.kind === 'immutable-report-v1' && !/^[a-f0-9]{64}$/.test(effect.targetId)) || !['none', 'immutable-report-v1'].includes(effect.kind)) throw new TypeError('Unknown effect policy or target')
@@ -40,15 +46,19 @@ export class PostgresJobStore implements JobStore {
     return result
   }
 
-  async claim({ projectId, agentId, workerId }: WorkerIdentity, effect: EffectPolicy = { kind: 'none', targetId: '' }): Promise<Claim | null> {
+  async claim({ projectId, agentId, workerId }: WorkerIdentity, effect: EffectPolicy = { kind: 'none', targetId: '' }, recovery?: { taskId: string; receipt: EffectReceipt }): Promise<Claim | null> {
+    if (recovery && (typeof recovery.taskId !== 'string' || !recovery.taskId.trim() || !recovery.receipt ||
+        recovery.receipt.kind !== effect.kind || recovery.receipt.targetId !== effect.targetId)) throw new TypeError('Invalid exact recovery selector')
     if (!workerId.trim() || workerId.length > 200) throw new RangeError('workerId must be 1..200 characters')
     return this.transaction(async (client) => {
-      await client.query(`UPDATE forge_coordinator.jobs SET state='failed', owner=NULL, lease_until=NULL, error_code='ATTEMPTS_EXHAUSTED', updated_at=clock_timestamp()
+      if (!recovery) await client.query(`UPDATE forge_coordinator.jobs SET state='failed', owner=NULL, lease_until=NULL, error_code='ATTEMPTS_EXHAUSTED', updated_at=clock_timestamp()
         WHERE id IN (SELECT id FROM forge_coordinator.jobs WHERE agent_id=$1 AND project_id=$2 AND effect_kind=$3 AND effect_target=$4 AND attempts>=max_attempts
           AND (state='queued' OR (state='running' AND lease_until<=clock_timestamp())) FOR UPDATE SKIP LOCKED)`, [agentId, projectId, effect.kind, effect.targetId])
       const selected = await client.query(`SELECT id FROM forge_coordinator.jobs WHERE agent_id=$1 AND attempts<max_attempts
         AND (state='queued' OR (state='running' AND lease_until<=clock_timestamp()))
-        AND project_id=$2 AND effect_kind=$3 AND effect_target=$4 ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, [agentId, projectId, effect.kind, effect.targetId])
+        AND project_id=$2 AND effect_kind=$3 AND effect_target=$4
+        AND ($5::uuid IS NULL OR (task_id=$5 AND artifact IS NOT NULL AND effect_receipt=$6::jsonb))
+        ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`, [agentId, projectId, effect.kind, effect.targetId, recovery?.taskId ?? null, recovery ? JSON.stringify(recovery.receipt) : null])
       if (!selected.rows[0]) return null
       const updated = await client.query(`UPDATE forge_coordinator.jobs SET state='running', owner=$2, epoch=epoch+1,
         attempts=attempts+1, lease_until=clock_timestamp()+$3::int*interval '1 millisecond', updated_at=clock_timestamp()

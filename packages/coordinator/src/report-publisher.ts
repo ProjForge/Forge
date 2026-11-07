@@ -76,3 +76,34 @@ export class ImmutableReportPublisher implements ArtifactPublisher {
     } finally { await unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error }) }
   }
 }
+
+export interface ReportTargetProof { canonicalPath: string; dev: number; ino: number }
+
+export function captureReportTarget(root: string): ReportTargetProof {
+  new ImmutableReportPublisher(root)
+  const info = lstatSync(root)
+  return { canonicalPath: realpathSync(root), dev: info.dev, ino: info.ino }
+}
+
+// Verification-only adapter: physical identity substitution never leaves this verifier.
+export class RestoredReportVerifier implements ArtifactPublisher {
+  readonly kind = 'immutable-report-v1' as const
+  readonly targetId: string
+  private readonly replacement: ImmutableReportPublisher
+  constructor(root: string, proof: ReportTargetProof) {
+    this.replacement = new ImmutableReportPublisher(root)
+    const canonical = realpathSync(root)
+    const normalize = (value: string) => process.platform === 'win32' ? value.toLowerCase() : value
+    if (typeof proof.canonicalPath !== 'string' || normalize(canonical) !== normalize(proof.canonicalPath) ||
+        !Number.isSafeInteger(proof.dev) || !Number.isSafeInteger(proof.ino) || proof.dev < 0 || proof.ino < 0) throw new PilotFailure('EFFECT_TARGET_CHANGED')
+    this.targetId = createHash('sha256').update(`${normalize(proof.canonicalPath)}:${proof.dev}:${proof.ino}`).digest('hex')
+    if (this.targetId === this.replacement.targetId) throw new PilotFailure('EFFECT_TARGET_CHANGED')
+  }
+  async publish(input: Parameters<ArtifactPublisher['publish']>[0]): Promise<EffectReceipt> {
+    const expected = input.expected
+    const original = reportIdentity(input.key, input.artifact, this.targetId).receipt
+    if (!expected || Object.keys(original).some(key => original[key as keyof EffectReceipt] !== expected[key as keyof EffectReceipt])) throw new PilotFailure('EFFECT_UNCONFIRMED')
+    await this.replacement.publish({ ...input, expected: { ...expected, targetId: this.replacement.targetId } })
+    return expected
+  }
+}

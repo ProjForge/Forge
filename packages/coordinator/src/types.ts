@@ -22,7 +22,7 @@ export interface Claim { job: Job; workerId: string; epoch: number }
 export interface WorkerIdentity { projectId: string; agentId: string; workerId: string }
 export interface Change<T> { value: T; artifact?: Artifact; completed?: boolean; effectReceipt?: EffectReceipt }
 export interface JobStore {
-  claim(worker: WorkerIdentity, effect?: EffectPolicy): Promise<Claim | null>
+  claim(worker: WorkerIdentity, effect?: EffectPolicy, recovery?: { taskId: string; receipt: EffectReceipt }): Promise<Claim | null>
   heartbeat(claim: Claim): Promise<boolean>
   fenced<T>(claim: Claim, operation: (job: Job) => Promise<Change<T>>): Promise<T>
   fail(claim: Claim, code?: FailureCode): Promise<void>
