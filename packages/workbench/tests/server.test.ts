@@ -1,11 +1,69 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { request } from 'node:http'
 import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createWorkbenchServer } from '../src/server.js'
 import type { ForgeWorkbenchService } from '../src/service.js'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
+
+test('validates actual Host before bootstrap, static files and privileged routes', async (context) => {
+  let calls = 0
+  const service = { projects: async () => { calls++; return [] } } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve(process.cwd(), 'public'), token: 'fixture-only-token' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const port = (server.address() as AddressInfo).port
+  const local = `127.0.0.1:${port}`
+  const get = (resource: string, headers: string[]) => new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const req = request({ hostname: '127.0.0.1', port, path: resource, headers, setHost: false, agent: false }, (response) => {
+      let body = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk: string) => { body += chunk })
+      response.on('end', () => resolve({ status: response.statusCode!, body }))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+
+  const attack = await get('/api/bootstrap', ['Host', `attacker.example:${port}`])
+  assert.equal(attack.status, 403, `attacker bootstrap response: ${attack.body}`)
+  assert.ok(!attack.body.includes('fixture-only-token'))
+  for (const resource of ['/api/bootstrap', '/', '/app.js', '/api/projects']) {
+    const response = await get(resource, ['Host', `attacker.example:${port}`, 'Origin', `http://${local}`,
+      'X-Forwarded-Host', local, 'x-forge-token', 'fixture-only-token'])
+    assert.equal(response.status, 403, resource)
+    assert.equal(JSON.parse(response.body).error.code, 'HOST_REJECTED')
+    assert.ok(!response.body.includes('fixture-only-token'))
+  }
+  assert.equal(calls, 0)
+  // Node rejects HTTP/1.1 without Host before dispatching to the handler.
+  const missing = await get('/api/bootstrap', [])
+  assert.equal(missing.status, 400)
+  assert.ok(!missing.body.includes('fixture-only-token'))
+  for (const host of ['', 'localhost', '127.0.0.1', '[::1]', `localhost:${port === 65535 ? 1 : port + 1}`,
+    `user@localhost:${port}`, `localhost:${port}/`, `localhost:${port}?x`, `localhost:${port}#x`,
+    `localhost:${port},${local}`, `127.1:${port}`, `2130706433:${port}`, `localhost.:${port}`,
+    `::1:${port}`, `localhost:+${port}`, `localhost:0${port}`, `localhost:${port}:80`]) {
+    const response = await get('/api/bootstrap', ['Host', host])
+    assert.equal(response.status, 403, host)
+    assert.ok(!response.body.includes('fixture-only-token'))
+  }
+  const duplicate = await get('/api/bootstrap', ['Host', local, 'hOsT', local])
+  assert.equal(duplicate.status, 403)
+  assert.ok(!duplicate.body.includes('fixture-only-token'))
+  for (const host of [local, `localhost:${port}`, `LOCALHOST:${port}`, `[::1]:${port}`]) {
+    for (const origin of [undefined, `http://${host}`]) {
+      const response = await get('/api/bootstrap', ['Host', host, ...(origin ? ['Origin', origin] : [])])
+      assert.equal(response.status, 200, `${host} / ${origin}`)
+      assert.equal(JSON.parse(response.body).token, 'fixture-only-token')
+    }
+  }
+  assert.equal((await get('/api/projects', ['Host', local, 'Origin', `http://[::1]:${port}`,
+    'x-forge-token', 'fixture-only-token'])).status, 200)
+  assert.equal(calls, 1)
+})
 
 test('serves the loopback API with token and origin protections', async (context) => {
   const service = {
