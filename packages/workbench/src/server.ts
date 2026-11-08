@@ -9,7 +9,7 @@ const jsonLimit = 64 * 1024
 const portableJsonLimit = 5 * 1024 * 1024
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const publicFiles = new Set([
-  '/index.html', '/app.js', '/styles.css', '/workspace.css', '/brand.css',
+  '/index.html', '/app.js', '/theme.js', '/brand/forge-mark-mono-dark.svg', '/styles.css', '/workspace.css', '/brand.css',
   '/brand/forge-favicon.svg', '/brand/forge-favicon-256.png', '/brand/forge-mark-color.svg',
 ])
 

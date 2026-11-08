@@ -4,7 +4,7 @@
   width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 9px;
   outline: 0; background: var(--surface); color: var(--text); font-size: 11px;
 }
-.project-filter input:focus { border-color: #8f632c; box-shadow: 0 0 0 3px rgba(240,168,58,.1); }
+.project-filter input:focus { border-color: var(--accent-bright); box-shadow: 0 0 0 3px var(--amber-soft); }
 .shell,.rail,main { min-width: 0; }
 .projects { overflow-y: auto; overflow-x: hidden; }
 
@@ -14,7 +14,7 @@
   background: var(--surface-soft); color: var(--text); font-size: 10px;
 }
 .inspect-button { width: 100%; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; color: inherit; cursor: pointer; }
-.inspect-button:hover,.inspect-button:focus-visible { border-color: var(--forge-cyan); background: rgba(255,255,255,.025); }
+.inspect-button:hover,.inspect-button:focus-visible { border-color: var(--forge-cyan); background: var(--hover); }
 .context-dialog { width: min(44rem,calc(100vw - 2rem)); }
 .import-dialog { width: min(42rem,calc(100vw - 2rem)); }
 .field-help,.import-preview { color: var(--muted); font-size: 11px; line-height: 1.55; }

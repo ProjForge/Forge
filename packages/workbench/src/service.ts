@@ -27,6 +27,7 @@ import type {
   TextSearchInput,
 } from 'forge-semantic-bridge/workbench'
 import { unconfiguredRecoveryHealth, type RecoveryHealthPort } from './recovery-health.js'
+import type { OperationalHealthPort } from './operational-health.js'
 import {
   createOnboardingPayload,
   createPortableProjectBundle,
@@ -76,14 +77,16 @@ export class ForgeWorkbenchService {
     private readonly gateway: WorkbenchGateway,
     private readonly searchPort: TextSearchPort,
     private readonly recoveryHealth?: RecoveryHealthPort,
+    private readonly operationalHealth?: OperationalHealthPort,
   ) {}
 
   async status() {
-    const [database, recovery] = await Promise.all([
+    const [database, recovery, operational] = await Promise.all([
       this.gateway.assertReady(),
       this.recoveryHealth?.read() ?? Promise.resolve(unconfiguredRecoveryHealth()),
+      this.operationalHealth?.read(),
     ])
-    return { ...database, recovery }
+    return { ...database, recovery, ...operational }
   }
 
   async projects(): Promise<Project[]> {

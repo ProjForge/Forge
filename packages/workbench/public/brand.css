@@ -5,5 +5,8 @@
   border: 0;
   background: none;
   box-shadow: none;
-  filter: drop-shadow(0 0 12px #f0a83a25);
+  filter: none;
 }
+.brand .brand-mark-light { display: none; }
+:root[data-theme="light"] .brand .brand-mark-dark { display: none; }
+:root[data-theme="light"] .brand .brand-mark-light { display: block; }

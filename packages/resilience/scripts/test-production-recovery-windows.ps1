@@ -3,15 +3,18 @@ param(
     [string]$ConfigRoot = (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'FORGE'),
     [string]$PitrRoot = 'E:\FORGE PITR',
     [string]$BaseLabel = 'base-prod-acceptance-20260813',
+    [switch]$LatestAvailable,
     [switch]$KeepOnFailure
 )
 
 $ErrorActionPreference = 'Stop'
 $runtime = Get-Content -LiteralPath (Join-Path $ConfigRoot 'resilience-runtime.json') -Raw | ConvertFrom-Json
 $physical = Get-Content -LiteralPath (Join-Path $ConfigRoot 'pitr-runtime.json') -Raw | ConvertFrom-Json
-$point = Get-Content -LiteralPath (Join-Path $ConfigRoot 'production-recovery-point.json') -Raw | ConvertFrom-Json
-if ([string]$point.systemIdentifier -ne [string]$physical.cluster.systemIdentifier) { throw 'Recovery point belongs to a different PostgreSQL cluster.' }
-if ([string]$point.name -notmatch '^forge_production_acceptance_[0-9]{8}_[0-9]{6}$' -or [string]$point.wal -notmatch '^[0-9A-F]{24}$') { throw 'Recovery point metadata is unsafe.' }
+if (-not $LatestAvailable) {
+    $point = Get-Content -LiteralPath (Join-Path $ConfigRoot 'production-recovery-point.json') -Raw | ConvertFrom-Json
+    if ([string]$point.systemIdentifier -ne [string]$physical.cluster.systemIdentifier) { throw 'Recovery point belongs to a different PostgreSQL cluster.' }
+    if ([string]$point.name -notmatch '^forge_production_acceptance_[0-9]{8}_[0-9]{6}$' -or [string]$point.wal -notmatch '^[0-9A-F]{24}$') { throw 'Recovery point metadata is unsafe.' }
+}
 
 $postgresBin = [IO.Path]::GetFullPath([string]$physical.postgresBin)
 $pgCtl = Join-Path $postgresBin 'pg_ctl.exe'
@@ -74,6 +77,16 @@ try {
     $env:AWS_ACCESS_KEY_ID = Read-Dpapi (Join-Path $ConfigRoot 'resilience-aws-access-key-id.dpapi')
     $env:AWS_SECRET_ACCESS_KEY = Read-Dpapi (Join-Path $ConfigRoot 'resilience-aws-secret-access-key.dpapi')
     $env:AWS_REGION = [string]$physical.s3.region
+    $countsSql = "SELECT json_build_object('projects',(SELECT count(*) FROM forge.projects),'memories',(SELECT count(*) FROM forge.memories),'migrations',(SELECT md5(string_agg(name || checksum,',' ORDER BY name)) FROM forge.schema_migrations))::text;"
+    if ($LatestAvailable) {
+        $env:PGPASSWORD = Read-Dpapi (Join-Path $ConfigRoot 'resilience-database.dpapi')
+        $snapshot = & $psql -X -w -A -t -v ON_ERROR_STOP=1 -h ([string]$runtime.database.host) -p ([string]$runtime.database.port) -U ([string]$runtime.database.user) -d ([string]$runtime.database.name) -c $countsSql
+        if ($LASTEXITCODE -ne 0) { throw 'Source metadata snapshot failed.' }
+        $point = ([string]$snapshot).Trim() | ConvertFrom-Json
+        $point | Add-Member database ([string]$runtime.database.name)
+        $point | Add-Member name 'latest-available-archive-end'
+        $point | Add-Member wal ''
+    }
 
     $receiptRoot = Join-Path ([IO.Path]::GetFullPath($PitrRoot)) 'receipts'
     $baseReceiptPath = Join-Path $receiptRoot "$BaseLabel.receipt.json"
@@ -82,21 +95,33 @@ try {
     $baseFetched = Invoke-Resilience @('physical-fetch-s3','--object-manifest',$baseManifestName,'--output',$download,'--config',[string]$physical.policyPath,'--target',[string]$physical.s3.target)
     $baseRestored = Invoke-Resilience @('physical-restore','--manifest',[string]$baseFetched.manifestPath,'--output',$plaintext)
     if ([string]$baseRestored.manifest.kind -ne 'base-backup') { throw 'Selected AWS base package is not a base backup.' }
+    if ([string]$baseRestored.manifest.cluster.systemIdentifier -ne [string]$physical.cluster.systemIdentifier -or [int]$baseRestored.manifest.cluster.timeline -ne [int]$physical.cluster.timeline) { throw 'Base backup belongs to another cluster or timeline.' }
+    & $tar -xf ([string]$baseRestored.outputPath) -C $recovery
+    if ($LASTEXITCODE -ne 0) { throw 'Base-backup archive extraction failed.' }
+    $label = Get-Content -LiteralPath (Join-Path $recovery 'backup_label') -Raw
+    $startMatch = [regex]::Match($label,'START WAL LOCATION:.*\(file ([0-9A-F]{24})\)')
+    if (-not $startMatch.Success) { throw 'Base backup has no valid starting WAL identity.' }
+    $firstWal = $startMatch.Groups[1].Value
 
     $walReceipts = @(Get-ChildItem -LiteralPath $receiptRoot -Filter 'wal-*.receipt.json' -File | ForEach-Object {
         $document = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
-        if ([string]$document.wal -le [string]$point.wal -and [datetime]$document.authenticatedAt -ge [datetime]$baseReceipt.authenticatedAt) { $document }
+        if ($LatestAvailable) {
+            if ([string]$document.wal -match '^[0-9A-F]{24}$' -and [string]$document.wal -ge $firstWal) { $document }
+        } elseif ([string]$document.wal -le [string]$point.wal -and [datetime]$document.authenticatedAt -ge [datetime]$baseReceipt.authenticatedAt) { $document }
     } | Sort-Object wal)
+    if ($LatestAvailable) {
+        if (-not $walReceipts.Count) { throw 'No authenticated WAL exists for the selected base.' }
+        $point.wal = [string]$walReceipts[-1].wal
+    }
     if (-not ($walReceipts | Where-Object { [string]$_.wal -eq [string]$point.wal })) { throw 'The named restore-point WAL has no authenticated AWS receipt.' }
     foreach ($receipt in $walReceipts) {
         $manifestName = [IO.Path]::GetFileName(([Uri][string]$receipt.manifestLocation).AbsolutePath)
         $fetched = Invoke-Resilience @('physical-fetch-s3','--object-manifest',$manifestName,'--output',$download,'--config',[string]$physical.policyPath,'--target',[string]$physical.s3.target)
         $restored = Invoke-Resilience @('physical-restore','--manifest',[string]$fetched.manifestPath,'--output',$archive)
         if ([string]$restored.manifest.kind -ne 'wal' -or [string]$restored.manifest.source.file -ne [string]$receipt.wal) { throw 'AWS WAL package identity does not match its receipt.' }
+        if ([string]$restored.manifest.cluster.systemIdentifier -ne [string]$physical.cluster.systemIdentifier -or [int]$restored.manifest.cluster.timeline -ne [int]$physical.cluster.timeline) { throw 'WAL belongs to another cluster or timeline.' }
     }
 
-    & $tar -xf ([string]$baseRestored.outputPath) -C $recovery
-    if ($LASTEXITCODE -ne 0) { throw 'Base-backup archive extraction failed.' }
     & $pgVerifyBackup --exit-on-error $recovery
     if ($LASTEXITCODE -ne 0) { throw 'pg_verifybackup rejected the AWS-restored base backup.' }
     $restoreCommand = "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$restoreScript`" -FileName `"%f`" -Destination `"%p`" -ArchiveDirectory `"$archiveForward`""
@@ -106,7 +131,7 @@ try {
         "archive_mode = 'off'"
         "archive_command = ''"
         "restore_command = '$($restoreCommand.Replace("'", "''"))'"
-        "recovery_target_name = '$([string]$point.name)'"
+        $(if ($LatestAvailable) { "recovery_target_name = ''"; "recovery_target_time = ''"; "recovery_target_lsn = ''"; "recovery_target_xid = ''"; "recovery_target = ''" } else { "recovery_target_name = '$([string]$point.name)'" })
         "recovery_target_action = 'promote'"
     ) | Add-Content -LiteralPath (Join-Path $recovery 'postgresql.auto.conf') -Encoding utf8
     New-Item -ItemType File -Force -Path (Join-Path $recovery 'recovery.signal') | Out-Null
@@ -122,13 +147,15 @@ try {
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
     if ($state -ne 'f') { throw 'The isolated cluster did not promote at the named restore point.' }
-    $counts = Invoke-RecoverySql "SELECT json_build_object('projects',(SELECT count(*) FROM forge.projects),'memories',(SELECT count(*) FROM forge.memories))::text;" -Scalar | ConvertFrom-Json
+    $counts = Invoke-RecoverySql $countsSql -Scalar | ConvertFrom-Json
     if ([int64]$counts.projects -ne [int64]$point.projects -or [int64]$counts.memories -ne [int64]$point.memories) {
         throw "Recovered FORGE counts differ from the named point: projects=$($counts.projects), memories=$($counts.memories)"
     }
+    if ($LatestAvailable -and [string]$counts.migrations -ne [string]$point.migrations) { throw 'Restored migration checksums differ from the source snapshot.' }
     $passed = $true
     $evidence = [ordered]@{restorePoint=[string]$point.name;targetWal=[string]$point.wal;baseLabel=$BaseLabel;walPackages=$walReceipts.Count;projects=[int64]$counts.projects;memories=[int64]$counts.memories;isolatedPort=$recoveryPort;productionPort=[int]$runtime.database.port}
-    Write-Status 'PASS' 'AWS base and WAL packages authenticated, PostgreSQL promoted at the named target, and FORGE rows matched.' $evidence
+    $detail = if ($LatestAvailable) { 'AWS base and available WAL authenticated; isolated archive-end recovery matched FORGE counts and migration checksums. This does not certify a named target or unarchived writes.' } else { 'AWS base and WAL packages authenticated, PostgreSQL promoted at the named target, and FORGE rows matched.' }
+    Write-Status 'PASS' $detail $evidence
     $evidence | ConvertTo-Json -Depth 6
 }
 catch {

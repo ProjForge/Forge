@@ -116,12 +116,23 @@ try {
         Assert-Exit 'Complete monorepo validation'
         $runtimeUrl = New-DatabaseUrl 'forge_runtime' $runtimePlain 'forge_acceptance'
         $env:FORGE_DATABASE_URL = $runtimeUrl
+        & $npm run test:runtime-role -w forge-postgresql-schema
+        Assert-Exit 'Runtime privilege contract validation'
+        $env:FORGE_TEST_REQUIRE_LIMITED_ROLE = '1'
+        & $npm run test:integration -w forge-persistence-gateway
+        Assert-Exit 'Limited-role Gateway continuity and import validation'
+        $checks.gatewayContinuity = 'PASS'
         & $npm run test:integration -w forge-mcp-server
         Assert-Exit 'MCP continuity validation'
+        $env:FORGE_COORDINATOR_TEST_ADMIN_URL = New-DatabaseUrl 'postgres' $adminPlain 'forge_acceptance'
+        $env:FORGE_COORDINATOR_TEST_ALLOW_SETUP = '1'
+        & $npm run test:integration -w forge-coordinator
+        Assert-Exit 'External coordinator multi-agent pilot validation'
+        $checks.coordinatorPilot = 'PASS'
         Remove-Item Env:FORGE_DATABASE_URL -ErrorAction SilentlyContinue
         $mcp = & $node 'packages\mcp-server\scripts\check-codex-registration.mjs' | ConvertFrom-Json
         if ($mcp.status -ne 'PASS' -or $mcp.tools -ne 27 -or $mcp.schemaVersion -ne '0.1.3') { throw 'DPAPI MCP launcher validation failed.' }
-    } finally { Pop-Location; Remove-Item Env:FORGE_DATABASE_URL -ErrorAction SilentlyContinue }
+    } finally { Pop-Location; Remove-Item Env:FORGE_DATABASE_URL,Env:FORGE_TEST_REQUIRE_LIMITED_ROLE,Env:FORGE_COORDINATOR_TEST_ADMIN_URL,Env:FORGE_COORDINATOR_TEST_ALLOW_SETUP -ErrorAction SilentlyContinue }
     $checks.mcpContinuity = 'PASS'
 
     $workbenchExe = Join-Path $env:LOCALAPPDATA 'Programs\FORGE Workbench\FORGE-Workbench.exe'

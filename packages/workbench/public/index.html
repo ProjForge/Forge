@@ -6,17 +6,35 @@
   <title>FORGE Workbench</title>
   <link rel="icon" href="/brand/forge-favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/brand/forge-favicon-256.png" type="image/png" sizes="256x256">
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/workspace.css">
   <link rel="stylesheet" href="/brand.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="rail">
+  <div class="app-frame">
+    <header class="app-header">
       <a class="brand" href="/" aria-label="FORGE Workbench">
-        <img class="brand-mark" src="/brand/forge-mark-color.svg" alt="">
+        <img class="brand-mark brand-mark-dark" src="/brand/forge-mark-color.svg" alt="">
+        <img class="brand-mark brand-mark-light" src="/brand/forge-mark-mono-dark.svg" alt="">
         <span><strong>FORGE</strong><small>Workbench</small></span>
       </a>
+      <nav class="workspace-tabs" aria-label="Secciones del proyecto" data-project-required>
+        <button type="button" class="view-tab active" data-view="overview" aria-label="Inicio" aria-current="page"><strong>Inicio</strong><small>Qué requiere atención</small></button>
+        <button type="button" class="view-tab" data-view="operation" aria-label="Trabajo"><strong>Trabajo</strong><small>Tareas y agentes</small></button>
+        <button type="button" class="view-tab" data-view="knowledge" aria-label="Memoria"><strong>Memoria</strong><small>Buscar y registrar</small></button>
+        <button type="button" class="view-tab" data-view="continuity" aria-label="Recuperación"><strong>Recuperación</strong><small>Continuidad y copias</small></button>
+      </nav>
+      <div class="header-tools">
+        <div class="theme-switch" role="group" aria-label="Tema de la interfaz">
+          <button type="button" data-theme-choice="light" aria-label="Modo claro" title="Modo claro"><span aria-hidden="true">☀</span><span>Claro</span></button>
+          <button type="button" data-theme-choice="dark" aria-label="Modo oscuro" title="Modo oscuro"><span aria-hidden="true">☾</span><span>Oscuro</span></button>
+          <button type="button" data-theme-choice="system" aria-label="Usar tema del sistema" title="Usar tema del sistema">Auto</button>
+        </div>
+      </div>
+    </header>
+  <div class="shell">
+    <aside class="rail">
       <div class="rail-heading"><span>Proyectos</span><div class="rail-actions"><button id="import-project" class="icon-button" title="Importar proyecto" aria-label="Importar proyecto">⇩</button><button id="new-project" class="icon-button" title="Crear proyecto" aria-label="Crear proyecto">+</button></div></div>
       <label class="project-filter"><span class="sr-only">Filtrar proyectos</span><input id="project-filter" placeholder="Filtrar proyectos…" autocomplete="off"></label>
       <nav id="projects" class="projects" aria-label="Proyectos"></nav>
@@ -42,12 +60,7 @@
         </div>
       </header>
 
-      <nav class="workspace-tabs" aria-label="Secciones del proyecto" data-project-required>
-        <button type="button" class="view-tab active" data-view="overview" aria-current="page"><strong>Inicio</strong><small>Qué requiere atención</small></button>
-        <button type="button" class="view-tab" data-view="operation"><strong>Trabajo</strong><small>Tareas y agentes</small></button>
-        <button type="button" class="view-tab" data-view="knowledge"><strong>Memoria</strong><small>Buscar y registrar</small></button>
-        <button type="button" class="view-tab" data-view="continuity"><strong>Recuperación</strong><small>Continuidad y copias</small></button>
-      </nav>
+
 
       <div id="workspace-message" class="workspace-message" role="status" aria-live="polite" hidden></div>
 
@@ -123,6 +136,8 @@
         </article>
       </section>
     </main>
+  </div>
+
   </div>
 
   <dialog id="project-dialog"><form id="project-form" method="dialog"><header><h2>Nuevo proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="projectKey" maxlength="200" placeholder="mi-proyecto" required></label><label>Nombre<input name="name" maxlength="500" required></label><label>Descripción<textarea name="description" maxlength="4000" rows="3"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Crear proyecto</button></footer><p class="form-error" role="alert"></p></form></dialog>
