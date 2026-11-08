@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-07
+Updated: 2026-11-08
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -200,6 +200,8 @@ LATER:
 
 ## Recent Changes
 
+- Workbench validates the loopback Host and listening port before serving files
+  or issuing the API token. HTTP regression covers foreign and duplicate Host.
 - Reject receipt-without-artifact recovery before regeneration, using the
   existing `EFFECT_UNCONFIRMED` code; Core grants/schema and dependencies unchanged.
 - Added local model review adapter, target-bound immutable reports, receipt

@@ -109,12 +109,24 @@ function knownError(error: unknown): { status: number; code: string; message: st
   return { status: 500, code: 'INTERNAL_ERROR', message: 'Workbench request failed' }
 }
 
+function hostAllowed(request: IncomingMessage, port: number): boolean {
+  // Node keeps only the first Host in headers; inspect raw headers to reject duplicates.
+  let count = 0
+  for (let index = 0; index < request.rawHeaders.length; index += 2) {
+    if (request.rawHeaders[index]?.toLowerCase() === 'host') count++
+  }
+  const authority = request.headers.host
+  if (count !== 1 || !authority) return false
+  const match = /^(127\.0\.0\.1|localhost|\[::1\])(?::([1-9][0-9]{0,4}))?$/i.exec(authority)
+  return match !== null && Number(match[2] ?? 80) === port
+}
+
 function originAllowed(request: IncomingMessage, port: number): boolean {
   const origin = request.headers.origin
   if (!origin) return true
   try {
     const parsed = new URL(origin)
-    return (parsed.hostname === '127.0.0.1' || parsed.hostname === '::1' || parsed.hostname === 'localhost')
+    return (parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]' || parsed.hostname === 'localhost')
       && Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80)) === port
       && parsed.protocol === 'http:'
   } catch { return false }
@@ -141,6 +153,7 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
   let listeningPort = 0
   const server = createServer(async (request, response) => {
     try {
+      if (!hostAllowed(request, listeningPort)) { json(response, 403, { error: { code: 'HOST_REJECTED', message: 'Host is not allowed' } }); return }
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
       if (!url.pathname.startsWith('/api/')) { await staticFile(response, options.publicDir, url.pathname); return }
       if (!originAllowed(request, listeningPort)) { json(response, 403, { error: { code: 'ORIGIN_REJECTED', message: 'Origin is not allowed' } }); return }
