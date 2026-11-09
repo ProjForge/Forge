@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
-import { execFile, fork, type ChildProcess } from 'node:child_process'
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto'
+import { execFile, fork, spawn as spawnProcess, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdir, mkdtemp, readFile, readdir, rename, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,6 +16,23 @@ import type { CorePort, Job, JobStore, WorkerIdentity } from '../src/index.js'
 
 const adminUrl = process.env.FORGE_COORDINATOR_TEST_ADMIN_URL
 const coreUrl = process.env.FORGE_DATABASE_URL
+const split = process.env.FORGE_COORDINATOR_TEST_SPLIT === '1'
+// Fail closed even when the main native test would otherwise be skipped.
+if (split) {
+  for (const key of ['FORGE_COORDINATOR_TEST_ADMIN_URL', 'FORGE_DATABASE_URL', 'FORGE_COORDINATOR_TEST_STATE_ADMIN', 'FORGE_COORDINATOR_TEST_FRESH_TARGET', 'FORGE_COORDINATOR_TEST_ROOT', 'FORGE_COORDINATOR_TEST_PROVISION', 'FORGE_COORDINATOR_TEST_PROVISION_HASH']) assert.ok(process.env[key], `Missing split fixture config: ${key}`)
+  assert.equal(process.env.FORGE_COORDINATOR_TEST_RESTORE, '1')
+  assert.equal(process.env.FORGE_COORDINATOR_LIVE_MODEL, undefined)
+}
+const normalizeFixturePath = (value: string) => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
+async function assertFixture(client: pg.Client, url: string, directory: string): Promise<void> {
+  const expected = new URL(url)
+  const row = (await client.query("SELECT current_setting('data_directory') AS directory, inet_server_addr() AS host, inet_server_port() AS port, current_database() AS db, current_user AS usr")).rows[0]
+  assert.equal(normalizeFixturePath(row.directory), normalizeFixturePath(directory))
+  assert.equal(row.host, '127.0.0.1')
+  assert.equal(String(row.port), expected.port)
+  assert.equal(row.db, expected.pathname.slice(1))
+  assert.equal(row.usr, expected.username)
+}
 
 async function until(condition: () => Promise<boolean>, timeout = 10_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -29,18 +46,74 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   skip: !adminUrl || !coreUrl, timeout: process.env.FORGE_COORDINATOR_LIVE_MODEL ? 300_000 : 120_000,
 }, async (context) => {
   assert.equal(process.env.FORGE_COORDINATOR_TEST_ALLOW_SETUP, '1', 'Use only an explicitly disposable test database')
+  // Reject externally supplied restore destinations before any fixture writes.
+  const freshTarget = process.env.FORGE_COORDINATOR_TEST_FRESH_TARGET
+  if (freshTarget) {
+    const target = new URL(freshTarget)
+    const source = new URL(adminUrl!)
+    assert.equal(process.env.FORGE_COORDINATOR_TEST_RESTORE, '1')
+    assert.equal(process.env.FORGE_COORDINATOR_LIVE_MODEL, undefined)
+    assert.equal(process.platform, 'win32')
+    assert.equal(target.hostname, '127.0.0.1')
+    assert.equal(source.hostname, '127.0.0.1')
+    assert.equal(source.pathname, '/forge_coordinator_pilot')
+    assert.equal(target.pathname, '/postgres')
+    assert.equal(target.username, 'forge_pilot')
+    assert.notEqual(target.port, source.port)
+    assert.ok(target.password, 'Fresh target requires synthetic admin credentials')
+    assert.equal(target.search, '')
+    const runtime = new URL(coreUrl!)
+    assert.equal(runtime.host, source.host)
+    assert.equal(runtime.pathname, source.pathname)
+    assert.equal(runtime.username, 'forge_runtime')
+    assert.equal(runtime.search, '')
+  }
+  const fixtureRoot = process.env.FORGE_COORDINATOR_TEST_ROOT!
+  if (split) {
+    assert.equal(process.platform, 'win32')
+    assert.equal(normalizeFixturePath(path.dirname(fixtureRoot)), normalizeFixturePath(fileURLToPath(new URL('../../../../.run', import.meta.url))))
+    assert.match(path.basename(fixtureRoot), /^coordinator-pilot-[a-f0-9]{32}$/)
+    const provision = process.env.FORGE_COORDINATOR_TEST_PROVISION!
+    assert.equal(provision, path.join(fixtureRoot, 'provision-target.ps1'))
+    assert.equal(createHash('sha256').update(await readFile(provision)).digest('hex'), process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH)
+    for (const [dsn, user, db] of [[adminUrl!, 'forge_pilot', 'forge_coordinator_pilot'], [process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN!, 'forge_pilot', 'forge_coordinator_state'], [coreUrl!, 'forge_runtime', 'forge_coordinator_pilot'], [freshTarget!, 'forge_pilot', 'postgres']]) {
+      const url = new URL(dsn!)
+      assert.equal(url.protocol, 'postgresql:')
+      assert.equal(url.hostname, '127.0.0.1')
+      assert.equal(url.username, user)
+      assert.equal(url.pathname, `/${db}`)
+      assert.equal(url.search, '')
+      assert.equal(url.hash, '')
+      assert.ok(Number(url.port) >= 1024)
+    }
+  }
   const liveModel = process.env.FORGE_COORDINATOR_LIVE_MODEL
   const liveBase = process.env.FORGE_COORDINATOR_LIVE_BASE_URL ?? 'http://127.0.0.1:1234/v1'
   if (liveModel) new LocalReportAgent({ baseUrl: liveBase, model: liveModel })
   const admin = new pg.Client({ connectionString: adminUrl! })
   await admin.connect()
-  const exists = await admin.query("SELECT 1 FROM pg_namespace WHERE nspname='forge_coordinator'")
+  const stateAdminUrl = split ? process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN! : adminUrl!
+  if (split) {
+    const separate = new URL(stateAdminUrl)
+    assert.equal(separate.hostname, '127.0.0.1')
+    assert.equal(separate.host, new URL(adminUrl!).host)
+    assert.equal(separate.pathname, '/forge_coordinator_state')
+    assert.notEqual(separate.pathname, new URL(adminUrl!).pathname)
+    assert.ok(process.env.FORGE_COORDINATOR_TEST_PROVISION)
+  }
+  const stateAdmin = split ? new pg.Client({ connectionString: stateAdminUrl }) : admin
+  if (split) await stateAdmin.connect()
+  if (split) {
+    await assertFixture(admin, adminUrl!, path.join(fixtureRoot, 'data'))
+    await assertFixture(stateAdmin, stateAdminUrl, path.join(fixtureRoot, 'data'))
+  }
+  const exists = await stateAdmin.query("SELECT 1 FROM pg_namespace WHERE nspname='forge_coordinator'")
   assert.equal(exists.rowCount, 0, 'Refusing to replace an existing coordinator schema')
   const role = `coord_test_${randomUUID().replaceAll('-', '')}`
   const password = randomUUID()
   await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`)
-  await admin.query(`CREATE SCHEMA forge_coordinator AUTHORIZATION ${role}`)
-  const stateUrl = new URL(adminUrl!)
+  await stateAdmin.query(`CREATE SCHEMA forge_coordinator AUTHORIZATION ${role}`)
+  const stateUrl = new URL(stateAdminUrl)
   stateUrl.username = role; stateUrl.password = password
   const state = new pg.Client({ connectionString: stateUrl.toString() })
   await state.connect()
@@ -48,7 +121,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   const store = new PostgresJobStore(stateUrl.toString(), 3_000)
   const core = ForgePersistenceGateway.connect({ connectionString: coreUrl!, maxConnections: 2 })
   const workerEnv: NodeJS.ProcessEnv = {}
-  for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'HOME', 'USERPROFILE', 'TEMP', 'TMP']) {
+  for (const key of ['PATH', 'Path', 'PATHEXT', 'ComSpec', 'SystemRoot', 'WINDIR', 'HOME', 'USERPROFILE', 'TEMP', 'TMP']) {
     if (process.env[key] !== undefined) workerEnv[key] = process.env[key]
   }
   workerEnv.FORGE_DATABASE_URL = coreUrl!
@@ -95,9 +168,10 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   context.after(async () => {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
     await Promise.all([store.close(), core.close(), state.end()])
-    await new Promise<void>((resolve, reject) => modelServer.close((error) => error ? reject(error) : resolve()))
+    if (modelServer.listening) await new Promise<void>((resolve, reject) => modelServer.close((error) => error ? reject(error) : resolve()))
     await rm(reportsRoot, { recursive: true, force: true })
-    await admin.query('DROP SCHEMA forge_coordinator CASCADE')
+    await stateAdmin.query('DROP SCHEMA forge_coordinator CASCADE')
+    if (split) await stateAdmin.end()
     await admin.query(`DROP ROLE ${role}`)
     await admin.end()
   })
@@ -231,10 +305,10 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     assert.equal(await new Coordinator(store, core).runOnce({ projectId: project.id, agentId: agents[2]!.id, workerId: 'other-agent' }, async () => { throw new Error('Must not run') }), 'idle')
     assert.equal(await new Coordinator(store, core).runOnce(identity(job, 'scoped'), async () => ({ title: 'Scoped result', content: 'Correct worker scope' })), 'completed')
     await assertOne(job)
-    await assert.rejects(state.query('SELECT * FROM forge.tasks'), (error: unknown) => (error as { code: string }).code === '42501')
+    await assert.rejects(state.query('SELECT * FROM forge.tasks'), (error: unknown) => (error as { code: string }).code === (split ? '42P01' : '42501'))
     const runtime = new pg.Client({ connectionString: coreUrl! })
     await runtime.connect()
-    try { await assert.rejects(runtime.query('SELECT * FROM forge_coordinator.jobs'), (error: unknown) => (error as { code: string }).code === '42501') }
+    try { await assert.rejects(runtime.query('SELECT * FROM forge_coordinator.jobs'), (error: unknown) => (error as { code: string }).code === (split ? '42P01' : '42501')) }
     finally { await runtime.end() }
   })
 
@@ -508,18 +582,18 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   if (liveModel) assert.ok(realCalls >= 10, 'Real model inference must actually run in live acceptance')
 
   await context.test('opt-in joint logical restore retains confirmed report and Core identity', {
-    skip: process.env.FORGE_COORDINATOR_TEST_RESTORE !== '1', timeout: 60_000,
+    skip: process.env.FORGE_COORDINATOR_TEST_RESTORE !== '1', timeout: split ? 120_000 : 60_000,
   }, async () => {
     assert.equal(liveModel, undefined, 'Restore drill is synthetic only')
     const source = new URL(adminUrl!)
     assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(source.hostname), 'Loopback disposable database only')
     assert.equal(new URL(coreUrl!).host, source.host)
     assert.equal(new URL(coreUrl!).pathname, source.pathname)
-    assert.equal(stateUrl.pathname, source.pathname)
+    if (!split) assert.equal(stateUrl.pathname, source.pathname)
     const bin = process.env.FORGE_COORDINATOR_TEST_PG_BIN!
     assert.ok(bin && path.isAbsolute(bin))
     const destination = `forge_restore_${randomUUID().replaceAll('-', '')}`
-    const reportsRoot = await mkdtemp(path.join(tmpdir(), 'forge lost récepteur-'))
+    const reportsRoot = await mkdtemp(path.join(tmpdir(), 'forge lost rÃ©cepteur-'))
     const publisher = new ImmutableReportPublisher(reportsRoot)
     const backupRoot = await mkdtemp(path.join(tmpdir(), 'forge-joint-backup-'))
     const relocated = path.join(backupRoot, 'relocated')
@@ -528,11 +602,43 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       await promisify(execFile)(path.join(bin, `${tool}${process.platform === 'win32' ? '.exe' : ''}`), args,
         { timeout: 30_000, env: { ...workerEnv, PGHOST: source.hostname, PGPORT: source.port, PGUSER: source.username, PGPASSWORD: source.password } })
     }
+    const targetCluster = new pg.Client({ connectionString: freshTarget ?? adminUrl! })
+    if (!split) await targetCluster.connect()
+    if (freshTarget && !split) {
+      assert.equal((await targetCluster.query('SHOW server_version')).rows[0].server_version.split(' ')[0], '18.4')
+      assert.notEqual((await targetCluster.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier,
+        (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier)
+      assert.equal((await targetCluster.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname IN ('forge_runtime',$1)", [role])).rows[0].n, 0)
+    }
+    const invokeTarget = async (tool: string, args: string[]) => {
+      const destinationUrl = new URL(freshTarget ?? adminUrl!)
+      await promisify(execFile)(path.join(bin, `${tool}${process.platform === 'win32' ? '.exe' : ''}`), args,
+        { timeout: 30_000, env: { ...workerEnv, PGHOST: destinationUrl.hostname, PGPORT: destinationUrl.port, PGUSER: destinationUrl.username, PGPASSWORD: decodeURIComponent(destinationUrl.password) } })
+    }
+    const destinationState = split ? `${destination}_state` : destination
+    const stateDump = path.join(backupRoot, 'state.dump')
+    const invokeState = async (output: string) => {
+      await invoke('pg_dump', ['--format=custom', '--file', output, '--dbname', stateUrl.pathname.slice(1)])
+    }
+    let cutMono = 0
+    let outageMono = 0
+    let outage = ''
+    let provisionMs = 0
+    let authenticationMs = 0
+    let databaseRestoreMs = 0
+    let retained: Record<string, unknown> = {}
+    const lostIds: string[] = []
+    let captureMs = 0
+    let restoreStarted = 0
+    let cutoff = ''
+    let postCutoffTask: string | undefined
     let created = false
     let restoredStore: PostgresJobStore | undefined
     let restoredCore: ReturnType<typeof ForgePersistenceGateway.connect> | undefined
     let restoredAdmin: pg.Client | undefined
+    let restoredStateAdmin: pg.Client | undefined
     let file: string | undefined
+    let authenticatedReport: Buffer | undefined
     let bytes: Buffer | undefined
     try {
       const agent = await core.registerAgent({ agentKey: `${suffix}-joint-restore`, name: 'Synthetic joint restore' })
@@ -547,6 +653,25 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       const pendingTask = await core.createTask({ projectId: project.id, taskKey: 'joint-other', title: 'Other eligible task', assignedAgentId: agent.id, status: 'ready', idempotencyKey: 'joint-other' })
       const pending = await store.enqueue({ projectId: project.id, taskId: pendingTask.id, taskKey: pendingTask.taskKey, agentId: agent.id }, 3, publisher)
       const pendingBefore = (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [pending.id])).rows[0]
+      if (split) {
+        // Historic reference is 59 projects/108 memories, never read from production.
+        for (let i = 0; i < 58; i++) {
+          const shaped = await core.registerProject({ projectKey: `split-${suffix}-${i}`, name: `Synthetic recovery project ${i}` })
+          await core.assignAgent(shaped.id, agent.id, 'synthetic')
+          for (let j = 0; j < 3; j++) await core.remember({ projectId: shaped.id, agentId: agent.id,
+            memoryType: 'observation', content: `Synthetic retained memory ${i}/${j}`,
+            provenance: { sourceKind: 'user', sourceRef: `split-${i}-${j}` }, idempotencyKey: `split-${i}-${j}` })
+          const shapedTask = await core.createTask({ projectId: shaped.id, taskKey: 'shaped', title: 'Synthetic mixed-state job',
+            assignedAgentId: agent.id, status: 'ready', idempotencyKey: 'shaped' })
+          const shapedJob = await store.enqueue({ projectId: shaped.id, taskId: shapedTask.id, taskKey: shapedTask.taskKey, agentId: agent.id }, 1)
+          if (i % 3 === 0) {
+            assert.equal(await new Coordinator(store, core).runOnce(identity(shapedJob, 'shape-complete'), async () => ({ title: 'Synthetic', content: 'Retained completion' })), 'completed')
+          } else if (i % 3 === 1) {
+            const claimed = await store.claim(identity(shapedJob, 'shape-fail'))
+            assert.ok(claimed); await store.fail(claimed)
+          }
+        }
+      }
       // All earlier workers have exited. No writer runs during dump + byte backup.
       for (const child of children) assert.ok(child.exitCode !== null || child.signalCode !== null)
       const saved = (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
@@ -555,13 +680,27 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       assert.equal(execution.status, 'running')
       assert.equal((await core.listMemories({ projectId: project.id, taskId: job.taskId })).items.length, 0)
       assert.equal((await core.listContinuationPackages({ projectId: project.id, executionId: execution.id })).items.length, 0)
+      // Receiver requests are fully drained and all child writers joined at this common cut.
+      assert.equal(modelServer.listening, true)
+      if (split) await new Promise<void>((resolve, reject) => modelServer.close(error => error ? reject(error) : resolve()))
+      const inventoryRows = async (coreDb: pg.Client, stateDb: pg.Client) => ({
+        projects: (await coreDb.query('SELECT id FROM forge.projects ORDER BY id')).rows,
+        memories: (await coreDb.query('SELECT id FROM forge.memories ORDER BY id')).rows,
+        tasks: (await coreDb.query('SELECT id,status FROM forge.tasks ORDER BY id')).rows,
+        runs: (await coreDb.query('SELECT id,status FROM forge.executions ORDER BY id')).rows,
+        jobs: (await stateDb.query('SELECT id,task_id,state FROM forge_coordinator.jobs ORDER BY id')).rows,
+      })
+      if (split) retained = await inventoryRows(admin, stateAdmin)
+      cutMono = performance.now()
+      if (split) cutoff = (await admin.query('SELECT clock_timestamp()::text AS cutoff')).rows[0].cutoff
+      const captureStarted = Date.now()
       file = path.join(reportsRoot, saved.effect_receipt.filename)
       bytes = await readFile(file)
       await writeFile(path.join(backupRoot, 'report.bytes'), bytes, { flag: 'wx' })
       const reportNames = (await readdir(reportsRoot)).sort()
       const directory = await stat(reportsRoot)
       const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
-      const proofFile = path.join(backupRoot, 'preuve récupérée.json')
+      const proofFile = path.join(backupRoot, 'preuve rÃ©cupÃ©rÃ©e.json')
       const captureEnv = { ...workerEnv, FORGE_DATABASE_URL: '', FORGE_COORDINATOR_DATABASE_URL: '', FORGE_COORDINATOR_REPORT_ROOT: reportsRoot }
       await promisify(execFile)(process.execPath, [cli, 'capture-report-target', proofFile], { env: captureEnv })
       const proof = JSON.parse(await readFile(proofFile, 'utf8'))
@@ -570,23 +709,201 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       assert.deepEqual(JSON.parse(await readFile(proofFile, 'utf8')), proof)
       // PS5.1 Set-Content -Encoding UTF8 writes this optional BOM.
       await writeFile(proofFile, '\uFEFF' + JSON.stringify(proof), 'utf8')
-      const inventory = await Promise.all(reportNames.map(async name => [name, await readFile(path.join(reportsRoot, name))] as const))
+      if (freshTarget) assert.deepEqual(reportNames, [saved.effect_receipt.filename])
+      const inventory = freshTarget ? [] : await Promise.all(reportNames.map(async name => [name, await readFile(path.join(reportsRoot, name))] as const))
+      if (!split) cutoff = (await admin.query('SELECT clock_timestamp()::text AS cutoff')).rows[0].cutoff
       await invoke('pg_dump', ['--format=custom', '--file', dump, '--dbname', source.pathname.slice(1)])
-      await admin.query(`CREATE DATABASE ${destination} TEMPLATE template0`)
-      created = true
-      await invoke('pg_restore', ['--exit-on-error', '--dbname', destination, dump])
-      const target = new URL(source); target.pathname = `/${destination}`
+      if (split) await invokeState(stateDump)
+      if (!split) {
+        await targetCluster.query(`CREATE DATABASE ${destination} TEMPLATE template0`)
+        created = true
+      }
+      const target = new URL(freshTarget ?? source); target.pathname = `/${destination}`
+      if (freshTarget) {
+        // Acceptance-only authenticated inventory. Key stays outside both generations and receiver.
+        const key = randomBytes(32)
+        const generation = randomUUID()
+        const inventoryFiles = ['joint.dump', ...(split ? ['state.dump'] : []), path.basename(proofFile), 'report.bytes'].sort()
+        const digest = (content: Buffer) => createHash('sha256').update(content).digest('hex')
+        const entries = await Promise.all(inventoryFiles.map(async name => ({ name, sha256: digest(await readFile(path.join(backupRoot, name))) })))
+        const components = { core: { database: source.pathname, oid: (await admin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid },
+          coordinator: { database: stateUrl.pathname, oid: (await stateAdmin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid },
+          systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier, receiver: proof }
+        if (split) assert.notEqual(components.core.oid, components.coordinator.oid)
+        const manifest = JSON.stringify({ generation, cutoff, components, reports: reportNames, files: entries })
+        const authenticate = (content: string, secret: Buffer) => createHmac('sha256', secret).update(content).digest('hex')
+        const signature = authenticate(manifest, key)
+        await writeFile(path.join(backupRoot, 'manifest.json'), manifest, { flag: 'wx' })
+        await writeFile(path.join(backupRoot, 'manifest.hmac'), signature, { flag: 'wx' })
+        captureMs = Date.now() - captureStarted
+        // A second actual capture contains a known later Core write; it is not a byte mutation.
+        const marker = await core.createTask({ projectId: project.id, taskKey: 'post-cutoff', title: 'Post-cutoff marker', assignedAgentId: agent.id, status: 'ready', idempotencyKey: 'post-cutoff' })
+        postCutoffTask = marker.id
+        if (split) {
+          // Sequential cadence guarantees a committed matched pair before the next tick.
+          for (let i = 0; i < 12; i++) {
+            await delay(75)
+            const late = await core.createTask({ projectId: project.id, taskKey: `lost-${i}`, title: 'Synthetic post-cut write',
+              assignedAgentId: agent.id, status: 'ready', idempotencyKey: `lost-${i}` })
+            const queued = await store.enqueue({ projectId: project.id, taskId: late.id, taskKey: late.taskKey, agentId: agent.id })
+            assert.equal(queued.taskId, late.id)
+            lostIds.push(late.id)
+          }
+        }
+        const second = path.join(backupRoot, 'generation-two.dump')
+        await invoke('pg_dump', ['--format=custom', '--file', second, '--dbname', source.pathname.slice(1)])
+        assert.notEqual(digest(await readFile(second)), entries.find(entry => entry.name === 'joint.dump')!.sha256)
+        const digestSecond = digest(await readFile(second))
+        const secondState = path.join(backupRoot, 'generation-two-state.dump')
+        if (split) await invokeState(secondState)
+        const digestSecondState = split ? digest(await readFile(secondState)) : ''
+        const secondCutoff = (await admin.query('SELECT clock_timestamp()::text AS cutoff')).rows[0].cutoff
+        const secondManifest = JSON.stringify({ generation: randomUUID(), cutoff: secondCutoff, components, reports: reportNames,
+          files: entries.map(entry => entry.name === 'joint.dump' ? { ...entry, sha256: digestSecond } : split && entry.name === 'state.dump' ? { ...entry, sha256: digestSecondState } : entry) })
+        assert.notEqual(JSON.parse(secondManifest).generation, generation)
+        await writeFile(path.join(backupRoot, 'generation-two.json'), secondManifest, { flag: 'wx' })
+        await writeFile(path.join(backupRoot, 'generation-two.hmac'), authenticate(secondManifest, key), { flag: 'wx' })
+        const validate = async (body: string, mac: string, secret: Buffer, substitution?: string, missing = false) => {
+          assert.equal(authenticate(body, secret), mac, 'Manifest authentication required')
+          const parsed = JSON.parse(body) as { components: typeof components; generation: string; cutoff: string; reports: string[]; files: typeof entries }
+          assert.deepEqual(parsed.components, components)
+          assert.equal(parsed.generation, generation)
+          assert.equal(parsed.cutoff, cutoff)
+          assert.deepEqual(parsed.reports, reportNames)
+          assert.deepEqual(parsed.files.map(entry => entry.name).sort(), inventoryFiles)
+          const verified = new Map<string, Buffer>()
+          let report: Buffer | undefined
+          for (const entry of parsed.files) {
+            const filename = entry.name === (split ? 'state.dump' : 'joint.dump') && substitution ? substitution : path.join(backupRoot, entry.name)
+            const component = await readFile(missing && entry.name === 'report.bytes' ? path.join(backupRoot, 'absent') : filename)
+            assert.equal(digest(component), entry.sha256)
+            verified.set(entry.name, component)
+            if (entry.name === 'report.bytes') report = component
+          }
+          assert.ok(report, 'Authenticated report component required')
+          return { report, verified }
+        }
+        if (split) {
+          outageMono = performance.now()
+          outage = new Date().toISOString()
+          // Declared simulated outage: no source writes after this point. No destination exists yet.
+          restoreStarted = Date.now()
+          const phase = performance.now()
+          // PostgreSQL descendants can retain execFile's output pipes after the
+          // provisioner exits. Wait on its actual exit without inheritable pipes.
+          const provisioner = spawnProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', process.env.FORGE_COORDINATOR_TEST_PROVISION!], {
+            env: { ...workerEnv, FORGE_COORDINATOR_TEST_FRESH_TARGET: freshTarget!, FORGE_COORDINATOR_TEST_PG_BIN: bin },
+            timeout: 60_000, windowsHide: true, stdio: 'ignore',
+          })
+          await new Promise<void>((resolve, reject) => {
+            provisioner.once('error', reject)
+            provisioner.once('exit', (code, signal) => code === 0 ? resolve() : reject(new Error(`Fixture provisioning failed: ${code ?? signal}`)))
+          })
+          await targetCluster.connect()
+          await assertFixture(targetCluster, freshTarget!, path.join(fixtureRoot, 'target-data'))
+          assert.notEqual((await targetCluster.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier,
+            (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier)
+          for (const name of [destination, destinationState]) {
+            assert.match(name, /^forge_restore_[a-f0-9]{32}(?:_state)?$/)
+            await targetCluster.query(`CREATE DATABASE ${name} TEMPLATE template0`)
+          }
+          created = true
+          provisionMs = performance.now() - phase
+        }
+        const authStarted = performance.now()
+        const emptyTarget = new pg.Client({ connectionString: target.toString() }); await emptyTarget.connect()
+        try {
+          for (const negative of [
+            () => validate(manifest, signature, key, split ? secondState : second),
+            () => validate(manifest, signature, key, undefined, true),
+            () => validate(manifest + ' ', signature, key),
+            () => validate(manifest, signature, randomBytes(32)),
+            () => validate(secondManifest, authenticate(secondManifest, key), key),
+          ]) {
+            await assert.rejects(negative())
+            assert.equal((await emptyTarget.query("SELECT count(*)::int AS n FROM pg_namespace WHERE nspname IN ('forge','forge_coordinator')")).rows[0].n, 0)
+            assert.deepEqual(await readdir(reportsRoot), reportNames)
+            assert.deepEqual((await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
+            assert.equal(calls.get(job.taskKey), 1)
+          }
+          if (split) {
+            const emptyStateUrl = new URL(target); emptyStateUrl.pathname = `/${destinationState}`
+            const emptyState = new pg.Client({ connectionString: emptyStateUrl.toString() }); await emptyState.connect()
+            try { assert.equal((await emptyState.query("SELECT count(*)::int AS n FROM pg_namespace WHERE nspname IN ('forge','forge_coordinator')")).rows[0].n, 0) }
+            finally { await emptyState.end() }
+          }
+          const authenticated = await validate(await readFile(path.join(backupRoot, 'manifest.json'), 'utf8'), await readFile(path.join(backupRoot, 'manifest.hmac'), 'utf8'), key)
+          authenticatedReport = authenticated.report
+          if (split) {
+            // Restore exclusive materializations of the exact authenticated bytes, not reread originals.
+            await writeFile(proofFile, authenticated.verified.get(path.basename(proofFile))!)
+            for (const name of ['joint.dump', 'state.dump']) await writeFile(path.join(backupRoot, `verified-${name}`), authenticated.verified.get(name)!, { flag: 'wx' })
+          }
+        } finally { await emptyTarget.end() }
+        authenticationMs = performance.now() - authStarted
+        if (!split) restoreStarted = Date.now()
+        // Fresh catalog, same two fixture roles. Restore existing ACLs/ownership, then
+        // run the unchanged Core provisioning and exact privilege acceptance.
+        await targetCluster.query('CREATE ROLE forge_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
+        await targetCluster.query(`CREATE ROLE ${role} LOGIN PASSWORD '${randomUUID()}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`)
+      }
+      const databaseRestoreStarted = performance.now()
+      await invokeTarget('pg_restore', ['--exit-on-error', ...(freshTarget ? ['--single-transaction'] : []), '--dbname', destination, split ? path.join(backupRoot, 'verified-joint.dump') : dump])
+      if (split) await invokeTarget('pg_restore', ['--exit-on-error', '--single-transaction', '--dbname', destinationState, path.join(backupRoot, 'verified-state.dump')])
+      databaseRestoreMs = performance.now() - databaseRestoreStarted
       restoredAdmin = new pg.Client({ connectionString: target.toString() }); await restoredAdmin.connect()
       const sourceId = (await admin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid
       const targetId = (await restoredAdmin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid
-      assert.notEqual(sourceId, targetId)
+      if (!freshTarget) assert.notEqual(sourceId, targetId)
       assert.notEqual(target.pathname, source.pathname)
-      const restoredStateUrl = new URL(stateUrl); restoredStateUrl.pathname = target.pathname
-      const restoredCoreUrl = new URL(coreUrl!); restoredCoreUrl.pathname = target.pathname
+      const restoredStateUrl = new URL(stateUrl); restoredStateUrl.host = target.host; restoredStateUrl.pathname = `/${destinationState}`
+      const restoredCoreUrl = new URL(coreUrl!); restoredCoreUrl.host = target.host; restoredCoreUrl.pathname = target.pathname
+      const restoredStateAdminUrl = new URL(target); restoredStateAdminUrl.pathname = `/${destinationState}`
+      restoredStateAdmin = split ? new pg.Client({ connectionString: restoredStateAdminUrl.toString() }) : restoredAdmin
+      if (split) {
+        await restoredStateAdmin.connect()
+        assert.notEqual((await restoredStateAdmin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid, targetId)
+        assert.equal((await restoredAdmin.query("SELECT count(*)::int AS n FROM pg_namespace WHERE nspname='forge_coordinator'")).rows[0].n, 0)
+        assert.equal((await restoredStateAdmin.query("SELECT count(*)::int AS n FROM pg_namespace WHERE nspname='forge'")).rows[0].n, 0)
+        assert.deepEqual(await inventoryRows(restoredAdmin, restoredStateAdmin), retained)
+        for (const db of [admin, restoredAdmin]) {
+          const actual = (await db.query('SELECT id FROM forge.tasks WHERE id=ANY($1::uuid[])', [lostIds])).rows.map(row => row.id).sort()
+          assert.deepEqual(actual, db === admin ? [...lostIds].sort() : [])
+        }
+        for (const db of [stateAdmin, restoredStateAdmin]) {
+          const actual = (await db.query('SELECT task_id FROM forge_coordinator.jobs WHERE task_id=ANY($1::uuid[])', [lostIds])).rows.map(row => row.task_id).sort()
+          assert.deepEqual(actual, db === stateAdmin ? [...lostIds].sort() : [])
+        }
+      }
+      const rolesStarted = performance.now()
+      if (freshTarget) {
+        const secret = randomUUID()
+        restoredStateUrl.password = randomUUID()
+        restoredCoreUrl.password = secret
+        await restoredAdmin.query(`ALTER ROLE ${role} PASSWORD '${restoredStateUrl.password}'`)
+        await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../../../schema/scripts/configure-runtime-role.mjs', import.meta.url))], {
+          env: { ...workerEnv, FORGE_ADMIN_DATABASE_URL: target.toString(), FORGE_RUNTIME_PASSWORD: secret }, timeout: 15_000,
+        })
+        for (const oldUrl of [new URL(coreUrl!), new URL(stateUrl)]) {
+          oldUrl.host = target.host; oldUrl.pathname = oldUrl.username === 'forge_runtime' ? target.pathname : `/${destinationState}`
+          const rejected = new pg.Client({ connectionString: oldUrl.toString() })
+          try { await assert.rejects(rejected.connect(), { code: '28P01' }) }
+          finally { await rejected.end() }
+        }
+        const privilege = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../../../schema/tests/runtime-role.test.mjs', import.meta.url))], {
+          env: { ...workerEnv, FORGE_DATABASE_URL: restoredCoreUrl.toString() }, timeout: 20_000,
+        })
+        assert.match(privilege.stdout, /# pass 1/)
+        assert.match(privilege.stdout, /# fail 0/)
+        assert.equal((await restoredAdmin.query('SELECT count(*)::int AS n FROM forge.tasks WHERE id=$1', [postCutoffTask])).rows[0].n, 0)
+        assert.equal((await admin.query('SELECT count(*)::int AS n FROM forge.tasks WHERE id=$1', [postCutoffTask])).rows[0].n, 1)
+      }
+      const rolesMs = performance.now() - rolesStarted
+      const reconcileStarted = performance.now()
       assert.equal(restoredCoreUrl.username, 'forge_runtime')
       restoredStore = new PostgresJobStore(restoredStateUrl.toString(), 3_000)
       restoredCore = ForgePersistenceGateway.connect({ connectionString: restoredCoreUrl.toString(), maxConnections: 2 })
-      assert.deepEqual((await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
+      assert.deepEqual((await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
       const never = async (): Promise<never> => { throw new Error('Restored handler must never run') }
       let handlerCalls = 0
       const handler = async () => { handlerCalls++; return never() }
@@ -596,7 +913,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       const wrong = new ImmutableReportPublisher(relocated)
       assert.notEqual(wrong.targetId, publisher.targetId)
       assert.equal(await new Coordinator(restoredStore, restoredCore, { publisher: wrong }).runOnce(identity(job, 'relocated'), handler), 'idle')
-      assert.deepEqual((await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
+      assert.deepEqual((await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
       // Retain the emptied old inode until a fresh replacement exists, preventing reuse.
       const movedOriginal = reportsRoot + '-lost'
       for (const name of reportNames) await rm(path.join(reportsRoot, name))
@@ -623,7 +940,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
         assert.equal((await restoredCore!.getExecutionByKey(project.id, `coordinator:v1:${project.id}:${job.taskId}`)).status, 'running')
         assert.equal((await restoredCore!.listMemories({ projectId: project.id, taskId: job.taskId })).items.length, 0)
         assert.equal((await restoredCore!.listContinuationPackages({ projectId: project.id, executionId: execution.id })).items.length, 0)
-        const row = (await restoredAdmin!.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+        const row = (await restoredStateAdmin!.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
         assert.deepEqual(row, saved, 'Rejected recovery preserves the entire row, attempts and epoch')
         assert.equal(calls.get(job.taskKey), modelCalls)
       }
@@ -640,14 +957,14 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       await assert.rejects(recover(invalidProof))
       await unchanged()
       for (const column of ['artifact', 'effect_receipt']) {
-        await restoredAdmin.query(`UPDATE forge_coordinator.jobs SET ${column}=NULL WHERE id=$1`, [job.id])
-        const before: Record<string, unknown> = (await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+        await restoredStateAdmin.query(`UPDATE forge_coordinator.jobs SET ${column}=NULL WHERE id=$1`, [job.id])
+        const before: Record<string, unknown> = (await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
         await assert.rejects(recover(), (error: unknown) => {
           assert.match((error as { stderr: string }).stderr, /RECOVERY_REQUIRES_PREPARED_OUTPUT_AND_RECEIPT/)
           return true
         })
-        assert.deepEqual((await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], before)
-        await restoredAdmin.query(`UPDATE forge_coordinator.jobs SET ${column}=$2::jsonb WHERE id=$1`, [job.id, JSON.stringify(saved[column])])
+        assert.deepEqual((await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], before)
+        await restoredStateAdmin.query(`UPDATE forge_coordinator.jobs SET ${column}=$2::jsonb WHERE id=$1`, [job.id, JSON.stringify(saved[column])])
       }
       await unchanged()
       await assert.rejects(recover()) // Missing confirmed report must not be created.
@@ -658,12 +975,16 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       assert.deepEqual(await readFile(file), Buffer.alloc(bytes.length, 120))
       await unchanged()
       await rm(file)
+      if (freshTarget) {
+        assert.ok(authenticatedReport)
+        await writeFile(file, authenticatedReport, { flag: 'wx' })
+      }
       for (const [name, content] of inventory) await writeFile(path.join(reportsRoot, name), content, { flag: 'wx' })
       const restoredFile = await stat(file)
       const concurrent = await Promise.all([recover(), recover()])
       assert.deepEqual(concurrent.map(result => JSON.parse(result.stdout).state).sort(), ['completed', 'idle'])
       assert.equal(JSON.parse((await recover()).stdout).state, 'idle')
-      const completedRow = (await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+      const completedRow = (await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
       assert.equal(completedRow.attempts, 2)
       assert.equal(Number(completedRow.epoch), Number(saved.epoch) + 1)
       assert.deepEqual(completedRow.effect_receipt, saved.effect_receipt)
@@ -679,16 +1000,31 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       assert.equal((await stat(file)).ino, restoredFile.ino)
       assert.equal((await stat(file)).mtimeMs, restoredFile.mtimeMs)
       assert.deepEqual((await readdir(reportsRoot)).sort(), reportNames, 'No duplicate or temporary report remains')
-      assert.deepEqual((await restoredAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [pending.id])).rows[0], pendingBefore)
+      assert.deepEqual((await restoredStateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [pending.id])).rows[0], pendingBefore)
       const audit = await restoredCore.getAuditTrail(project.id, execution.id)
       for (const action of ['execution.start', 'memory.remember', 'context.compile', 'execution.finish']) assert.equal(audit.filter((entry) => entry.action === action).length, 1)
       assert.deepEqual((await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], saved)
       assert.equal((await core.listMemories({ projectId: project.id, taskId: job.taskId })).items.length, 0)
-      context.diagnostic('Joint restore: distinct database OIDs; full receiver loss; distinct inode; real CLI recovery; concurrent/replay and negative checks; handler/model replay=0')
+      if (split) context.diagnostic(JSON.stringify({ splitDatabaseRestore: true, cutoff, outage,
+        observedRpoMs: outageMono - cutMono, observedRtoMs: performance.now() - outageMono,
+        endpoints: { rpo: 'monotonic common quiescent cut -> declared simulated outage', rto: 'declared outage before initdb -> both DB probes and CLI concurrent/replay completion' },
+        phases: { captureMs, provisionMs, authenticationMs, databaseRestoreMs, rolesMs, reconciliationAndProbesMs: performance.now() - reconcileStarted },
+        retained: Object.fromEntries(Object.entries(retained).map(([name, rows]) => [name, (rows as unknown[]).length])),
+        retainedJobStates: (await restoredStateAdmin!.query('SELECT state,count(*)::int AS n FROM forge_coordinator.jobs GROUP BY state ORDER BY state')).rows,
+        losses: { coreTasks: lostIds.length + 1, coordinatorJobs: lostIds.length, matchedPairs: lostIds.length }, cadenceMs: 75,
+        receiverDrained: true, independentArchives: 2, authenticatedBeforeEitherRestore: true, restoreSource: 'exclusive authenticated byte materializations',
+        syntheticEffectForRecoveredTask: 1, providerReplay: 0, handlerReplay: 0 }))
+      if (freshTarget) context.diagnostic(JSON.stringify({ freshClusterRestore: !split, captureMs, restoreToReconciledMs: Date.now() - restoreStarted, cutoff,
+        authenticatedGeneration: true, rejectionCases: 5, reportRestoreSource: 'authenticated-report.bytes', targetRuntimeRoleContract: '1/1', targetAuthentication: 'SCRAM', oldPasswordsRejected: 2, oldPasswordSqlstate: '28P01', sourceIntact: true, postCutoffExcluded: true, handlerReplay: 0, providerReplay: 0 }))
+      context.diagnostic(`Joint restore: ${freshTarget ? 'distinct cluster system identifiers and ports' : 'distinct database OIDs'}; full receiver loss; distinct inode; real CLI recovery; concurrent/replay and negative checks; handler/model replay=0`)
     } finally {
-      await restoredStore?.close(); await restoredCore?.close(); await restoredAdmin?.end()
-      if (file && bytes) await writeFile(file, bytes, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error })
-      if (created) await admin.query(`DROP DATABASE ${destination}`)
+      await restoredStore?.close(); await restoredCore?.close(); if (split) await restoredStateAdmin?.end(); await restoredAdmin?.end()
+      if (!freshTarget && file && bytes) await writeFile(file, bytes, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error })
+      if (created) {
+        if (split) await targetCluster.query(`DROP DATABASE ${destinationState}`)
+        await targetCluster.query(`DROP DATABASE ${destination}`)
+      }
+      await targetCluster.end()
       await rm(backupRoot, { recursive: true, force: true })
       await rm(reportsRoot, { recursive: true, force: true })
       await rm(reportsRoot + '-lost', { recursive: true, force: true })
