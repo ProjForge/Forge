@@ -56,6 +56,46 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Applied exact split candidate 30e421a8 (SHA-256 b353782e4665f46a84ffc14d4ebca4f4b9f82ba3d49f99ae6005635c4b8aeacc)
+  plus split-only isolation: clear/restore inherited PG*, read-only source
+  preflight before createdb/migrations, owned source/target data_directory and
+  DB/user/loopback identity guards; pinned generated provisioner path/hash.
+  Missing config and arbitrary provisioner reject before connections (exit 1).
+  Final hidden PS5.1 / Node 22.23.4 / PostgreSQL 18.4: retained Handle, OS exit 0
+  at 2026-11-08T16:35:07.8769526Z; stderr empty; native 23/23, source/target
+  role 1/1, five generation negatives, two old-password 28P01 rejections,
+  handler/provider replay 0. PGHOSTADDR=127.0.0.2 and bogus PGSERVICE ignored
+  and restored. Both owned clusters stopped/removed; no source port listener.
+  Retained 60 projects/222 memories/95 tasks/54 runs/95 jobs; actual synthetic
+  losses 13 tasks/12 jobs (12 matched pairs). Capture 593 ms; RPO 1963.360 ms;
+  RTO 8048.9613 ms, including provision 5098.4341 ms. Split provisioner now
+  waits on actual exit without inherited output pipes (bounded 60 seconds).
+  Full npm run check on Node 22 exit 0; diff check 0. Evidence:
+  `.run/evidence/split-final/`; guide CONFIRMED-REPORT-RECOVERY.md.
+  Previous candidate Fresh + Joint passes remain historical (23/23 + role 1/1;
+  Fresh target 1/1); final hardening leaves their restore bodies unchanged.
+  Acceptance-only synthetic fixtures; no runtime/schema/dependency changes,
+  production SLA, activation, commit or publication.
+- Exact-review P2: fresh report restore uses authenticated on-disk report.bytes;
+  Core runtime host/database/role preflight precedes Core calls. Final PS5.1
+  OS exit 0/retained Handle, native 23/23 + source/target role 1/1; SCRAM,
+  five rejection cases, cutoff and cleanup pass; npm run check exit 0.
+  Capture 633 ms / reconcile 2629 ms; .run/evidence/exact-review/.
+  Synthetic local fixture only; reviewed candidate is applied in this worktree.
+- Opt-in `-FreshClusterRestore` extends the joint rehearsal to a separate fresh
+  PostgreSQL 18.4 cluster/catalog and generated loopback ports. Acceptance-only
+  HMAC generation/inventory/digests reject mixed/missing/unauthenticated input
+  before restore; a later real dump/marker establishes the controlled cutoff.
+  Fresh fixture roles use unchanged provisioning/exact Core privilege acceptance.
+  ADR-012 IDs/receipt/target and unrelated pending work survive exact CLI recovery
+  in a replacement inode without handler/provider replay. Both schemas remain in
+  one database; the later split drill covers separate databases, not production RTO/RPO.
+  Guide: CONFIRMED-REPORT-RECOVERY.md. Evidence: .run/evidence/fresh-cluster-final
+  and joint-regression; full check: fresh-cluster-fixed/check-final.log.
+  Windows PS5.1 hidden/redirected final OS exit 0 (retained Handle), native
+  23/23 + exact role 1/1 in source and target; JointRestore 23/23 + role 1/1.
+  Full check exit 0. Measured capture 535 ms / restore-to-reconciled 2668 ms,
+  cutoff 2026-11-08T15:50:33.614263Z; both owned clusters stopped/removed.
 - ADR-012 — explicit exact-task confirmed-report recovery after full receiver
   directory loss. Original receipt/target stay immutable; pre-loss canonical
   path/dev/inode proof authorizes verification only on a pinned replacement.
@@ -225,3 +265,12 @@ LATER:
 
 - Linux machine is unavailable; current scripts and service state unknown.
 - An actual Windows login cycle remains an operator acceptance gate.
+
+FreshClusterRestore hardening: target SCRAM with owner-only transient admin
+password file; two old source passwords must fail with 28P01. Fresh restore is
+transactional. Both owned cluster stops are attempted independently and files
+are retained on any unconfirmed stop. Synthetic-only; no production activation.
+Validated hardening: PS5.1 retained Handle / OS exit 0; native 23/23, both
+role contracts 1/1; two 28P01 rejections, five negative generations, no replay.
+Both clusters stopped/removed; npm run check and diff check passed. Evidence:
+.run/evidence/fresh-hardening/. JointRestore compared to prior validated path.
