@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
+import { createHash } from 'node:crypto'
 import test, { type TestContext } from 'node:test'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -178,4 +181,62 @@ test('malformed recovery selector cannot become an unrestricted claim', async ()
   try {
     await assert.rejects(store.claim(worker, { kind: 'none', targetId: '' }, {} as never), /Invalid exact recovery selector/)
   } finally { await store.close() }
+})
+
+// Control only the synchronous directory identity; report IO remains real and exact.
+test('exact large identities separate numeric collisions and reconcile without replay', async context => {
+  const root = await mkdtemp(path.join(tmpdir(), 'forge-exact-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const actualLstat = fs.lstatSync
+  const first = 9007199254740992n
+  const second = 9007199254740993n
+  assert.equal(Number(first), Number(second), 'deterministic legacy rounding collision')
+  let ino = first
+  context.mock.method(fs, 'lstatSync', ((...args: Parameters<typeof fs.lstatSync>) => {
+    const info = actualLstat(...args)
+    if (args[0] !== root || !info) return info
+    const exact = typeof args[1] === 'object' && args[1]?.bigint
+    return new Proxy(info, { get: (target, key) => key === 'ino' ? (exact ? ino : Number(ino))
+      : key === 'dev' ? (exact ? 7n : 7) : Reflect.get(target, key) })
+  }) as typeof fs.lstatSync)
+  syncBuiltinESMExports()
+  context.after(() => { context.mock.restoreAll(); syncBuiltinESMExports() })
+  const publisher = new ImmutableReportPublisher(root)
+  const proof = JSON.parse(JSON.stringify(captureReportTarget(root)))
+  assert.deepEqual(proof, { version: 2, canonicalPath: fs.realpathSync(root), dev: '7', ino: first.toString() })
+  const normalized = process.platform === 'win32' ? proof.canonicalPath.toLowerCase() : proof.canonicalPath
+  assert.equal(publisher.targetId, createHash('sha256').update(`report-target-v2:${JSON.stringify([normalized, '7', first.toString()])}`).digest('hex'))
+  const request = { key: 'exact-test', artifact, signal: new AbortController().signal }
+  const receipt = await publisher.publish(request)
+  const before = await fs.promises.stat(path.join(root, receipt.filename), { bigint: true })
+  ino = second
+  assert.notEqual(new ImmutableReportPublisher(root).targetId, publisher.targetId)
+  await assert.rejects(publisher.publish({ ...request, expected: receipt }), /EFFECT_TARGET_CHANGED/)
+  const verifier = new RestoredReportVerifier(root, proof)
+  assert.deepEqual(await verifier.publish({ ...request, expected: receipt }), receipt)
+  const after = await fs.promises.stat(path.join(root, receipt.filename), { bigint: true })
+  assert.deepEqual([after.dev, after.ino, after.size, after.mtimeNs, after.ctimeNs],
+    [before.dev, before.ino, before.size, before.mtimeNs, before.ctimeNs], 'committed effect is verified without rewriting')
+  assert.deepEqual(await readdir(root), [receipt.filename])
+  assert.throws(() => new RestoredReportVerifier(root, { ...proof, canonicalPath: root + '-wrong' }), /EFFECT_TARGET_CHANGED/)
+  await assert.rejects(verifier.publish({ ...request, expected: { ...receipt, targetId: 'wrong' } }), /EFFECT_UNCONFIRMED/)
+  const legacyUnsafeTarget = createHash('sha256').update(`${normalized}:7:${Number(first)}`).digest('hex')
+  await assert.rejects(verifier.publish({ ...request, expected: { ...receipt, targetId: legacyUnsafeTarget } }), /EFFECT_UNCONFIRMED/)
+  ino = second + 1n
+  await assert.rejects(verifier.publish({ ...request, expected: receipt }), /EFFECT_TARGET_CHANGED/)
+
+  ino = 42n
+  const safe = new ImmutableReportPublisher(root)
+  const safeReceipt = await safe.publish({ ...request, key: 'safe-test' })
+  assert.equal(safe.targetId, createHash('sha256').update(`${normalized}:7:42`).digest('hex'), 'legacy safe target hash is unchanged')
+  ino = 43n
+  const legacy = { canonicalPath: proof.canonicalPath, dev: 7, ino: 42 }
+  assert.deepEqual(await new RestoredReportVerifier(root, legacy).publish({ ...request, key: 'safe-test', expected: safeReceipt }), safeReceipt)
+  assert.equal(new RestoredReportVerifier(root, { version: 2, canonicalPath: proof.canonicalPath, dev: '7', ino: '42' }).targetId, safe.targetId)
+  for (const invalid of [null, {}, { ...legacy, ino: Number(first) }, { ...legacy, dev: -1 },
+    { ...legacy, ino: 1.5 }, { ...legacy, ino: '42' }, { ...proof, version: 3 },
+    ...['01', '-1', '1.0', '1e2', '', '18446744073709551616'].map(ino => ({ ...proof, ino })),
+    { ...proof, dev: 7 }, { ...proof, ino: Number(first) }]) {
+    assert.throws(() => new RestoredReportVerifier(root, invalid), /EFFECT_TARGET_CHANGED/)
+  }
 })

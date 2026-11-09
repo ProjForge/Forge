@@ -1,4 +1,6 @@
 export { createBackup } from './backup.js'
+export { captureCoherentPostgresArchive, createCoherentGeneration, withVerifiedCoherentGeneration, coherentRoles } from './coherent.js'
+export type { CoherentKey, CoherentRole, CoherentFiles } from './coherent.js'
 export { restoreBackup, verifyBackup } from './restore.js'
 export { backupLabel, requireDatabaseUrl, resolvePostgresTool, safeConnection, validatePassphrase } from './config.js'
 export { authenticatedCore, canonicalJson, parseManifest } from './manifest.js'

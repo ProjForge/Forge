@@ -4,6 +4,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import test from 'node:test'
+import { randomBytes } from 'node:crypto'
+import { cp, readdir } from 'node:fs/promises'
+import { createCoherentGeneration, withVerifiedCoherentGeneration, coherentRoles } from '../../src/coherent.js'
 import { decryptFile, encryptToFile, newEncryptionMaterial, verifyAuthentication } from '../../src/crypto.js'
 
 function collector(chunks: Buffer[]): Writable {
@@ -14,6 +17,53 @@ function collector(chunks: Buffer[]): Writable {
     },
   })
 }
+
+test('coherent generations authenticate all exact roles before callback; failed capture preserves prior ready generation', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'forge-coherent-test-'))
+  const key = { keyId: 'fixture', key: randomBytes(32) }
+  const files = Object.fromEntries(coherentRoles.map(role => [role, path.join(root, `${role}.source`)])) as Record<typeof coherentRoles[number], string>
+  let held = true
+  const maintenance = { async assertHeld() { assert.ok(held) } }
+  const capture = async () => ({ cutoff: new Date().toISOString(), files })
+  let callbacks = 0
+  try {
+    for (const role of coherentRoles) await writeFile(files[role], `actual ${role} bytes`)
+    const first = await createCoherentGeneration({ root: path.join(root, 'bundles'), key, maintenance, capture })
+    const ready = await readFile(path.join(first.directory, 'ready.json'))
+    await assert.rejects(createCoherentGeneration({ root: path.join(root, 'bundles'), key, maintenance, async capture() { held = false; throw new Error('drain lost') } }))
+    assert.deepEqual(await readFile(path.join(first.directory, 'ready.json')), ready)
+    assert.deepEqual(await readdir(path.join(root, 'bundles')), [first.generation])
+    held = true
+    let leaseChecks = 0
+    await assert.rejects(createCoherentGeneration({ root: path.join(root, 'bundles'), key, capture,
+      maintenance: { async assertHeld() { if (++leaseChecks > 1) throw new Error('lease expired after sealing') } } }))
+    assert.deepEqual(await readdir(path.join(root, 'bundles')), [first.generation])
+    assert.deepEqual(await readFile(path.join(first.directory, 'ready.json')), ready)
+    await writeFile(files.coordinator, 'later actual coordinator archive')
+    const second = await createCoherentGeneration({ root: path.join(root, 'bundles'), key, maintenance, capture })
+    for (const negative of ['wrong-key', 'wrong-id', 'generation', 'missing', 'mixed', 'role', 'tamper', 'header']) {
+      const candidate = path.join(root, negative)
+      await cp(first.directory, candidate, { recursive: true })
+      if (negative === 'missing') await rm(path.join(candidate, 'core.enc'))
+      if (negative === 'mixed') await cp(path.join(second.directory, 'coordinator.enc'), path.join(candidate, 'coordinator.enc'))
+      if (negative === 'role') await cp(path.join(candidate, 'core.enc'), path.join(candidate, 'coordinator.enc'))
+      if (negative === 'tamper') await writeFile(path.join(candidate, 'report.enc'), 'damaged report')
+      if (negative === 'header') await writeFile(path.join(candidate, 'ready.json'), '{}')
+      await assert.rejects(withVerifiedCoherentGeneration({ directory: candidate, generation: negative === 'generation' ? second.generation : first.generation,
+        key: negative === 'wrong-key' ? { ...key, key: randomBytes(32) } : negative === 'wrong-id' ? { ...key, keyId: 'other' } : key }, async () => { callbacks++ }))
+      assert.equal(callbacks, 0)
+    }
+    // Local independent replica mock: no deletion/retention until copy authenticates.
+    const replica = path.join(root, 'replica')
+    await cp(first.directory, replica, { recursive: true })
+    await withVerifiedCoherentGeneration({ directory: replica, generation: first.generation, key }, async restored => {
+      for (const role of coherentRoles) assert.equal((await readFile(restored[role], 'utf8')), `actual ${role} bytes`)
+      callbacks++
+    })
+    assert.equal(callbacks, 1)
+    assert.deepEqual(await readFile(path.join(first.directory, 'ready.json')), ready)
+  } finally { key.key.fill(0); await rm(root, { recursive: true, force: true }) }
+})
 
 test('encrypts, authenticates and decrypts a streaming backup', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'forge-resilience-'))
