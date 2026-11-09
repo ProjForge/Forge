@@ -383,3 +383,37 @@ Only the four authorized files differ from inherited baseline tree
 `462b441120e1b431c6c7ea317853ab85fcf1347c`; original dirty Fresh/Joint work is
 preserved. This remains a synthetic logical recovery rehearsal, not production,
 physical disk-loss, inference, or protected-backup certification.
+
+
+## Exact directory identity and historical targets
+
+Capture now writes JSON proof version 2, with `dev` and `ino` as canonical unsigned
+64-bit decimal strings (no leading zeros). Filesystem identity checks use BigInt,
+including the opened report versus its directory entry. Safe numeric identities
+retain the original target hash; larger identities use a domain-separated v2
+hash over the normalized canonical path and exact decimal IDs. Receipt format,
+effect kind, stored targets and historical rows are unchanged.
+
+Unversioned numeric proofs remain valid only for nonnegative safe integers.
+Unsafe numbers are rejected, even when they happen to represent an exact integer:
+the proof cannot establish whether precision was already lost. Version 2 never
+coerces numbers to strings or accepts noncanonical decimal encodings.
+
+An old queued or confirmed target created from an unsafe numeric inode cannot be
+automatically mapped to the new exact target. Two different directories can have
+the same rounded legacy ID. Even a new exact proof must not authorize that legacy
+hash by rounding it. Such jobs remain blocked by the existing target/checkpoint
+checks, without changing their receipts, rows or grants. Keep the old checkpoints
+and backup for operator reconciliation; do not rewrite a confirmed receipt or
+rerun its agent to bypass this boundary. A future migration needs independent,
+trusted pre-loss exact identity evidence bound to that specific historical job
+and receipt, plus an explicit audited reconciliation contract. A queued job with
+no committed effect similarly needs an authorized migration/cancellation policy;
+this patch does not infer one from the current directory. Capture version 2 before
+new work and retain it with the coherent backup generation.
+
+Decision: retain lossless legacy hashes and introduce exact hashes only where
+needed. Keeping numeric IDs preserves rounding collisions; rehashing every target
+would unnecessarily invalidate safe historical checkpoints. Automatic fallback to
+a rounded hash would authorize ambiguous replacements and is intentionally absent.
+Revisit migration only with independently authenticated historical identity data.

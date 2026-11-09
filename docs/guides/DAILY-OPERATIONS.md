@@ -15,8 +15,8 @@ Register from the repository root with
 task XML first. To roll back, stop this task and restore its previous XML and
 enabled/disabled state. Do not restore or replace any recovery task implicitly.
 
-An actual logout/login remains an operator acceptance step. Confirm one worker
-instance, a fresh PASS status and a real semantic query after login. Workbench
+After a restart, confirm one worker instance, a fresh PASS status and a real
+semantic query after login. Workbench
 reads worker status with a three-minute freshness window and polls health every
 30 seconds. Provider catalog availability does not certify inference quality.
 
@@ -26,6 +26,14 @@ With the HTTP server stopped and Qwen unloaded, starting the registered task
 restored service, indexing and a real 1024d embedding in about four seconds.
 A following periodic cycle completed with exit zero. The LM Studio application
 itself remained running; this evidence does not replace a real Windows login.
+
+The 2026-11-09 Windows restart opened a new desktop session. The scheduled
+worker completed with exit 0 and fresh PASS. Task Scheduler showed a maximum of
+one instance over 137 samples of a subsequent cycle. LM Studio returned an
+actual 1024-dimensional vector and both Codex MCPs responded in the new session.
+Semantic search returned two results scoped to `forge-core`. Task Scheduler
+history was disabled, so the first execution cannot be attributed to the login
+trigger or the minute schedule. Evidence is in `.run/evidence/windows-login/`.
 
 Fresh MCP clients must be launched with the environment configured for each
 server; SDK test transports do not inherit arbitrary custom environment values

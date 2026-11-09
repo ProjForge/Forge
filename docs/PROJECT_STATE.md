@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-08
+Updated: 2026-11-10
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -56,6 +56,33 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Windows startup accepted after a real restart. The scheduled task exited 0,
+  index status was fresh PASS, and Task Scheduler observed one instance at peak.
+  LM Studio returned a real 1024-dimensional vector and both Codex MCPs responded
+  in the new session. The disabled task history prevents attribution of the first
+  run to either trigger. Evidence: `.run/evidence/windows-login/`.
+- Coherent-backup preproduction path: `forge-resilience` captures actual custom
+  archives with existing process primitives and seals Core/coordinator/report/
+  identity in an authenticated encrypted v1 generation. External 32-byte key/keyId;
+  hidden staging, atomic directory publication, all-component verification before
+  restore callback. Core backup format/dependencies unchanged. `-CoherentBackup`
+  reuses isolated split restore; fixture-only drained-writer lease plus EXCLUSIVE
+  locks reject concurrent DML/row locks. Key input has owner-only ACL and is reread
+  at restore. Wrong/mixed/missing/tampered generations never reach either restore.
+  No automatic retention deletion; independent local copy authentication tested.
+  Production still requires real cross-writer barrier, key custody, independent
+  replica/retention integration and manual handling of survivor reports without
+  receipts. No product scheduling or activation. Guide: COHERENT-BACKUP.md.
+  Final 2026-11-09 PS5.1 / Node 22.23.4 / PG18.4: OS exit 0, native 23/23,
+  source/target role 1/1, five encrypted-generation negatives, one retained
+  receipt/effect and zero handler/provider replay. Full check/diff check 0;
+  both clusters removed. RPO 2640.114 ms, RTO 10173.5527 ms, capture 1347 ms;
+  phase scope and exact candidate evidence: `.run/evidence/coherent/`.
+- Prior accepted NTFS exact-ID work is preserved. Historical Windows scheduled-run
+  observation was read-only. Capacity reference: 10 eligible, 40 jobs/point;
+  concurrency 2→4: 14.36→21.80 jobs/s, wait p95 2571→1623 ms; Core peak 6/20;
+  one recovery retry, zero handler replay. Retain concurrency cap 4. These are
+  supplied prior results, not new measurements from coherent-backup acceptance.
 - Applied exact split candidate 30e421a8 (SHA-256 b353782e4665f46a84ffc14d4ebca4f4b9f82ba3d49f99ae6005635c4b8aeacc)
   plus split-only isolation: clear/restore inherited PG*, read-only source
   preflight before createdb/migrations, owned source/target data_directory and
@@ -194,14 +221,11 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Plan production-consistent backup/recovery beyond the synthetic joint drill before any
-  production worker activation. Exhausted jobs require operator reconciliation.
+- Integrate the coherent backup lease with all actual writers and establish protected
+  key custody/independent replicas/retention before production worker activation.
+  Exhausted jobs and survivor reports without receipts require manual reconciliation.
 - Accept another effect receiver only with durable idempotency/reconciliation;
   the current contract covers immutable local reports on retained storage.
-- Operator logout/login acceptance. The controlled task test does not simulate
-  a fresh Windows session or a completely stopped LM Studio application.
-- Reload Codex when convenient: existing connections still run historical
-  launchers; fresh clients already use and validate the updated paths.
 
 LATER:
 - Linux/Obsidian verification deferred until the machine is available.
@@ -224,7 +248,6 @@ LATER:
 - Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
   this Windows host. Node 22 is the Windows CI baseline; the failure is not
   classified as an agent/provider error or hidden by acceptance retries.
-- Existing MCP clients still use their historical checkout until separately reloaded.
 - Linux Obsidian duplicate-path issue remains historical and unverified.
 - A model catalog response does not certify inference or retrieval quality.
 - One local S3 SDK fixture process failed before PR creation; isolated and full
@@ -264,7 +287,6 @@ LATER:
 ## Open Questions
 
 - Linux machine is unavailable; current scripts and service state unknown.
-- An actual Windows login cycle remains an operator acceptance gate.
 
 FreshClusterRestore hardening: target SCRAM with owner-only transient admin
 password file; two old source passwords must fail with 28P01. Fresh restore is

@@ -73,6 +73,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     assert.equal(process.platform, 'win32')
     assert.equal(normalizeFixturePath(path.dirname(fixtureRoot)), normalizeFixturePath(fileURLToPath(new URL('../../../../.run', import.meta.url))))
     assert.match(path.basename(fixtureRoot), /^coordinator-pilot-[a-f0-9]{32}$/)
+    assert.equal(process.env.FORGE_COHERENT_TEST_KEY_FILE, path.join(fixtureRoot, 'coherent-fixture.key'))
     const provision = process.env.FORGE_COORDINATOR_TEST_PROVISION!
     assert.equal(provision, path.join(fixtureRoot, 'provision-target.ps1'))
     assert.equal(createHash('sha256').update(await readFile(provision)).digest('hex'), process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH)
@@ -584,6 +585,10 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   await context.test('opt-in joint logical restore retains confirmed report and Core identity', {
     skip: process.env.FORGE_COORDINATOR_TEST_RESTORE !== '1', timeout: split ? 120_000 : 60_000,
   }, async () => {
+    // Optional staged integration: ordinary PG14 coordinator CI does not build resilience.
+    // The opt-in Windows wrapper builds this workspace package before loading it.
+    const resiliencePackage: string = 'forge-resilience'
+    const { captureCoherentPostgresArchive, createCoherentGeneration, withVerifiedCoherentGeneration } = split ? await import(resiliencePackage) : {}
     assert.equal(liveModel, undefined, 'Restore drill is synthetic only')
     const source = new URL(adminUrl!)
     assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(source.hostname), 'Loopback disposable database only')
@@ -639,6 +644,9 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     let restoredStateAdmin: pg.Client | undefined
     let file: string | undefined
     let authenticatedReport: Buffer | undefined
+    let coherent: { directory: string; generation: string } | undefined
+    let maintenanceHeld = false
+    const locks: pg.Client[] = []
     let bytes: Buffer | undefined
     try {
       const agent = await core.registerAgent({ agentKey: `${suffix}-joint-restore`, name: 'Synthetic joint restore' })
@@ -683,6 +691,28 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       // Receiver requests are fully drained and all child writers joined at this common cut.
       assert.equal(modelServer.listening, true)
       if (split) await new Promise<void>((resolve, reject) => modelServer.close(error => error ? reject(error) : resolve()))
+      if (split) {
+        // Fixture supervisor: receiver admissions stopped, all worker processes joined.
+        // No coordinator/publisher loop remains. The only remaining test writer is this scope.
+        maintenanceHeld = true
+        for (const [url, schema] of [[adminUrl!, 'forge'], [stateAdminUrl!, 'forge_coordinator']]) {
+          const lock = new pg.Client({ connectionString: url }); await lock.connect(); locks.push(lock)
+          await lock.query('BEGIN')
+          await lock.query("SET LOCAL lock_timeout='2s'")
+          const tables = (await lock.query('SELECT tablename FROM pg_tables WHERE schemaname=$1', [schema])).rows
+          for (const row of tables) await lock.query(`LOCK TABLE "${schema}"."${String(row.tablename).replaceAll('"', '""')}" IN EXCLUSIVE MODE`)
+          // A bounded concurrent writer must reject while pg_dump SELECTs remain allowed.
+          const contender = new pg.Client({ connectionString: url }); await contender.connect()
+          try {
+            await contender.query("SET lock_timeout='150ms'")
+            const table = schema === 'forge' ? 'tasks' : 'jobs'
+            await assert.rejects(contender.query(`SELECT * FROM ${schema}.${table} FOR UPDATE`), (error: unknown) => (error as { code: string }).code === '55P03')
+            const column = schema === 'forge' ? 'title' : 'state'
+            await assert.rejects(contender.query(`UPDATE ${schema}.${table} SET ${column}=${column}`), (error: unknown) => (error as { code: string }).code === '55P03')
+          } finally { await contender.end() }
+        }
+        assert.equal(modelServer.listening, false, 'Receiver rejects new requests during capture')
+      }
       const inventoryRows = async (coreDb: pg.Client, stateDb: pg.Client) => ({
         projects: (await coreDb.query('SELECT id FROM forge.projects ORDER BY id')).rows,
         memories: (await coreDb.query('SELECT id FROM forge.memories ORDER BY id')).rows,
@@ -712,8 +742,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       if (freshTarget) assert.deepEqual(reportNames, [saved.effect_receipt.filename])
       const inventory = freshTarget ? [] : await Promise.all(reportNames.map(async name => [name, await readFile(path.join(reportsRoot, name))] as const))
       if (!split) cutoff = (await admin.query('SELECT clock_timestamp()::text AS cutoff')).rows[0].cutoff
-      await invoke('pg_dump', ['--format=custom', '--file', dump, '--dbname', source.pathname.slice(1)])
-      if (split) await invokeState(stateDump)
+      if (!split) await invoke('pg_dump', ['--format=custom', '--file', dump, '--dbname', source.pathname.slice(1)])
       if (!split) {
         await targetCluster.query(`CREATE DATABASE ${destination} TEMPLATE template0`)
         created = true
@@ -721,20 +750,41 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       const target = new URL(freshTarget ?? source); target.pathname = `/${destination}`
       if (freshTarget) {
         // Acceptance-only authenticated inventory. Key stays outside both generations and receiver.
-        const key = randomBytes(32)
+        const key = split ? await readFile(process.env.FORGE_COHERENT_TEST_KEY_FILE!) : randomBytes(32)
         const generation = randomUUID()
         const inventoryFiles = ['joint.dump', ...(split ? ['state.dump'] : []), path.basename(proofFile), 'report.bytes'].sort()
         const digest = (content: Buffer) => createHash('sha256').update(content).digest('hex')
-        const entries = await Promise.all(inventoryFiles.map(async name => ({ name, sha256: digest(await readFile(path.join(backupRoot, name))) })))
         const components = { core: { database: source.pathname, oid: (await admin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid },
           coordinator: { database: stateUrl.pathname, oid: (await stateAdmin.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid },
           systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier, receiver: proof }
         if (split) assert.notEqual(components.core.oid, components.coordinator.oid)
+        const selectedReport = { projectId: project.id, taskId: job.taskId, jobId: job.id, executionId: execution.id, receipt: saved.effect_receipt }
+        if (split) {
+          const identityFile = path.join(backupRoot, 'identity.json')
+          assert.equal(digest(bytes!), selectedReport.receipt.sha256)
+          await writeFile(identityFile, JSON.stringify({ components, reports: reportNames, retained, proof, selectedReport }), { flag: 'wx' })
+          coherent = await createCoherentGeneration({ root: path.join(backupRoot, 'sealed'), key: { keyId: 'isolated-fixture', key },
+            maintenance: { async assertHeld() { assert.equal(maintenanceHeld, true); assert.equal(modelServer.listening, false) } },
+            async capture() {
+              await captureCoherentPostgresArchive({ connectionString: adminUrl!, postgresBin: bin, destination: dump })
+              await captureCoherentPostgresArchive({ connectionString: stateAdminUrl, postgresBin: bin, destination: stateDump })
+              const original = await readFile(dump)
+              await assert.rejects(captureCoherentPostgresArchive({ connectionString: adminUrl!, postgresBin: bin, destination: dump }), (error: unknown) => (error as NodeJS.ErrnoException).code === 'EEXIST')
+              assert.deepEqual(await readFile(dump), original)
+              return { cutoff, files: { core: dump, coordinator: stateDump, report: path.join(backupRoot, 'report.bytes'), identity: identityFile } }
+            } })
+          maintenanceHeld = false
+          for (const lock of locks) { await lock.query('ROLLBACK'); await lock.end() }
+          locks.length = 0
+        }
+        const entries = await Promise.all(inventoryFiles.map(async name => ({ name, sha256: digest(await readFile(path.join(backupRoot, name))) })))
         const manifest = JSON.stringify({ generation, cutoff, components, reports: reportNames, files: entries })
         const authenticate = (content: string, secret: Buffer) => createHmac('sha256', secret).update(content).digest('hex')
         const signature = authenticate(manifest, key)
-        await writeFile(path.join(backupRoot, 'manifest.json'), manifest, { flag: 'wx' })
-        await writeFile(path.join(backupRoot, 'manifest.hmac'), signature, { flag: 'wx' })
+        if (!split) {
+          await writeFile(path.join(backupRoot, 'manifest.json'), manifest, { flag: 'wx' })
+          await writeFile(path.join(backupRoot, 'manifest.hmac'), signature, { flag: 'wx' })
+        }
         captureMs = Date.now() - captureStarted
         // A second actual capture contains a known later Core write; it is not a byte mutation.
         const marker = await core.createTask({ projectId: project.id, taskKey: 'post-cutoff', title: 'Post-cutoff marker', assignedAgentId: agent.id, status: 'ready', idempotencyKey: 'post-cutoff' })
@@ -761,9 +811,43 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
         const secondManifest = JSON.stringify({ generation: randomUUID(), cutoff: secondCutoff, components, reports: reportNames,
           files: entries.map(entry => entry.name === 'joint.dump' ? { ...entry, sha256: digestSecond } : split && entry.name === 'state.dump' ? { ...entry, sha256: digestSecondState } : entry) })
         assert.notEqual(JSON.parse(secondManifest).generation, generation)
-        await writeFile(path.join(backupRoot, 'generation-two.json'), secondManifest, { flag: 'wx' })
-        await writeFile(path.join(backupRoot, 'generation-two.hmac'), authenticate(secondManifest, key), { flag: 'wx' })
-        const validate = async (body: string, mac: string, secret: Buffer, substitution?: string, missing = false) => {
+        if (!split) {
+          await writeFile(path.join(backupRoot, 'generation-two.json'), secondManifest, { flag: 'wx' })
+          await writeFile(path.join(backupRoot, 'generation-two.hmac'), authenticate(secondManifest, key), { flag: 'wx' })
+        }
+        const validate = async (body: string, mac: string, secret: Buffer, substitution?: string, missing = false): Promise<{ report: Buffer; verified: Map<string, Buffer> }> => {
+          if (split) {
+            assert.ok(coherent)
+            // Key custody is separate from bundles; restore re-reads it rather than relying on capture memory.
+            const reread = await readFile(process.env.FORGE_COHERENT_TEST_KEY_FILE!)
+            if (!secret.equals(key)) reread.fill(0)
+            const candidate = await mkdtemp(path.join(backupRoot, 'candidate-'))
+            const { cp } = await import('node:fs/promises')
+            try {
+              await cp(coherent.directory, candidate, { recursive: true })
+              if (substitution) {
+                // Seal an actual later generation, then mix its encrypted coordinator archive.
+                const secondBundle = await createCoherentGeneration({ root: path.join(backupRoot, 'later'), key: { keyId: 'isolated-fixture', key },
+                  maintenance: { async assertHeld() { assert.ok(children.every(child => child.exitCode !== null || child.signalCode !== null)); assert.equal(modelServer.listening, false) } },
+                  async capture() { return { cutoff: secondCutoff, files: { core: second, coordinator: secondState, report: path.join(backupRoot, 'report.bytes'), identity: path.join(backupRoot, 'identity.json') } } } })
+                await cp(path.join(secondBundle.directory, 'coordinator.enc'), path.join(candidate, 'coordinator.enc'))
+              }
+              if (missing) await rm(path.join(candidate, 'report.enc'))
+              if (body !== manifest && body !== secondManifest) {
+                const payload = await readFile(path.join(candidate, 'report.enc')); payload[0] = payload[0]! ^ 1
+                await writeFile(path.join(candidate, 'report.enc'), payload)
+              }
+              return await withVerifiedCoherentGeneration({ directory: candidate, generation: body === secondManifest ? randomUUID() : coherent.generation, key: { keyId: 'isolated-fixture', key: reread } }, async (files: { core: string; coordinator: string; report: string; identity: string }) => {
+                const identityBytes = JSON.parse(await readFile(files.identity, 'utf8'))
+                assert.deepEqual(identityBytes, { components, reports: reportNames, retained, proof, selectedReport })
+                const verified = new Map<string, Buffer>([['joint.dump', await readFile(files.core)], ['state.dump', await readFile(files.coordinator)], [path.basename(proofFile), Buffer.from(JSON.stringify(identityBytes.proof))]])
+                const report = await readFile(files.report)
+                assert.deepEqual(report, bytes)
+                assert.equal(digest(report), identityBytes.selectedReport.receipt.sha256)
+                return { report, verified }
+              })
+            } finally { reread.fill(0); await rm(candidate, { recursive: true, force: true }) }
+          }
           assert.equal(authenticate(body, secret), mac, 'Manifest authentication required')
           const parsed = JSON.parse(body) as { components: typeof components; generation: string; cutoff: string; reports: string[]; files: typeof entries }
           assert.deepEqual(parsed.components, components)
@@ -774,8 +858,8 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
           const verified = new Map<string, Buffer>()
           let report: Buffer | undefined
           for (const entry of parsed.files) {
-            const filename = entry.name === (split ? 'state.dump' : 'joint.dump') && substitution ? substitution : path.join(backupRoot, entry.name)
-            const component = await readFile(missing && entry.name === 'report.bytes' ? path.join(backupRoot, 'absent') : filename)
+            const filename: string = entry.name === (split ? 'state.dump' : 'joint.dump') && substitution ? substitution : path.join(backupRoot, entry.name)
+            const component: Buffer = await readFile(missing && entry.name === 'report.bytes' ? path.join(backupRoot, 'absent') : filename)
             assert.equal(digest(component), entry.sha256)
             verified.set(entry.name, component)
             if (entry.name === 'report.bytes') report = component
@@ -832,7 +916,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
             try { assert.equal((await emptyState.query("SELECT count(*)::int AS n FROM pg_namespace WHERE nspname IN ('forge','forge_coordinator')")).rows[0].n, 0) }
             finally { await emptyState.end() }
           }
-          const authenticated = await validate(await readFile(path.join(backupRoot, 'manifest.json'), 'utf8'), await readFile(path.join(backupRoot, 'manifest.hmac'), 'utf8'), key)
+          const authenticated = split ? await validate(manifest, signature, key) : await validate(await readFile(path.join(backupRoot, 'manifest.json'), 'utf8'), await readFile(path.join(backupRoot, 'manifest.hmac'), 'utf8'), key)
           authenticatedReport = authenticated.report
           if (split) {
             // Restore exclusive materializations of the exact authenticated bytes, not reread originals.
@@ -841,6 +925,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
           }
         } finally { await emptyTarget.end() }
         authenticationMs = performance.now() - authStarted
+        key.fill(0)
         if (!split) restoreStarted = Date.now()
         // Fresh catalog, same two fixture roles. Restore existing ACLs/ownership, then
         // run the unchanged Core provisioning and exact privilege acceptance.
@@ -949,7 +1034,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
       const status = JSON.parse((await promisify(execFile)(process.execPath, [cli, 'status', project.projectKey, job.taskKey], { env })).stdout).job
       assert.equal('artifact' in status, false)
       assert.equal('effect_receipt' in status, false)
-      await rejectProof({ ...proof, ino: proof.ino + 1 })
+      await rejectProof({ ...proof, ino: (BigInt(proof.ino) + 1n).toString() })
       await unchanged()
       await rejectProof({ ...proof, canonicalPath: relocated })
       await unchanged()
@@ -1018,6 +1103,8 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
         authenticatedGeneration: true, rejectionCases: 5, reportRestoreSource: 'authenticated-report.bytes', targetRuntimeRoleContract: '1/1', targetAuthentication: 'SCRAM', oldPasswordsRejected: 2, oldPasswordSqlstate: '28P01', sourceIntact: true, postCutoffExcluded: true, handlerReplay: 0, providerReplay: 0 }))
       context.diagnostic(`Joint restore: ${freshTarget ? 'distinct cluster system identifiers and ports' : 'distinct database OIDs'}; full receiver loss; distinct inode; real CLI recovery; concurrent/replay and negative checks; handler/model replay=0`)
     } finally {
+      maintenanceHeld = false
+      for (const lock of locks) { await lock.query('ROLLBACK'); await lock.end() }
       await restoredStore?.close(); await restoredCore?.close(); if (split) await restoredStateAdmin?.end(); await restoredAdmin?.end()
       if (!freshTarget && file && bytes) await writeFile(file, bytes, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error })
       if (created) {

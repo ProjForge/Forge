@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin', [ValidateRange(1024,65535)][int]$Port=55441,
-    [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
+    [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runRoot=[IO.Path]::GetFullPath((Join-Path $workspace '.run'))
@@ -8,6 +8,8 @@ $root=[IO.Path]::GetFullPath((Join-Path $runRoot ('coordinator-pilot-'+[Guid]::N
 if (-not $root.StartsWith($runRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe pilot root' }
 $started=$false
 $targetStarted=$false
+if ($CoherentBackup) { $SplitDatabaseRestore=$true }
+$previousKeyFile=$env:FORGE_COHERENT_TEST_KEY_FILE
 # Obtain unused generated loopback ports for the two-cluster drill only.
 function Get-FixturePort {
     $listener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,0)
@@ -66,6 +68,21 @@ try {
     if ($JointRestore -and $LiveAgent) { throw 'Joint restore requires the synthetic provider' }
     if ($LiveAgent -and ([string]::IsNullOrWhiteSpace($AgentModel) -or [string]::IsNullOrWhiteSpace($AgentBaseUrl))) { throw 'Live agent model and loopback base URL must not be blank' }
     New-Item -ItemType Directory -Force -Path $root | Out-Null
+    if ($SplitDatabaseRestore) {
+        # Owner-only separate input, outside every generation. Never log key bytes.
+        $keyPath=Join-Path $root 'coherent-fixture.key'
+        $keyAcl=New-Object Security.AccessControl.FileSecurity
+        $keyOwner=[Security.Principal.WindowsIdentity]::GetCurrent().User
+        $keyAcl.SetOwner($keyOwner)
+        $keyAcl.SetAccessRuleProtection($true,$false)
+        $keyAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($keyOwner,'FullControl','Allow')))
+        $keyStream=[IO.File]::Create($keyPath,4096,[IO.FileOptions]::None,$keyAcl)
+        $keyBytes=New-Object byte[] 32
+        $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
+        try { $rng.GetBytes($keyBytes); $keyStream.Write($keyBytes,0,32) }
+        finally { [Array]::Clear($keyBytes,0,32); $keyStream.Dispose(); $rng.Dispose() }
+        $env:FORGE_COHERENT_TEST_KEY_FILE=$keyPath
+    }
     $data=Join-Path $root 'data'
     & (Join-Path $PostgresBin 'initdb.exe') -D $data -U forge_pilot -A trust --locale=C --encoding=UTF8 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Pilot cluster initialization failed' }
@@ -121,6 +138,8 @@ try {
     $env:FORGE_COORDINATOR_TEST_PG_BIN=$PostgresBin
     & npm.cmd run build -w forge-persistence-gateway
     if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
+    & npm.cmd run build -w forge-resilience
+    if ($LASTEXITCODE -ne 0) { throw 'Resilience build failed' }
     & npm.cmd run test:integration -w forge-coordinator
     if ($LASTEXITCODE -ne 0) { throw 'Coordinator pilot acceptance failed' }
     & npm.cmd run test:runtime-role -w forge-postgresql-schema
@@ -130,6 +149,7 @@ try {
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
     throw
 } finally {
+    $env:FORGE_COHERENT_TEST_KEY_FILE=$previousKeyFile
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name,$previous[$name]) }
     Pop-Location
     $stopFailures=@()
