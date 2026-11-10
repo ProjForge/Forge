@@ -1,0 +1,116 @@
+{
+    "directoryOwnerMatches":  true,
+    "runId":  "f0142e3e-88ad-4259-b6a4-ad0c20b3c405",
+    "directoryAclProtected":  true,
+    "directoryOnlyCustodian":  true,
+    "accountsRemoved":  true,
+    "passed":  true,
+    "sourceCommit":  "3c9d10b9d8422c72b511318adf7d4b59751f4e62",
+    "tasksRemoved":  true,
+    "tests":  [
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "fileOnlyCustodian":  true,
+                                     "fileAclProtected":  true,
+                                     "crypto":  {
+                                                    "role":  "init",
+                                                    "node":  "v22.23.4",
+                                                    "syntheticRsa":  true,
+                                                    "pemPresentAtStart":  true
+                                                },
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "administrator":  false,
+                                     "nodeExit":  0,
+                                     "backupOperator":  false,
+                                     "fileOwnerMatches":  true,
+                                     "passed":  true,
+                                     "role":  "init",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "init"
+                  },
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidHash":  "67b40ccd68d954c3940b80bc362451483445ac8bf90256e2b323d60badec63a3",
+                                     "custodianResultWriteDenied5":  true,
+                                     "crypto":  {
+                                                    "role":  "capture",
+                                                    "node":  "v22.23.4",
+                                                    "controlRead":  true,
+                                                    "read":  {
+                                                                 "code":  "EPERM",
+                                                                 "errno":  -4048
+                                                             },
+                                                    "writeWithoutTruncate":  {
+                                                                                 "code":  "EPERM",
+                                                                                 "errno":  -4048
+                                                                             },
+                                                    "originalsRemoved":  true,
+                                                    "keyZeroized":  true
+                                                },
+                                     "privateOpenHresult":  "0x80070005",
+                                     "ownMoveAllowed":  true,
+                                     "administrator":  false,
+                                     "nodeExit":  0,
+                                     "backupOperator":  false,
+                                     "passed":  true,
+                                     "moves":  [
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   },
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   }
+                                               ],
+                                     "win32Error":  5,
+                                     "role":  "capture",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "capture"
+                  },
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidMatchesExpected":  true,
+                                     "passed":  true,
+                                     "nodeExit":  0,
+                                     "role":  "restore",
+                                     "crypto":  {
+                                                    "role":  "restore",
+                                                    "node":  "v22.23.4",
+                                                    "pemPresentAtStart":  true,
+                                                    "originalsAbsent":  true,
+                                                    "tempPathsPrivate":  true,
+                                                    "callbackAclOnlyCustodian":  true,
+                                                    "exactComponents":  4,
+                                                    "wrongPrivateRejected":  true,
+                                                    "missingWrappedRejected":  true,
+                                                    "wrongSymmetricRejectedBeforeCallback":  true,
+                                                    "tamperRejectedBeforeCallback":  true,
+                                                    "pemPresentAtEnd":  true,
+                                                    "keyZeroized":  true
+                                                },
+                                     "backupOperator":  false,
+                                     "administrator":  false
+                                 },
+                      "role":  "restore"
+                  }
+              ],
+    "fixtureOnly":  true,
+    "privateMaterial":  "guest-native-NTFS; destroyed with owned Sandbox",
+    "distinctRealSids":  true
+}
+

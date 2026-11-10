@@ -1,0 +1,9 @@
+{
+    "accountsRemoved":  true,
+    "inputSystemOwnerOnlySystemWrites":  true,
+    "defaultRoutes":  0,
+    "rootSystemOwnerRolesNoWriteDelete":  true,
+    "tasksRemoved":  true,
+    "scope":  "new disposable Windows Sandbox; no production"
+}
+

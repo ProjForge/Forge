@@ -1,0 +1,50 @@
+[
+  {
+    "sha256": "bead86cf4a67c9c5570cb0435dcd674b08849290c0eae0359634dfe82175bab7",
+    "file": "input\\acl.ps1"
+  },
+  {
+    "sha256": "aba158a14ce7f39d35804f3eb58bb64fe13fd4e92d1d686eded01fc8f398da13",
+    "file": "input\\guest.ps1"
+  },
+  {
+    "sha256": "dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f",
+    "file": "input\\node.exe"
+  },
+  {
+    "sha256": "ccdf8de44295f59be00f6b8cf1359959938a16a4ccf8c55940d8af1894748c5f",
+    "file": "input\\package.json"
+  },
+  {
+    "sha256": "8f78722d8374bab18aa9331444e1be1186acbe76317df3a09f5078e750f9855f",
+    "file": "input\\probe.mjs"
+  },
+  {
+    "sha256": "c1efa7c073fff83d17f1ad32a7c22d701c61beb840c156d56045773003454bac",
+    "file": "input\\role.ps1"
+  },
+  {
+    "sha256": "7072970bc51248686985635b694ffa588f126cfc9caf5ceabc1631d98c06af4d",
+    "file": "input\\dist\\coherent-custody.js"
+  },
+  {
+    "sha256": "82ef174e972d8cd9773026997d280678ed306adb63b8e997553d05be67117dea",
+    "file": "input\\dist\\coherent.js"
+  },
+  {
+    "sha256": "32c01f353b5b0041e666396747c14ddfd9e5066135937d33140c1d4ff916f5cf",
+    "file": "input\\dist\\config.js"
+  },
+  {
+    "sha256": "db59609f556e04380ad4ec006027588db625eb516a4ef22e35fd1d4b9e7b7263",
+    "file": "input\\dist\\crypto.js"
+  },
+  {
+    "sha256": "132a2aefd51c78d78ca889a2f395f7a8538343393008ef2e25363301f13ead1a",
+    "file": "input\\dist\\manifest.js"
+  },
+  {
+    "sha256": "3b6e51ff16e99c8aa148b52541d66345b80013a5577ef95d69684253d73a1d70",
+    "file": "input\\dist\\process.js"
+  }
+]

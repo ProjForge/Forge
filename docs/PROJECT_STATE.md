@@ -59,6 +59,12 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Separate-account custody passed in a disposable network-disabled Windows Sandbox.
+  Two standard effective identities exercised private-key read/write/move denial,
+  public-key capture and custodian verification of four synthetic components.
+  Private plaintext ACLs, process exits and guest cleanup were verified separately.
+  [Custody evidence](acceptance/custody/2026-11-10/README.md) records the scope.
+  Remote restoration remains pending until a second preproduction machine is available.
 - Operational coherent security closure: synthetic source SCRAM, private C: transient
   initdb password, NOLOGIN backup via operator pg_dump --role. Both-DB normal
   transaction probes verify 42501; authentication negatives cover 28P01 and
