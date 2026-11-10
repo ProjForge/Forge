@@ -1,0 +1,74 @@
+[
+  {
+    "path": "bootstrap.ps1",
+    "sha256": "2bbb3d43cf360d0ceda60018c635af1150614276d16f8eafa05cdc30ba0c39dc"
+  },
+  {
+    "path": "run.ps1",
+    "sha256": "01c0a808365a3aff787a6430f4c2a1dc37ffb707d72ab56ef2bcb80681a1b6ba"
+  },
+  {
+    "path": "input/guest.ps1",
+    "sha256": "3eb8cd2377e273014eed42605528626f52ed510af6307a95faf8c71386fa7195"
+  },
+  {
+    "path": "input/role.ps1",
+    "sha256": "efa82bed3fc91db19d7f6fd0c4db3134e92766332eb0f519e0fd8ebebacac798"
+  },
+  {
+    "path": "input/probe.mjs",
+    "sha256": "5f1e6751defaa0cb83430083f03d6631f4f9e35c1d750cb36d71dc797212102a"
+  },
+  {
+    "path": "input/acl.ps1",
+    "sha256": "bead86cf4a67c9c5570cb0435dcd674b08849290c0eae0359634dfe82175bab7"
+  },
+  {
+    "path": "input/database.mjs",
+    "sha256": "d68834a73c866116efca11407a6b163332be96c73ac9342a0c78f6b0bd6a1b26"
+  },
+  {
+    "path": "input/node.exe",
+    "sha256": "dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f"
+  },
+  {
+    "path": "input/postgres/bin/postgres.exe",
+    "sha256": "ed1fa062cea44b0d200d2e10099ebc85faff7ef27df75a2e813ffd56d8a60868"
+  },
+  {
+    "path": "input/postgres/bin/initdb.exe",
+    "sha256": "7489222c95d6cf48e110896f74a32572487bd23b7c7398eac33bdd05d06d0956"
+  },
+  {
+    "path": "input/postgres/bin/pg_ctl.exe",
+    "sha256": "89da264e7d7094b1594c978cc8f846a516cfd6434ef5bcba3f2c7fecbf909e12"
+  },
+  {
+    "path": "input/postgres/bin/pg_dump.exe",
+    "sha256": "46c8ad2e487fa01bb5401ae3b383c09e20789efdd3a37c6940975647eb1ff574"
+  },
+  {
+    "path": "input/postgres/bin/pg_restore.exe",
+    "sha256": "e07bdb23f2d2a7e4d2db7a50386cd43049f4216540fa18e2faf79b80ab43ac18"
+  },
+  {
+    "path": "input/postgres/lib/vector.dll",
+    "sha256": "b2abaa09922236f8211eef2731e58380327bdc6f8b3c30315898f025a7826986"
+  },
+  {
+    "path": "input/postgres/share/extension/vector.control",
+    "sha256": "52c583fb0c22c616b21762c7b9d3079c02655b78b96d5689cd1e64449b9a575e"
+  },
+  {
+    "path": "input/postgres/bin/vcruntime140.dll",
+    "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7"
+  },
+  {
+    "path": "input/postgres/bin/vcruntime140_1.dll",
+    "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+  },
+  {
+    "path": "input/postgres/bin/msvcp140.dll",
+    "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca"
+  }
+]

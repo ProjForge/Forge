@@ -292,6 +292,29 @@ transient symmetric key while sealing. Database restoration and earlier RPO/RTO
 results belong to their separate rehearsals. Remote restoration remains pending
 until a second preproduction machine is available.
 
+### Local database restore under the custodian account
+
+The 2026-11-10 follow-up combined the custody and database restore paths in one
+offline Windows Sandbox. The capture account produced both PostgreSQL 18.4
+archives with the backup role. It encrypted the archives, report and identity,
+wrapped the encryption key with the custodian's public key and removed the
+source cluster and plaintext inputs.
+Windows denied the capture account access to the private key with Win32 error 5.
+
+The custodian authenticated all four components before creating a fresh
+loopback cluster. Both transactional restores exited 0 and the limited role
+checks passed. Row counts and hashes matched across seven seeded tables,
+including a pgvector embedding. The marker written after the cut was absent.
+The report verifier checked the restored bytes and original receipt. The
+coordinator returned `completed` then `idle` with one reconciliation and zero
+agent calls.
+
+Both clusters and the temporary accounts were removed and the Sandbox was
+closed. The [local restore evidence](../acceptance/custody/2026-11-10-local-restore/README.md)
+records the checked results and artifact hashes.
+The test used synthetic data on one machine. Remote restoration remains pending
+until a second preproduction machine is available.
+
 Historical context: supplied Windows-local vault note
 `ec881df6-73db-4f09-a20e-422553898155` records the earlier joint restoration
 rehearsal and its synthetic limits; those results are not counted as new evidence.
