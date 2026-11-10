@@ -1,4 +1,5 @@
 import pg, { type PoolClient } from 'pg'
+import { operationalPort } from 'forge-persistence-gateway'
 import type { Artifact, Change, Claim, EffectKind, EffectPolicy, EffectReceipt, FailureCode, Job, JobStore, WorkerIdentity } from './types.js'
 import { LeaseLostError } from './types.js'
 
@@ -17,6 +18,7 @@ export class PostgresJobStore implements JobStore {
   constructor(connectionString: string, readonly leaseMs = 30_000) {
     if (!Number.isInteger(leaseMs) || leaseMs < 300 || leaseMs > 300_000) throw new RangeError('leaseMs must be 300..300000')
     this.pool = new pg.Pool({ connectionString, max: 2, connectionTimeoutMillis: 5_000, statement_timeout: 15_000, application_name: 'forge-coordinator-state' })
+    return operationalPort(this)
   }
   close(): Promise<void> { return this.pool.end() }
 

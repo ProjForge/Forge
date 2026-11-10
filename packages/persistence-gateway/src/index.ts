@@ -1,4 +1,5 @@
 export * from './domain/errors.js'
 export * from './domain/json.js'
 export * from './domain/types.js'
+export { OperationalGate, withOperationalAdmission, operationalPort } from './operational-gate.js'
 export { ForgePersistenceGateway } from './postgres/forge-persistence-gateway.js'

@@ -1,4 +1,4 @@
-import { NotFoundError, type Execution, type Task } from 'forge-persistence-gateway'
+import { NotFoundError, withOperationalAdmission, type Execution, type Task } from 'forge-persistence-gateway'
 import { LeaseLostError, PilotFailure, type Artifact, type ArtifactPublisher, type CorePort, type Handler, type Job, type JobStore, type EffectReceipt, type WorkerIdentity } from './types.js'
 import { reportIdentity } from './report-publisher.js'
 
@@ -18,6 +18,10 @@ export class Coordinator {
   }
 
   async runOnce(worker: WorkerIdentity, handler: Handler): Promise<'idle' | 'completed' | 'lost' | 'failed'> {
+    return withOperationalAdmission(() => this.runAdmitted(worker, handler))
+  }
+
+  private async runAdmitted(worker: WorkerIdentity, handler: Handler): Promise<'idle' | 'completed' | 'lost' | 'failed'> {
     await this.core.assertReady()
     const claim = await this.store.claim(worker, { kind: this.options.publisher?.kind ?? 'none', targetId: this.options.publisher?.targetId ?? '' }, this.options.recovery)
     if (!claim) return 'idle'

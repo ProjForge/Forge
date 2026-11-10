@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin', [ValidateRange(1024,65535)][int]$Port=55441,
-    [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
+    [switch]$OperationalCoherent, [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runRoot=[IO.Path]::GetFullPath((Join-Path $workspace '.run'))
@@ -8,7 +8,9 @@ $root=[IO.Path]::GetFullPath((Join-Path $runRoot ('coordinator-pilot-'+[Guid]::N
 if (-not $root.StartsWith($runRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe pilot root' }
 $started=$false
 $targetStarted=$false
-if ($CoherentBackup) { $SplitDatabaseRestore=$true }
+$operationalRoot=$null
+$previousOperationalRoot=$env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT
+if ($CoherentBackup -or $OperationalCoherent) { $SplitDatabaseRestore=$true }
 $previousKeyFile=$env:FORGE_COHERENT_TEST_KEY_FILE
 # Obtain unused generated loopback ports for the two-cluster drill only.
 function Get-FixturePort {
@@ -68,7 +70,27 @@ try {
     if ($JointRestore -and $LiveAgent) { throw 'Joint restore requires the synthetic provider' }
     if ($LiveAgent -and ([string]::IsNullOrWhiteSpace($AgentModel) -or [string]::IsNullOrWhiteSpace($AgentBaseUrl))) { throw 'Live agent model and loopback base URL must not be blank' }
     New-Item -ItemType Directory -Force -Path $root | Out-Null
-    if ($SplitDatabaseRestore) {
+    if ($OperationalCoherent) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $runRoot 'evidence/operational-coherent') | Out-Null
+        # The managed worker redirects TEMP to E:. Select the authorized local
+        # disposable C: temporary parent explicitly, then prove device identity.
+        $externalParent=[IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Temp'))+'\'
+        if ([IO.Path]::GetPathRoot($externalParent) -ne 'C:\') { throw 'Operational acceptance requires disposable C temp storage' }
+        $operationalRoot=Join-Path $externalParent ('forge-operational-'+[Guid]::NewGuid().ToString('N'))
+        $privateAcl=New-Object Security.AccessControl.DirectorySecurity
+        $privateOwner=[Security.Principal.WindowsIdentity]::GetCurrent().User
+        $privateAcl.SetOwner($privateOwner)
+        $privateAcl.SetAccessRuleProtection($true,$false)
+        $privateAcl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($privateOwner,'FullControl','ContainerInherit,ObjectInherit','None','Allow')))
+        [IO.Directory]::CreateDirectory($operationalRoot,$privateAcl) | Out-Null
+        $actualAcl=[IO.Directory]::GetAccessControl($operationalRoot)
+        $actualRules=@($actualAcl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+        if (-not $actualAcl.AreAccessRulesProtected -or $actualRules.Count -ne 1 -or $actualRules[0].IdentityReference -ne $privateOwner) { throw 'Custody ACL identity mismatch' }
+        @{ownerOnly=$true;inheritanceProtected=$actualAcl.AreAccessRulesProtected;accessRules=$actualRules.Count;custody='synthetic RSA escrow in separately generated private C root';checkedAt=[datetime]::UtcNow.ToString('o')} |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'evidence/operational-coherent/custody-acl.json') -Encoding UTF8
+        $env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT=$operationalRoot
+    }
+    if ($SplitDatabaseRestore -and -not $OperationalCoherent) {
         # Owner-only separate input, outside every generation. Never log key bytes.
         $keyPath=Join-Path $root 'coherent-fixture.key'
         $keyAcl=New-Object Security.AccessControl.FileSecurity
@@ -84,7 +106,15 @@ try {
         $env:FORGE_COHERENT_TEST_KEY_FILE=$keyPath
     }
     $data=Join-Path $root 'data'
-    & (Join-Path $PostgresBin 'initdb.exe') -D $data -U forge_pilot -A trust --locale=C --encoding=UTF8 | Out-Null
+    $sourcePassword=''
+    if ($OperationalCoherent) {
+        $sourcePassword=[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')
+        $sourcePasswordFile=Join-Path $operationalRoot 'source-init-password'
+        [IO.File]::WriteAllText($sourcePasswordFile,$sourcePassword+"`n",(New-Object Text.UTF8Encoding($false)))
+        try { & (Join-Path $PostgresBin 'initdb.exe') -D $data -U forge_pilot -A scram-sha-256 --pwfile=$sourcePasswordFile --locale=C --encoding=UTF8 | Out-Null }
+        finally { Remove-Item -LiteralPath $sourcePasswordFile -Force }
+        $env:PGPASSWORD=$sourcePassword
+    } else { & (Join-Path $PostgresBin 'initdb.exe') -D $data -U forge_pilot -A trust --locale=C --encoding=UTF8 | Out-Null }
     if ($LASTEXITCODE -ne 0) { throw 'Pilot cluster initialization failed' }
     $started=$true # Startup failure can still leave an owned server running.
     & (Join-Path $PostgresBin 'pg_ctl.exe') -D $data -l (Join-Path $root 'postgres.log') -o "-h 127.0.0.1 -p $Port" -w start
@@ -98,8 +128,10 @@ try {
     }
     & (Join-Path $PostgresBin 'createdb.exe') -h 127.0.0.1 -p $Port -U forge_pilot forge_coordinator_pilot
     if ($LASTEXITCODE -ne 0) { throw 'Pilot database creation failed' }
-    $env:FORGE_ADMIN_DATABASE_URL="postgresql://forge_pilot@127.0.0.1:$Port/forge_coordinator_pilot"
+    $sourceUser=if ($OperationalCoherent) {"forge_pilot:${sourcePassword}"} else {"forge_pilot"}
+    $env:FORGE_ADMIN_DATABASE_URL="postgresql://${sourceUser}@127.0.0.1:$Port/forge_coordinator_pilot"
     $env:FORGE_DATABASE_URL=$env:FORGE_ADMIN_DATABASE_URL
+    if ($OperationalCoherent) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
     & node packages/schema/scripts/migrate.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Pilot Core migrations failed' }
     $env:FORGE_RUNTIME_PASSWORD=[Guid]::NewGuid().ToString('N')
@@ -109,9 +141,11 @@ try {
     $env:FORGE_COORDINATOR_TEST_ADMIN_URL=$env:FORGE_ADMIN_DATABASE_URL
     $env:FORGE_COORDINATOR_TEST_ALLOW_SETUP='1'
     if ($SplitDatabaseRestore) {
+        if ($OperationalCoherent) { $env:PGPASSWORD=$sourcePassword }
         & (Join-Path $PostgresBin 'createdb.exe') -h 127.0.0.1 -p $Port -U forge_pilot forge_coordinator_state
+        if ($OperationalCoherent) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
         if ($LASTEXITCODE -ne 0) { throw 'State database creation failed' }
-        $env:FORGE_COORDINATOR_TEST_STATE_ADMIN="postgresql://forge_pilot@127.0.0.1:$Port/forge_coordinator_state"
+        $env:FORGE_COORDINATOR_TEST_STATE_ADMIN="postgresql://${sourceUser}@127.0.0.1:$Port/forge_coordinator_state"
     } else { Remove-Item Env:FORGE_COORDINATOR_TEST_STATE_ADMIN,Env:FORGE_COORDINATOR_TEST_PROVISION -ErrorAction SilentlyContinue }
     if ($LiveAgent) {
         $env:FORGE_COORDINATOR_LIVE_BASE_URL=$AgentBaseUrl
@@ -140,32 +174,48 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
     & npm.cmd run build -w forge-resilience
     if ($LASTEXITCODE -ne 0) { throw 'Resilience build failed' }
-    & npm.cmd run test:integration -w forge-coordinator
+    if ($OperationalCoherent) {
+        & npm.cmd run build
+        if ($LASTEXITCODE -ne 0) { throw 'Operational topology build failed' }
+        & node scripts/acceptance/operational-coherent.mjs
+    } else { & npm.cmd run test:integration -w forge-coordinator }
     if ($LASTEXITCODE -ne 0) { throw 'Coordinator pilot acceptance failed' }
-    & npm.cmd run test:runtime-role -w forge-postgresql-schema
-    if ($LASTEXITCODE -ne 0) { throw 'Core runtime privilege contract failed' }
+    if (-not $OperationalCoherent) {
+        & npm.cmd run test:runtime-role -w forge-postgresql-schema
+        if ($LASTEXITCODE -ne 0) { throw 'Core runtime privilege contract failed' }
+    }
 } catch {
     @{status='FAIL';checkedAt=[datetime]::UtcNow.ToString('o');errorCode='COORDINATOR_PILOT_FAILED'} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
     throw
 } finally {
     $env:FORGE_COHERENT_TEST_KEY_FILE=$previousKeyFile
+    $env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT=$previousOperationalRoot
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name,$previous[$name]) }
     Pop-Location
     $stopFailures=@()
     # Each owned cluster must be attempted even when the other stop fails.
     foreach ($cluster in @(@{active=$targetStarted;directory='target-data'},@{active=$started;directory='data'})) {
         if ($cluster.active -and (Test-Path -LiteralPath (Join-Path $root $cluster.directory))) {
+            if ($OperationalCoherent -and -not (Test-Path -LiteralPath (Join-Path (Join-Path $root $cluster.directory) 'postmaster.pid'))) { continue }
             try {
                 & (Join-Path $PostgresBin 'pg_ctl.exe') -D (Join-Path $root $cluster.directory) -m fast -w stop
                 if ($LASTEXITCODE -ne 0) { throw 'Stop unconfirmed' }
             } catch { $stopFailures += $cluster.directory }
         }
     }
+    if ($OperationalCoherent) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
     foreach ($name in $pgPrevious.Keys) { [Environment]::SetEnvironmentVariable($name,$pgPrevious[$name]) }
     if ($stopFailures.Count -gt 0) { throw ('Cluster stop unconfirmed; all fixture files retained: '+($stopFailures -join ', ')) }
     if (-not $root.StartsWith($runRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe cleanup root' }
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
+    if ($operationalRoot) {
+        $resolvedExternal=[IO.Path]::GetFullPath($operationalRoot)
+        if (-not $resolvedExternal.StartsWith($externalParent,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolvedExternal) -notmatch '^forge-operational-[a-f0-9]{32}$') { throw 'Unsafe external cleanup root' }
+        if (Test-Path -LiteralPath $resolvedExternal) { Remove-Item -LiteralPath $resolvedExternal -Recurse -Force }
+        @{sourceRoot=$root;externalRoot=$resolvedExternal;sourceRootRemoved=(-not (Test-Path -LiteralPath $root));externalRootRemoved=(-not (Test-Path -LiteralPath $resolvedExternal));bothOwnedClustersStopped=$true;checkedAt=[datetime]::UtcNow.ToString('o')} |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'evidence/operational-coherent/cleanup.json') -Encoding UTF8
+    }
 }
 @{splitDatabaseRestore=[bool]$SplitDatabaseRestore;status='PASS';checkedAt=[datetime]::UtcNow.ToString('o');clusterStopped=$true;targetClusterStopped=[bool]($FreshClusterRestore -or $SplitDatabaseRestore);freshClusterRestore=[bool]$FreshClusterRestore;liveAgent=[bool]$LiveAgent;model=if($LiveAgent){$AgentModel}else{'protocol-fixture'};scope='isolated coordinator acceptance; no production data or workers'} |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
