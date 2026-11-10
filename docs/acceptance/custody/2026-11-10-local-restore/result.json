@@ -1,0 +1,296 @@
+﻿{
+    "runId":  "custody-full-restore",
+    "directoryOwnerMatches":  true,
+    "sourceCommit":  "42031db73e38320889a04d9026af044dcbb03eee",
+    "accountsRemoved":  true,
+    "fixtureOnly":  true,
+    "directoryAclProtected":  true,
+    "networkDefaultRoutes":  0,
+    "tests":  [
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "fileOnlyCustodian":  true,
+                                     "fileAclProtected":  true,
+                                     "crypto":  {
+                                                    "role":  "init",
+                                                    "node":  "v22.23.4",
+                                                    "syntheticRsa":  true,
+                                                    "pemPresentAtStart":  true,
+                                                    "database":  {
+
+                                                                 }
+                                                },
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "administrator":  false,
+                                     "nodeExit":  0,
+                                     "backupOperator":  false,
+                                     "fileOwnerMatches":  true,
+                                     "passed":  true,
+                                     "role":  "init",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "init"
+                  },
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidHash":  "67b40ccd68d954c3940b80bc362451483445ac8bf90256e2b323d60badec63a3",
+                                     "custodianResultWriteDenied5":  true,
+                                     "crypto":  {
+                                                    "role":  "capture",
+                                                    "node":  "v22.23.4",
+                                                    "controlRead":  true,
+                                                    "read":  {
+                                                                 "code":  "EPERM",
+                                                                 "errno":  -4048
+                                                             },
+                                                    "writeWithoutTruncate":  {
+                                                                                 "code":  "EPERM",
+                                                                                 "errno":  -4048
+                                                                             },
+                                                    "keyId":  "fixture",
+                                                    "wrappedRecordCreated":  true,
+                                                    "originalsRemoved":  true,
+                                                    "keyZeroized":  true,
+                                                    "database":  {
+                                                                     "exits":  [
+                                                                                   {
+                                                                                       "tool":  "postgres.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "initdb.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_ctl.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "node.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "node.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_dump.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_dump.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_ctl.exe",
+                                                                                       "code":  0
+                                                                                   }
+                                                                               ],
+                                                                     "postgresVersion":  "postgres (PostgreSQL) 18.4",
+                                                                     "phase":  "dump",
+                                                                     "preflight":  {
+                                                                                       "beforeDDL":  true,
+                                                                                       "pathOwned":  true,
+                                                                                       "loopback":  true,
+                                                                                       "systemIdentifierHash":  "a0423b8aed2ffc8f282b6755f6e5fb13462f3f9217c36b27e1c87ffcc2a9d442",
+                                                                                       "port":  49671
+                                                                                   },
+                                                                     "vector":  "synthetic pgvector [1,0,0]",
+                                                                     "sqlDenials":  [
+                                                                                        "42501",
+                                                                                        "42501",
+                                                                                        "42501",
+                                                                                        "42501"
+                                                                                    ],
+                                                                     "cutData":  {
+                                                                                     "projects":  {
+                                                                                                      "count":  1,
+                                                                                                      "sha256":  "6930a966bac10793a2f8091d06360c9592b16cb99ca5524f1253ba33c585af07"
+                                                                                                  },
+                                                                                     "memories":  {
+                                                                                                      "count":  1,
+                                                                                                      "sha256":  "a099fe723b2f0286e043fc76f3174faa20d47c0cb0a2db685665513a08985ffe"
+                                                                                                  },
+                                                                                     "executions":  {
+                                                                                                        "count":  1,
+                                                                                                        "sha256":  "3950bd744eb4a8376268127685fdeb70ec24863b7872ceac4dd445f57e2e4d27"
+                                                                                                    },
+                                                                                     "tasks":  {
+                                                                                                   "count":  1,
+                                                                                                   "sha256":  "ee847eaa492eb434eb9dfd492c462198d811bc222444f279aeab148bb9d77f30"
+                                                                                               },
+                                                                                     "embedding_profiles":  {
+                                                                                                                "count":  1,
+                                                                                                                "sha256":  "82e8267df16d645a5a92026f1797ad638309dc48001f3ef0e009dc2ab3e1cc35"
+                                                                                                            },
+                                                                                     "embeddings":  {
+                                                                                                        "count":  1,
+                                                                                                        "sha256":  "f26d5f9d7445b011c75101ebba7786ab5a0fabc083c911907bea973d59fb7777"
+                                                                                                    },
+                                                                                     "jobs":  {
+                                                                                                  "count":  1,
+                                                                                                  "sha256":  "5bc8dbe8a0787846fb1476acf3af1ef0c546e174aa54d2aa94364b4b3f046a08"
+                                                                                              }
+                                                                                 },
+                                                                     "receiptHash":  "ba46405aba94c0eb0c55b378b08194ecb6ccc5a818719eced733d870ebb3b0a7",
+                                                                     "reportHash":  "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+                                                                     "sourceRoleContract":  true,
+                                                                     "receiptCommittedBeforeCoreMemory":  true,
+                                                                     "postCutoffMarkerCreated":  true,
+                                                                     "clusterStoppedAndRemoved":  true,
+                                                                     "reportRemoved":  true
+                                                                 }
+                                                },
+                                     "privateOpenHresult":  "0x80070005",
+                                     "ownMoveAllowed":  true,
+                                     "administrator":  false,
+                                     "nodeExit":  0,
+                                     "backupOperator":  false,
+                                     "passed":  true,
+                                     "moves":  [
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   },
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   }
+                                               ],
+                                     "win32Error":  5,
+                                     "role":  "capture",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "capture"
+                  },
+                  {
+                      "processExit":  0,
+                      "launcher":  "LogonUser interactive token + CreateProcessWithTokenW private nonvisible station",
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidMatchesExpected":  true,
+                                     "passed":  true,
+                                     "nodeExit":  0,
+                                     "role":  "restore",
+                                     "crypto":  {
+                                                    "role":  "restore",
+                                                    "node":  "v22.23.4",
+                                                    "pemPresentAtStart":  true,
+                                                    "originalsAbsent":  true,
+                                                    "wrongPrivateRejected":  true,
+                                                    "missingWrappedRejected":  true,
+                                                    "wrongSymmetricRejectedBeforeCallback":  true,
+                                                    "tamperRejectedBeforeCallback":  true,
+                                                    "noTargetBeforeAuthentication":  true,
+                                                    "tempPathsPrivate":  true,
+                                                    "callbackAclOnlyCustodian":  true,
+                                                    "exactComponents":  4,
+                                                    "pemPresentAtEnd":  true,
+                                                    "keyZeroized":  true,
+                                                    "database":  {
+                                                                     "phase":  "reconcile",
+                                                                     "exits":  [
+                                                                                   {
+                                                                                       "tool":  "initdb.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_ctl.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_restore.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_restore.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "node.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "node.exe",
+                                                                                       "code":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "tool":  "pg_ctl.exe",
+                                                                                       "code":  0
+                                                                                   }
+                                                                               ],
+                                                                     "preflight":  {
+                                                                                       "beforeDDL":  true,
+                                                                                       "pathOwned":  true,
+                                                                                       "loopback":  true,
+                                                                                       "systemIdentifierHash":  "8ce9481a024f5b52524dc2506ee6ff4a2a93f4692f7124bf1466d1f16fbfb90a",
+                                                                                       "port":  49690
+                                                                                   },
+                                                                     "distinctTarget":  true,
+                                                                     "cutData":  {
+                                                                                     "projects":  {
+                                                                                                      "count":  1,
+                                                                                                      "sha256":  "6930a966bac10793a2f8091d06360c9592b16cb99ca5524f1253ba33c585af07"
+                                                                                                  },
+                                                                                     "memories":  {
+                                                                                                      "count":  1,
+                                                                                                      "sha256":  "a099fe723b2f0286e043fc76f3174faa20d47c0cb0a2db685665513a08985ffe"
+                                                                                                  },
+                                                                                     "executions":  {
+                                                                                                        "count":  1,
+                                                                                                        "sha256":  "3950bd744eb4a8376268127685fdeb70ec24863b7872ceac4dd445f57e2e4d27"
+                                                                                                    },
+                                                                                     "tasks":  {
+                                                                                                   "count":  1,
+                                                                                                   "sha256":  "ee847eaa492eb434eb9dfd492c462198d811bc222444f279aeab148bb9d77f30"
+                                                                                               },
+                                                                                     "embedding_profiles":  {
+                                                                                                                "count":  1,
+                                                                                                                "sha256":  "82e8267df16d645a5a92026f1797ad638309dc48001f3ef0e009dc2ab3e1cc35"
+                                                                                                            },
+                                                                                     "embeddings":  {
+                                                                                                        "count":  1,
+                                                                                                        "sha256":  "f26d5f9d7445b011c75101ebba7786ab5a0fabc083c911907bea973d59fb7777"
+                                                                                                    },
+                                                                                     "jobs":  {
+                                                                                                  "count":  1,
+                                                                                                  "sha256":  "5bc8dbe8a0787846fb1476acf3af1ef0c546e174aa54d2aa94364b4b3f046a08"
+                                                                                              }
+                                                                                 },
+                                                                     "exactCutData":  true,
+                                                                     "vectorRestored":  true,
+                                                                     "targetRoleContracts":  true,
+                                                                     "sameCanonicalNewNtfsIdentity":  true,
+                                                                     "reconciliation":  1,
+                                                                     "handlerReplay":  0,
+                                                                     "providerReplay":  0,
+                                                                     "executions":  1,
+                                                                     "taskMemories":  1,
+                                                                     "taskDone":  true,
+                                                                     "receiptHash":  "ba46405aba94c0eb0c55b378b08194ecb6ccc5a818719eced733d870ebb3b0a7",
+                                                                     "reportHash":  "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+                                                                     "postCutoffAbsent":  true,
+                                                                     "clusterStoppedAndRemoved":  true
+                                                                 }
+                                                },
+                                     "backupOperator":  false,
+                                     "administrator":  false
+                                 },
+                      "role":  "restore"
+                  }
+              ],
+    "distinctRealSids":  true,
+    "privateMaterial":  "guest-native-NTFS; destroyed with owned Sandbox",
+    "tasksRemoved":  true,
+    "passed":  true,
+    "directoryOnlyCustodian":  true
+}

@@ -59,6 +59,13 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Local Core and coordinator restore passed under the separate custodian account
+  in an offline Windows Sandbox. The custodian authenticated four components
+  and restored both PostgreSQL 18.4 databases. Row hashes matched in seven
+  synthetic tables, including a pgvector row. Report reconciliation preserved
+  the receipt and completed the task without calling the agent.
+  [Local restore evidence](acceptance/custody/2026-11-10-local-restore/README.md)
+  records the scope and artifact hashes.
 - Separate-account custody passed in a disposable network-disabled Windows Sandbox.
   Two standard effective identities exercised private-key read/write/move denial,
   public-key capture and custodian verification of four synthetic components.

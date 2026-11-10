@@ -1,0 +1,2 @@
+# Preserve the reviewed evidence bytes across checkouts.
+*.json -text whitespace=cr-at-eol,-blank-at-eof
