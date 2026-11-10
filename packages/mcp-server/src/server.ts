@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
   ForgeGatewayError,
+  withOperationalAdmission,
   type CompileContinuationInput,
   type CreateTaskInput,
   type JsonObject,
@@ -143,7 +144,7 @@ async function invoke(
   logger: (message: string) => void,
 ): Promise<CallToolResult> {
   try {
-    return success(await operation())
+    return success(await withOperationalAdmission(operation))
   } catch (error) {
     if (error instanceof ForgeGatewayError) {
       return failure(error.code, error.message)

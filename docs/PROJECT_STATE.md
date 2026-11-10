@@ -52,10 +52,37 @@ physical WAL/PITR are separate recovery layers.
 - ADR-011 — opt-in local review agent has no tool authority. Immutable local
   reports use a frozen target, durable prepared output and verified receipts;
   arbitrary external effects need their own receiver-side contract.
+- ADR-013 — disposable operational coherent backup uses shared admission/drain,
+  durable limited-role SQL sealing, protected fixture escrow and a distinct-volume
+  authenticated replica. No production activation or independent-host guarantee.
 
 ## Current Work
 
 NOW:
+- Operational coherent security closure: synthetic source SCRAM, private C: transient
+  initdb password, NOLOGIN backup via operator pg_dump --role. Both-DB normal
+  transaction probes verify 42501; authentication negatives cover 28P01 and
+  correct writer credentials after sealing. Current evidence: `.run/evidence/operational-coherent/`.
+- Opt-in operational coherent preproduction adds a shared fail-closed admission/
+  drain gate at Gateway, MCP invoke, Workbench service, embedding batch and
+  coordinator/store/report boundaries. Whole jobs retain admission through effect
+  and receipt. Durable limited-role NOLOGIN/session drain covers direct SQL/DDL
+  in both declared DBs; only the trusted SCRAM superuser operator remains LOGIN.
+  The backup role is NOLOGIN and pg_dump selects it with --role. Unknown logins/unsafe backup privileges reject.
+  Timeout, crashed admissions and controller/ownership loss never auto-reopen.
+  Synthetic RSA-OAEP key custody uses separate owner-ACL escrow; distinct E:/C:
+  devices are authenticated before atomic replica publication. Independent restore
+  rereads custody only after source cluster, primary bundle and dumps are removed.
+  Disposable target restores both archives and reconciles the original receipt
+  once without replay. Production remains inactive; same-host custody/storage,
+  trusted operator and unknown receiver/manual-reconciliation limits remain.
+  Guide: COHERENT-BACKUP.md; evidence: `.run/evidence/operational-coherent/`.
+  PS5.1 / Node 22.23.4 / PG18.4 actual exit 0: seven preflight/custody/replica negatives,
+  ownership/controller-loss no-publication, eleven late-operation families,
+  both-DB SQL/DDL rejection, independent receipt reconciliation with zero replay.
+  Current RPO/RTO and restore-child measurements are in the evidence metrics. Restore uses parent fork IPC, no disk
+  configuration/--restore entry, with child target/path/hash/PGDATA preflight; both generated roots
+  removed. Previous coherent mode also passes 23/23 native + role 1/1, exit 0.
 - Windows startup accepted after a real restart. The scheduled task exited 0,
   index status was fresh PASS, and Task Scheduler observed one instance at peak.
   LM Studio returned a real 1024-dimensional vector and both Codex MCPs responded
@@ -70,9 +97,11 @@ NOW:
   locks reject concurrent DML/row locks. Key input has owner-only ACL and is reread
   at restore. Wrong/mixed/missing/tampered generations never reach either restore.
   No automatic retention deletion; independent local copy authentication tested.
-  Production still requires real cross-writer barrier, key custody, independent
-  replica/retention integration and manual handling of survivor reports without
-  receipts. No product scheduling or activation. Guide: COHERENT-BACKUP.md.
+  This earlier callback-only rehearsal is superseded for operational preproduction
+  by the separately opt-in gate/custody/replica mode above. Production still needs
+  reviewed topology activation, independent-host custody/replica/retention policy
+  and manual handling of survivor reports without receipts. No product scheduling
+  or activation. Guide: COHERENT-BACKUP.md.
   Final 2026-11-09 PS5.1 / Node 22.23.4 / PG18.4: OS exit 0, native 23/23,
   source/target role 1/1, five encrypted-generation negatives, one retained
   receipt/effect and zero handler/provider replay. Full check/diff check 0;
@@ -221,8 +250,9 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Integrate the coherent backup lease with all actual writers and establish protected
-  key custody/independent replicas/retention before production worker activation.
+- Review production topology/gate activation, independent-host custody and replica/
+  retention policy before any production worker activation. Local disposable
+  operational acceptance does not authorize that activation.
   Exhausted jobs and survivor reports without receipts require manual reconciliation.
 - Accept another effect receiver only with durable idempotency/reconciliation;
   the current contract covers immutable local reports on retained storage.

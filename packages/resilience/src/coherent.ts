@@ -16,14 +16,14 @@ export type CoherentFiles = Record<CoherentRole, string>
 export interface CoherentKey { keyId: string; key: Uint8Array }
 
 /** Capture to a caller-owned new private path while its maintenance lease is held. */
-export async function captureCoherentPostgresArchive(options: { connectionString: string; postgresBin: string; destination: string }): Promise<void> {
+export async function captureCoherentPostgresArchive(options: { connectionString: string; postgresBin: string; destination: string; role?: string }): Promise<void> {
   const connection = safeConnection(options.connectionString)
   const tool = resolvePostgresTool('pg_dump', options.postgresBin)
   // Exclusive output creation prevents accidental overwrite of a prior capture.
   const { open: openFile } = await import('node:fs/promises')
   const output = await openFile(options.destination, 'wx', 0o600)
   try {
-    const postgres = spawnPostgres(tool, ['--format=custom', `--dbname=${connection.connectionArgument}`], connection.environment)
+    const postgres = spawnPostgres(tool, ['--format=custom', `--dbname=${connection.connectionArgument}`, ...(options.role ? [`--role=${options.role}`] : [])], connection.environment)
     postgres.child.stdin.end()
     const timer = setTimeout(() => postgres.child.kill(), 30_000)
     try {

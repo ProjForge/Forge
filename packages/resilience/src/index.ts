@@ -31,3 +31,5 @@ export type {
   PhysicalManifest,
   PhysicalPackageResult,
 } from './types.js'
+export { createWrappedCoherentKey, readWrappedCoherentKey, replicateCoherentGeneration } from './coherent-custody.js'
+export { sealCoherentDatabases } from './coherent-database-gate.js'

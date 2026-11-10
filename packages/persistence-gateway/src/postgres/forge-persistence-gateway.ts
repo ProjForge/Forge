@@ -1,5 +1,6 @@
 import pg, { type PoolClient } from 'pg'
 import { createHash } from 'node:crypto'
+import { operationalPort } from '../operational-gate.js'
 import {
   ConflictError,
   NotFoundError,
@@ -218,14 +219,14 @@ export class ForgePersistenceGateway {
     maxConnections?: number
     statementTimeoutMs?: number
   }): ForgePersistenceGateway {
-    return new ForgePersistenceGateway(new Pool({
+    return operationalPort(new ForgePersistenceGateway(new Pool({
       connectionString: options.connectionString,
       max: options.maxConnections ?? 10,
       connectionTimeoutMillis: 5_000,
       idleTimeoutMillis: 30_000,
       statement_timeout: options.statementTimeoutMs ?? 15_000,
       application_name: 'forge-persistence-gateway-0.1.5',
-    }))
+    })))
   }
 
   async close(): Promise<void> {

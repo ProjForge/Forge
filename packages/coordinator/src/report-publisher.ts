@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { link, lstat, open, realpath, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { lstatSync, realpathSync } from 'node:fs'
+import { operationalPort } from 'forge-persistence-gateway'
 import type { Artifact, ArtifactPublisher, EffectReceipt } from './types.js'
 import { PilotFailure } from './types.js'
 
@@ -20,6 +21,7 @@ export class ImmutableReportPublisher implements ArtifactPublisher {
     const info = lstatSync(root, { bigint: true })
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Report root must not be a link')
     this.targetId = this.targetIdentity()
+    return operationalPort(this)
   }
 
   private targetIdentity(): string {
@@ -120,6 +122,7 @@ export class RestoredReportVerifier implements ArtifactPublisher {
     if (normalizePath(realpathSync(root)) !== normalizePath(original.canonicalPath)) throw new PilotFailure('EFFECT_TARGET_CHANGED')
     this.targetId = targetIdentity(original.canonicalPath, original.dev, original.ino)
     if (this.targetId === this.replacement.targetId) throw new PilotFailure('EFFECT_TARGET_CHANGED')
+    return operationalPort(this)
   }
   async publish(input: Parameters<ArtifactPublisher['publish']>[0]): Promise<EffectReceipt> {
     const expected = input.expected

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { ForgeGatewayError } from 'forge-persistence-gateway'
+import { ForgeGatewayError, withOperationalAdmission } from 'forge-persistence-gateway'
 import { EmbeddingWorkerError } from './errors.js'
 import { defaultSleep, withProviderRetry } from './retry.js'
 import type {
@@ -56,6 +56,10 @@ function validateProviderResult(
 }
 
 export async function runEmbeddingWorker(options: EmbeddingWorkerOptions): Promise<EmbeddingWorkerResult> {
+  return withOperationalAdmission(() => runAdmitted(options))
+}
+
+async function runAdmitted(options: EmbeddingWorkerOptions): Promise<EmbeddingWorkerResult> {
   const projectId = requiredText('projectId', options.projectId)
   const profileKey = requiredText('profileKey', options.profile.profileKey)
   const dimensions = integerInRange('dimensions', options.profile.dimensions, 1, 4096)

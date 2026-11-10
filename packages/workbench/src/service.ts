@@ -1,3 +1,4 @@
+import { operationalPort } from 'forge-semantic-bridge/workbench'
 import type {
   CatalogPage,
   Agent,
@@ -78,7 +79,7 @@ export class ForgeWorkbenchService {
     private readonly searchPort: TextSearchPort,
     private readonly recoveryHealth?: RecoveryHealthPort,
     private readonly operationalHealth?: OperationalHealthPort,
-  ) {}
+  ) { return operationalPort(this) }
 
   async status() {
     const [database, recovery, operational] = await Promise.all([
