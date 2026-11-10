@@ -267,6 +267,31 @@ were removed. Workbench's expected closed-gate HTTP rejection is logged on stder
 Earlier coherent-mode native 23/23 and Core role 1/1 results remain historical;
 they are not additional tests run by OperationalCoherent.
 
+### Local custody under separate Windows accounts
+
+The 2026-11-10 custody-only rehearsal used two temporary standard accounts in a
+network-disabled Windows Sandbox. Actual child tokens had distinct SIDs and
+lacked administrator, Backup Operators and backup/restore/take-ownership
+privileges. The custodian created the private RSA key under its exclusive ACL.
+The capture account received only the public key. Windows denied opening the
+private key for read/write and moving either the key or its directory with
+Win32 error 5. A permitted control-file move succeeded.
+
+The capture account used the existing wrapping and generation code; the custodian
+unwrapped the key and verified all four synthetic components after removing the
+original inputs. Wrong keys, missing wrapped material and altered ciphertext
+were rejected before the callback. Each plaintext temporary file had a custodian-only
+ACL. All three child processes exited 0; the temporary accounts and tasks were
+removed and the owned Sandbox was closed. [Durable sanitized evidence](../acceptance/custody/2026-11-10/README.md)
+includes the artifact hashes and runtime provenance. The full local trace remains
+in `.run/evidence/custody-separate-account/`.
+
+This acceptance covers local separation between standard accounts. The trusted
+guest SYSTEM supervisor provisions the fixture. The capture account holds the
+transient symmetric key while sealing. Database restoration and earlier RPO/RTO
+results belong to their separate rehearsals. Remote restoration remains pending
+until a second preproduction machine is available.
+
 Historical context: supplied Windows-local vault note
 `ec881df6-73db-4f09-a20e-422553898155` records the earlier joint restoration
 rehearsal and its synthetic limits; those results are not counted as new evidence.
