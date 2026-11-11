@@ -1,0 +1,21 @@
+{
+  "fixtureCheckedAtUtc": "2026-11-11T22:32:39.0861097Z",
+  "node": "v22.23.4",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "mode": "JointRestore",
+  "fixtureStatus": "PASS",
+  "nativeProcessExitCode": 0,
+  "nativeTests": { "passed": 25, "failed": 0, "skipped": 0 },
+  "limitedRoleTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "clusterStopped": true,
+  "listenerClosed": true,
+  "newFixtureRoots": 0,
+  "npmCheckExitCode": 0,
+  "diffCheckExitCode": 0,
+  "selectedTap": [
+    "ok 9 - the pilot CLI enqueues, runs and inspects without exposing saved content",
+    "ok 11 - death on the final attempt becomes visible failed work rather than an endless retry",
+    "ok 12 - list-blocked scopes, redacts and pages without mutating state or effects",
+    "ok 1 - runtime role follows the least-privilege contract"
+  ]
+}

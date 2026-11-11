@@ -30,6 +30,23 @@ export class PostgresJobStore implements JobStore {
     return result.rows[0] ?? null
   }
 
+  async listBlocked(projectId: string, afterJobId?: string): Promise<{ jobs: Record<string, unknown>[]; nextAfterJobId: string | null }> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuid.test(projectId) || (afterJobId !== undefined && !uuid.test(afterJobId))) throw new TypeError('Invalid project or cursor UUID')
+    // One read-only statement: lease classification and page share a DB snapshot.
+    const result = await this.pool.query(`SELECT id,project_id,task_id,task_key,agent_id,state,attempts,max_attempts,
+      error_code,created_at,updated_at,lease_until,effect_kind,
+      artifact IS NOT NULL AS has_prepared_output,effect_receipt IS NOT NULL AS has_effect_receipt,
+      CASE WHEN attempts>=max_attempts THEN 'ATTEMPTS_EXHAUSTED' ELSE NULL END AS exhaustion_reason
+      FROM forge_coordinator.jobs WHERE project_id=$1
+      AND ($2::uuid IS NULL OR id>$2)
+      AND (state='failed' OR (attempts>=max_attempts AND
+        (state='queued' OR (state='running' AND lease_until<=statement_timestamp()))))
+      ORDER BY id LIMIT 51`, [projectId, afterJobId ?? null])
+    const jobs = result.rows.slice(0, 50) as Record<string, unknown>[]
+    return { jobs, nextAfterJobId: result.rows.length > 50 ? String(jobs[49]!.id) : null }
+  }
+
   // Internal exact-task checkpoint; never exposed by the status projection.
   async recoveryCheckpoint(projectId: string, taskId: string): Promise<Job | null> {
     const result = await this.pool.query('SELECT * FROM forge_coordinator.jobs WHERE project_id=$1 AND task_id=$2', [projectId, taskId])
