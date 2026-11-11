@@ -1,0 +1,49 @@
+{
+  "status": "validated-locally-remote-run-pending",
+  "archive": {
+    "archiveSha256": "c59e6deb59046c2d97f9878e9a9326a8151f36ba766b6c53d80ae3a4d7703d22",
+    "offline": {
+      "fixture": "offline-local-transfer",
+      "node": "v22.23.4",
+      "postgresClient": "18.4",
+      "materializedComponents": 4,
+      "tamperRejectedBeforeCallback": true,
+      "reportPathValidatedBeforeProvisioning": true,
+      "databaseServersStarted": 0
+    },
+    "planOnlyPassed": true,
+    "extractedScriptsMatched": true
+  },
+  "localPositive": {
+    "destinationMode": "direct-vm",
+    "reportReconciled": true,
+    "fixture": "local-sequential-sandboxes",
+    "sameCustodianForInitRestoreCleanup": true,
+    "postCutoffAbsent": true,
+    "custodianAccessDeniedWin32": 5,
+    "restoredDatabases": 2,
+    "accountsPlaintextAndTaskRemoved": true,
+    "agentCalls": 0,
+    "exactTableHashes": 7
+  },
+  "localNegative": {
+    "destinationMode": "direct-vm",
+    "nativeScheduledTask": true,
+    "privateAndReportRemoved": true,
+    "fixture": "local-offline-sandbox-as-vm",
+    "sameCustodianForInitRestoreCleanup": true,
+    "targetPostgresStarted": false,
+    "manifestVerifyOnly": true,
+    "custodianDeniedOtherAccountWin32": 5,
+    "wrongRsaKeyRejectedBeforeProvisioning": true,
+    "ownedTaskRemoved": true,
+    "temporaryAccountsRemoved": true
+  },
+  "sandboxInstancesClosed": true,
+  "localRelay": "Test-only, rewrapped synthetic key in memory between sequential guests",
+  "positiveEvidence": "restore-result.json",
+  "negativeEvidence": "wrong-key-result.json",
+  "remoteVmProvisioned": false,
+  "remoteRpoRtoMeasured": false,
+  "productionTouched": false
+}

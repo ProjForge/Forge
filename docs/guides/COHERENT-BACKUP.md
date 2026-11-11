@@ -315,6 +315,64 @@ records the checked results and artifact hashes.
 The test used synthetic data on one machine. Remote restoration remains pending
 until a second preproduction machine is available.
 
+### Two-host preproduction rehearsal
+
+The Windows x64 rehearsal kit is staged locally at
+`.run/evidence/cross-host-coherent/kit.zip` with its SHA-256 in
+`kit.zip.sha256`. The archive contains the offline runtimes, launcher, handoff
+instructions and an acceptance record. Extract it on each preproduction host
+and follow its README. Run `input\node.exe Test-Kit.mjs` to check the kit before
+launching either isolated guest. The kit and its synthetic run artifacts stay
+outside Git.
+
+The destination custodian generates the RSA key in its own Windows Sandbox.
+The source receives the public key and checks the independently confirmed
+fingerprint before capture. Transfer only the encrypted generation, wrapped
+key and pinned manifest. The destination authenticates all four components
+under the original custodian SID before provisioning a fresh loopback cluster.
+Keep staging private and immutable during verification. The manifest verifies
+the handoff bytes and the existing coherent-generation code authenticates
+their contents.
+
+Acceptance records both physical hosts, source removal, two transactional
+restores, seven matching table hashes, the report and receipt, zero agent calls,
+the post-cut marker exclusion and both guests' cleanup. Record the simulated
+RPO from the sealed cut to removal of the source cluster and measure RTO from
+the loss declaration to destination verification with a single observer.
+The local kit check covers encrypted transfer and tamper rejection with
+synthetic files. The restore on a second host and its timings are pending.
+
+### Remote Windows VM destination
+
+The alternate kit at `.run/evidence/cross-host-coherent/vm-kit.zip` keeps the
+Windows Sandbox source and runs the destination directly in a disposable Windows
+x64 VM. It includes a separate README, an acceptance record and the native
+launchers from `scripts/acceptance/remote-coherent-vm/`. Rebuild it from a
+checkout using the [kit instructions](../../scripts/acceptance/remote-coherent-vm/README.md).
+Verify the matching SHA-256 before using the VM console.
+
+The destination launcher verifies the expected VM, NTFS paths and default
+routes. It stages the runtime in protected directories and starts an owned
+temporary SYSTEM task. A standard local custodian generates and retains the
+private key. A second standard account tests access denial. After the operator
+submits the pinned encrypted handoff, the same custodian authenticates and
+restores both databases and removes the private material. The supervisor removes
+the temporary accounts and task. Discard the VM and its disk if cleanup cannot
+be verified.
+
+Use a dedicated preproduction VM and a controlled transfer disk or management
+channel. Check isolation from the origin and production before restoring.
+The direct VM launcher passed a local rehearsal in two sequential offline
+Windows Sandbox guests. An in-memory test relay rewrapped the synthetic key
+to the destination custodian. Both PostgreSQL restores passed, seven table
+hashes matched, and report reconciliation made zero agent calls. A separate
+wrong-key run rejected the handoff before PostgreSQL provisioning and verified
+key, account and task cleanup. The
+[local evidence](../acceptance/custody/2026-11-11-vm-restore/README.md) records
+the capture, restore, wrong-key result and archive provenance.
+The remote VM, independent storage, end-to-end run and remote RPO/RTO
+are still pending.
+
 Historical context: supplied Windows-local vault note
 `ec881df6-73db-4f09-a20e-422553898155` records the earlier joint restoration
 rehearsal and its synthetic limits; those results are not counted as new evidence.

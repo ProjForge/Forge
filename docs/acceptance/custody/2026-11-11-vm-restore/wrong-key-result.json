@@ -1,0 +1,119 @@
+﻿{
+    "sourceCommit":  "42031db73e38320889a04d9026af044dcbb03eee",
+    "directoryAclProtected":  true,
+    "passed":  false,
+    "accountsRemoved":  true,
+    "directoryOnlyCustodian":  true,
+    "failureType":  "System.Management.Automation.RuntimeException",
+    "destinationMode":  "direct-vm",
+    "fixtureOnly":  true,
+    "tests":  [
+                  {
+                      "processExit":  0,
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "fileOnlyCustodian":  true,
+                                     "fileAclProtected":  true,
+                                     "crypto":  {
+                                                    "role":  "init",
+                                                    "runId":  "2d5c9f55-88a2-4b0f-af60-8ca084856b6e",
+                                                    "node":  "v22.23.4",
+                                                    "recipientSha256":  "1b7c4ab6a495835005a40065fea69aadd06a63704f3c45263720262fcb8ac6ec",
+                                                    "database":  {
+
+                                                                 }
+                                                },
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "administrator":  false,
+                                     "nodeExit":  0,
+                                     "backupOperator":  false,
+                                     "fileOwnerMatches":  true,
+                                     "passed":  true,
+                                     "role":  "init",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "init"
+                  },
+                  {
+                      "processExit":  0,
+                      "result":  {
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidHash":  "67b40ccd68d954c3940b80bc362451483445ac8bf90256e2b323d60badec63a3",
+                                     "custodianResultWriteDenied5":  true,
+                                     "privateOpenHresult":  "0x80070005",
+                                     "ownMoveAllowed":  true,
+                                     "administrator":  false,
+                                     "backupOperator":  false,
+                                     "passed":  true,
+                                     "moves":  [
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   },
+                                                   {
+                                                       "win32":  5,
+                                                       "hresult":  "0x80070005",
+                                                       "denied":  true
+                                                   }
+                                               ],
+                                     "win32Error":  5,
+                                     "role":  "deny",
+                                     "sidMatchesExpected":  true
+                                 },
+                      "role":  "deny"
+                  },
+                  {
+                      "processExit":  1,
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "failure":  "Node probe failed",
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "failureType":  "System.Management.Automation.RuntimeException",
+                                     "sidMatchesExpected":  true,
+                                     "passed":  false,
+                                     "nodeExit":  1,
+                                     "role":  "restore",
+                                     "crypto":  {
+                                                    "role":  "restore",
+                                                    "runId":  "2d5c9f55-88a2-4b0f-af60-8ca084856b6e",
+                                                    "node":  "v22.23.4",
+                                                    "originalsAbsent":  true,
+                                                    "failure":  {
+                                                                    "name":  "Error",
+                                                                    "code":  "ERR_OSSL_RSA_OAEP_DECODING_ERROR"
+                                                                },
+                                                    "database":  {
+
+                                                                 }
+                                                },
+                                     "hresult":  -2146233087,
+                                     "backupOperator":  false,
+                                     "administrator":  false
+                                 },
+                      "role":  "restore"
+                  },
+                  {
+                      "processExit":  0,
+                      "result":  {
+                                     "sidHash":  "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+                                     "forbiddenPrivilegesPresent":  false,
+                                     "sidMatchesExpected":  true,
+                                     "passed":  true,
+                                     "role":  "cleanup",
+                                     "reportRemoved":  true,
+                                     "privateRemoved":  true,
+                                     "backupOperator":  false,
+                                     "administrator":  false
+                                 },
+                      "role":  "cleanup"
+                  }
+              ],
+    "distinctRealSids":  true,
+    "runId":  "2d5c9f55-88a2-4b0f-af60-8ca084856b6e",
+    "directoryOwnerMatches":  true,
+    "hresult":  -2146233087,
+    "hostRole":  "Destination",
+    "failure":  "Failed fixture phase: restore",
+    "privateRemoved":  true
+}
