@@ -240,3 +240,96 @@ test('exact large identities separate numeric collisions and reconcile without r
     assert.throws(() => new RestoredReportVerifier(root, invalid), /EFFECT_TARGET_CHANGED/)
   }
 })
+
+for (const entry of ['report', 'conflict', 'directory', 'link'] as const) {
+  test(`surviving ${entry} with neither checkpoint blocks before admission and requests terminal failure`, async context => {
+    const state = await fixture(context, { admissionRequired: true, staleClaimArtifact: true })
+    state.job.effectReceipt = null
+    const file = path.join(state.root, state.receipt.filename)
+    if (entry !== 'report') {
+      await unlink(file)
+      if (entry === 'conflict') await writeFile(file, 'Conflicting bytes')
+      if (entry === 'directory') await mkdir(file)
+      if (entry === 'link') {
+        const target = path.join(state.root, 'linked-source')
+        await writeFile(target, 'Linked bytes')
+        await fs.promises.link(target, file)
+      }
+    }
+    let terminal: boolean | undefined
+    const fail = state.store.fail
+    state.store.fail = async (claim, code, stop) => { terminal = stop; await fail(claim, code, stop) }
+    assert.equal(await new Coordinator(state.store, state.core, { publisher: state.publisher }).runOnce(worker, async () => {
+      assert.fail('Handler must not run')
+    }), 'failed')
+    assert.equal(terminal, true)
+    assert.equal(state.failure(), 'EFFECT_UNCONFIRMED')
+    assert.deepEqual(state.calls, { assertReady: 1, readTask: 0, readExecution: 0, listExecutions: 0,
+      updateTaskStatus: 0, startExecution: 0, remember: 0, compileContinuationContext: 0, finishExecution: 0 })
+  })
+}
+
+test('receiver absence and identity change never become report absence', async context => {
+  const state = await fixture(context)
+  const key = state.receipt.key
+  await unlink(path.join(state.root, state.receipt.filename))
+  assert.equal(await state.publisher.hasReport(key), false)
+  const moved = state.root + '-moved'
+  context.after(() => rm(moved, { recursive: true, force: true }))
+  await rename(state.root, moved)
+  await assert.rejects(state.publisher.hasReport(key), { code: 'ENOENT' })
+  await mkdir(state.root)
+  await assert.rejects(state.publisher.hasReport(key), /EFFECT_TARGET_CHANGED/)
+})
+
+test('unexpected receiver inspection errors block admission without terminalizing ordinary failures', async context => {
+  const state = await fixture(context, { admissionRequired: true })
+  state.job.effectReceipt = null
+  state.publisher.hasReport = async () => { throw Object.assign(new Error('private receiver detail'), { code: 'EACCES' }) }
+  let terminal: boolean | undefined
+  const fail = state.store.fail
+  state.store.fail = async (claim, code, stop) => { terminal = stop; await fail(claim, code, stop) }
+  assert.equal(await new Coordinator(state.store, state.core, { publisher: state.publisher }).runOnce(worker, async () => {
+    assert.fail('Handler must not run')
+  }), 'failed')
+  assert.equal(terminal, false)
+  assert.equal(state.failure(), 'WORKER_FAILED')
+  assert.equal(state.calls.readTask, 0)
+  assert.deepEqual(state.writes, [])
+})
+
+test('a genuinely absent report with neither checkpoint permits normal generation', async context => {
+  const state = await fixture(context)
+  state.job.effectReceipt = null
+  await unlink(path.join(state.root, state.receipt.filename))
+  let handlerCalls = 0
+  assert.equal(await new Coordinator(state.store, state.core, { publisher: state.publisher }).runOnce(worker, async () => {
+    handlerCalls++; return artifact
+  }), 'completed')
+  assert.equal(handlerCalls, 1)
+  assert.deepEqual(state.job.effectReceipt, state.receipt)
+})
+
+
+test('publisher without receiver inspection fails closed before Core admission on every attempt', async context => {
+  const state = await fixture(context, { admissionRequired: true, staleClaimArtifact: true })
+  state.job.effectReceipt = null
+  const publisher = { kind: state.publisher.kind, targetId: state.publisher.targetId,
+    publish: state.publisher.publish.bind(state.publisher) }
+  let terminal: boolean | undefined
+  const fail = state.store.fail
+  state.store.fail = async (claim, code, stop) => { terminal = stop; await fail(claim, code, stop) }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.equal(await new Coordinator(state.store, state.core, { publisher }).runOnce(worker, async () => {
+      assert.fail('Handler must not run')
+    }), 'failed')
+    assert.equal(state.failure(), 'EFFECT_POLICY_MISMATCH')
+    assert.equal(terminal, false)
+    assert.deepEqual(state.calls, { assertReady: attempt + 1, readTask: 0, readExecution: 0, listExecutions: 0,
+      updateTaskStatus: 0, startExecution: 0, remember: 0, compileContinuationContext: 0, finishExecution: 0 })
+    assert.deepEqual(state.writes, [])
+    assert.equal(state.job.artifact, null)
+    assert.equal(state.job.effectReceipt, null)
+  }
+  assert.deepEqual(await readdir(state.root), [state.receipt.filename])
+})

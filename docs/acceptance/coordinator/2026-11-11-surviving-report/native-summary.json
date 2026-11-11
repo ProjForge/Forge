@@ -1,0 +1,23 @@
+{
+  "exitCode": 0,
+  "node": "v22.23.4",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "port": 55977,
+  "listenerClosed": true,
+  "newFixtureRoots": 0,
+  "stdoutFindings": [
+    "# Subtest: retained receipt rejects artifact loss after worker death following receipt commit",
+    "ok 17 - retained receipt rejects artifact loss after worker death following receipt commit",
+    "# Subtest: a survivor report without either checkpoint fails only its task before Core admission",
+    "ok 19 - a survivor report without either checkpoint fails only its task before Core admission",
+    "# pass 24",
+    "# fail 0",
+    "# skipped 0",
+    "# Subtest: runtime role follows the least-privilege contract",
+    "ok 1 - runtime role follows the least-privilege contract",
+    "# pass 1",
+    "# fail 0",
+    "# skipped 0",
+    "server stopped"
+  ]
+}

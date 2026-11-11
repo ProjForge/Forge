@@ -1,0 +1,11 @@
+﻿{
+    "checkedAt":  "2026-11-11T21:55:35.5099852Z",
+    "liveAgent":  false,
+    "scope":  "isolated coordinator acceptance; no production data or workers",
+    "model":  "protocol-fixture",
+    "freshClusterRestore":  false,
+    "splitDatabaseRestore":  false,
+    "clusterStopped":  true,
+    "status":  "PASS",
+    "targetClusterStopped":  false
+}
