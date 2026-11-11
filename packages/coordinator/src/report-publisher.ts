@@ -6,11 +6,16 @@ import { operationalPort } from 'forge-persistence-gateway'
 import type { Artifact, ArtifactPublisher, EffectReceipt } from './types.js'
 import { PilotFailure } from './types.js'
 
+function reportFilename(key: string): string {
+  if (!key || key.length > 200) throw new Error('Invalid report key')
+  return `${createHash('sha256').update(key).digest('hex')}.report.md`
+}
+
 export function reportIdentity(key: string, artifact: Artifact, targetId: string): { bytes: Buffer; receipt: EffectReceipt } {
   const bytes = Buffer.from(`# ${artifact.title}\n\n${artifact.content}\n`, 'utf8')
   if (bytes.length > 132_000 || !key || key.length > 200) throw new Error('Invalid report payload')
   return { bytes, receipt: { kind: 'immutable-report-v1', key, targetId, sha256: createHash('sha256').update(bytes).digest('hex'),
-    filename: `${createHash('sha256').update(key).digest('hex')}.report.md` } }
+    filename: reportFilename(key) } }
 }
 
 export class ImmutableReportPublisher implements ArtifactPublisher {
@@ -30,13 +35,34 @@ export class ImmutableReportPublisher implements ArtifactPublisher {
     return targetIdentity(canonical, info.dev, info.ino)
   }
 
+  private async validateTarget(): Promise<void> {
+    const info = await lstat(this.root, { bigint: true })
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Report root must not be a link')
+    if (this.targetIdentity() !== this.targetId) throw new PilotFailure('EFFECT_TARGET_CHANGED')
+  }
+
+  async hasReport(key: string): Promise<boolean> {
+    const filename = reportFilename(key)
+    await this.validateTarget()
+    let exists: boolean
+    try {
+      // lstat detects every entry, including dangling links, without reading bytes.
+      await lstat(path.join(this.root, filename))
+      exists = true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      exists = false
+    }
+    // ENOENT is absence only while the pinned receiver still exists unchanged.
+    await this.validateTarget()
+    return exists
+  }
+
   async publish({ key, artifact, signal, expected }: Parameters<ArtifactPublisher['publish']>[0]): Promise<EffectReceipt> {
     signal.throwIfAborted()
     const { bytes, receipt } = reportIdentity(key, artifact, this.targetId)
     if (expected && (expected.kind !== receipt.kind || expected.key !== key || expected.sha256 !== receipt.sha256 || expected.filename !== receipt.filename || expected.targetId !== this.targetId)) throw new PilotFailure('EFFECT_CONFLICT')
-    const rootInfo = await lstat(this.root, { bigint: true })
-    if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('Report root must not be a link')
-    if (this.targetIdentity() !== this.targetId) throw new PilotFailure('EFFECT_TARGET_CHANGED')
+    await this.validateTarget()
     const root = await realpath(this.root)
     const destination = path.join(root, receipt.filename)
     const verify = async (): Promise<boolean> => {

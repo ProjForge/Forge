@@ -52,6 +52,13 @@ anything. The original receipt and target remain immutable. Do not reset retries
 or edit SQL checkpoints. Normal enqueue/worker entry points retain physical
 target pinning and cannot claim this old task on the replacement.
 
+If a report survives in its original receiver and the job has neither prepared
+output nor a receipt, the normal report worker detects the expected filename
+before Core admission. The job becomes terminal with `EFFECT_UNCONFIRMED` in
+`status <projectKey> <taskKey>`. Preserve the file and reconcile the task using
+independent evidence. A retained prepared output still allows an exact matching
+report to reconcile when the worker stopped before the receipt commit.
+
 The native -JointRestore acceptance uses only disposable PostgreSQL and synthetic
 provider output. It removes the full original receiver, holds its emptied inode
 until replacement creation to prevent reuse, removes the old directory, restores

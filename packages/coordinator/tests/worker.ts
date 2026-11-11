@@ -49,7 +49,7 @@ try {
       } catch (error) { process.send?.({ phase: 'fence-error', code: error instanceof Error ? error.name : 'UNKNOWN', elapsedMs: Math.round(performance.now() - started) }); throw error }
     },
     claim: async (identity, effect) => { const claim = await store.claim(identity, effect); currentJob = claim?.job; if (claim) process.send?.({ phase: 'claimed', jobId: claim.job.id, epoch: claim.epoch }); return claim } }
-  const publisher: ArtifactPublisher | undefined = report ? { kind: report.kind, targetId: report.targetId, publish: async (input) => {
+  const publisher: ArtifactPublisher | undefined = report ? { kind: report.kind, targetId: report.targetId, hasReport: key => report.hasReport(key), publish: async (input) => {
     const receipt = await report.publish(input)
     if (mode === 'agent-crash-after-effect') await pause('effect-created')
     return receipt

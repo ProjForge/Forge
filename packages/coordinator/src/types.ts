@@ -7,6 +7,7 @@ export interface EffectReceipt { kind: 'immutable-report-v1'; key: string; sha25
 export interface ArtifactPublisher {
   readonly kind: 'immutable-report-v1'
   readonly targetId: string
+  hasReport?(key: string): Promise<boolean>
   publish(input: { key: string; artifact: Artifact; signal: AbortSignal; expected?: EffectReceipt }): Promise<EffectReceipt>
 }
 export interface Job {
@@ -25,7 +26,7 @@ export interface JobStore {
   claim(worker: WorkerIdentity, effect?: EffectPolicy, recovery?: { taskId: string; receipt: EffectReceipt }): Promise<Claim | null>
   heartbeat(claim: Claim): Promise<boolean>
   fenced<T>(claim: Claim, operation: (job: Job) => Promise<Change<T>>): Promise<T>
-  fail(claim: Claim, code?: FailureCode): Promise<void>
+  fail(claim: Claim, code?: FailureCode, terminal?: boolean): Promise<void>
   readonly leaseMs: number
 }
 export type FailureCode = 'WORKER_FAILED' | 'AGENT_HTTP_ERROR' | 'AGENT_TIMEOUT' | 'AGENT_UNAVAILABLE' | 'AGENT_INVALID_OUTPUT' | 'EFFECT_CONFLICT' | 'EFFECT_UNCONFIRMED' | 'EFFECT_TARGET_CHANGED' | 'EFFECT_POLICY_MISMATCH'

@@ -486,6 +486,69 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     })
   }
 
+  await context.test('a survivor report without either checkpoint fails only its task before Core admission', async () => {
+    const label = 'survivor-no-checkpoints'
+    const agent = await core.registerAgent({ agentKey: `${suffix}-${label}`, name: label })
+    await core.assignAgent(project.id, agent.id, 'recovery-test')
+    const blocked = await enqueue(label, agent.id, 3, true)
+    const next = await enqueue(label + '-next', agent.id, 3, true)
+    const artifact = { title: 'Surviving review', content: 'Original immutable bytes' }
+    const receipt = await publisher.publish({ key: `coordinator:v1:${blocked.projectId}:${blocked.taskId}:report`, artifact, signal: new AbortController().signal })
+    const file = path.join(reportsRoot, receipt.filename)
+    const bytes = await readFile(file)
+    const before = await stat(file, { bigint: true })
+    const snapshot = async () => ({
+      task: await core.getTaskByKey(blocked.projectId, blocked.taskKey),
+      executions: (await core.listExecutions({ projectId: blocked.projectId, taskId: blocked.taskId })).items,
+      memories: (await core.listMemories({ projectId: blocked.projectId, taskId: blocked.taskId })).items,
+      contexts: (await core.listContinuationPackages({ projectId: blocked.projectId })).items,
+    })
+    const original = await snapshot()
+    assert.equal(original.task.status, 'ready')
+    assert.equal(original.executions.length, 0)
+    const coreCalls: string[] = []
+    const observed: CorePort = new Proxy(core, {
+      get(target, property) {
+        const value: unknown = Reflect.get(target, property)
+        if (typeof value !== 'function') return value
+        return (...args: unknown[]) => { coreCalls.push(String(property)); return Reflect.apply(value, target, args) }
+      },
+    })
+    const handled: string[] = []
+    const handler = async (input: Parameters<LocalReportAgent['run']>[0]) => {
+      handled.push(input.task.id)
+      return new LocalReportAgent({ baseUrl: workerEnv.FORGE_COORDINATOR_AGENT_BASE_URL!, model: workerEnv.FORGE_COORDINATOR_AGENT_MODEL! }).run(input)
+    }
+    const coordinator = new Coordinator(store, observed, { publisher })
+    const worker = identity(blocked, 'survivor-recovery')
+    assert.equal(await coordinator.runOnce(worker, handler), 'failed')
+    assert.deepEqual(coreCalls, ['assertReady'])
+    assert.deepEqual(handled, [])
+    assert.equal(calls.get(label) ?? 0, 0)
+    assert.deepEqual(await snapshot(), original)
+    const rejected = (await state.query('SELECT state,artifact,effect_receipt,error_code,attempts FROM forge_coordinator.jobs WHERE id=$1', [blocked.id])).rows[0]
+    assert.deepEqual(rejected, { state: 'failed', artifact: null, effect_receipt: null, error_code: 'EFFECT_UNCONFIRMED', attempts: 1 })
+    const status = await store.inspect(blocked.projectId, blocked.taskId)
+    assert.equal(status?.state, 'failed')
+    assert.equal(status?.error_code, 'EFFECT_UNCONFIRMED')
+    assert.equal(status?.effect_state, 'unconfirmed')
+    assert.equal(await coordinator.runOnce(worker, handler), 'completed')
+    assert.deepEqual(handled, [next.taskId])
+    await assertOne(next)
+    assert.equal(await coordinator.runOnce(worker, handler), 'idle')
+    assert.equal((await store.inspect(blocked.projectId, blocked.taskId))?.attempts, 1)
+    assert.equal(calls.get(label) ?? 0, 0)
+    assert.deepEqual(await readFile(file), bytes)
+    const after = await stat(file, { bigint: true })
+    assert.equal(after.dev, before.dev)
+    assert.equal(after.ino, before.ino)
+    assert.equal(after.mtimeNs, before.mtimeNs)
+    const final = await snapshot()
+    assert.deepEqual(final.task, original.task)
+    assert.deepEqual(final.executions, original.executions)
+    assert.deepEqual(final.memories, original.memories)
+  })
+
   await context.test('an old model worker cannot publish a report after losing ownership', async () => {
     const job = await enqueue('agent-stale-result', agents[1]!.id, 3, true)
     let release!: () => void
@@ -578,7 +641,7 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     count(*) FILTER (WHERE state<>'completed' AND effect_receipt IS NOT NULL)::int AS retained
     FROM forge_coordinator.jobs WHERE project_id=$1`, [project.id])).rows[0]
   context.diagnostic(JSON.stringify({ mode: liveModel ? 'live-local-model' : 'protocol-fixture', model: liveModel ?? 'fixture-review-model', realCalls, totalCalls: [...calls.values()].reduce((sum, count) => sum + count, 0), reports: reportCount, completedConfirmedEffects: counts.completed, retainedReceiptsOnRejectedJobs: counts.retained, conflictsRejected: 1, providerFailures }))
-  assert.equal(counts.completed, 9)
+  assert.equal(counts.completed, 10)
   assert.equal(counts.retained, 2)
   if (liveModel) assert.ok(realCalls >= 10, 'Real model inference must actually run in live acceptance')
 

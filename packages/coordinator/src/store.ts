@@ -102,10 +102,10 @@ export class PostgresJobStore implements JobStore {
     })
   }
 
-  async fail(claim: Claim, code: FailureCode = 'WORKER_FAILED'): Promise<void> {
-    await this.pool.query(`UPDATE forge_coordinator.jobs SET state=CASE WHEN attempts>=max_attempts THEN 'failed' ELSE 'queued' END,
+  async fail(claim: Claim, code: FailureCode = 'WORKER_FAILED', terminal = false): Promise<void> {
+    await this.pool.query(`UPDATE forge_coordinator.jobs SET state=CASE WHEN $5::boolean OR attempts>=max_attempts THEN 'failed' ELSE 'queued' END,
       owner=NULL, lease_until=NULL, error_code=$4, updated_at=clock_timestamp()
-      WHERE id=$1 AND owner=$2 AND epoch=$3 AND state='running' AND lease_until>clock_timestamp()`, [claim.job.id, claim.workerId, claim.epoch, code])
+      WHERE id=$1 AND owner=$2 AND epoch=$3 AND state='running' AND lease_until>clock_timestamp()`, [claim.job.id, claim.workerId, claim.epoch, code, terminal])
   }
 
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {

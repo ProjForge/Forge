@@ -224,7 +224,7 @@ async function main() {
     await store.enqueue({ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }, 3, { kind: publisher.kind, targetId: publisher.targetId })
     // A real report file exists while the receipt transaction has NOT committed.
     const effectWritten = deferred(); const releaseEffect = deferred()
-    const tracked = { kind: publisher.kind, targetId: publisher.targetId, publish: async input => {
+    const tracked = { kind: publisher.kind, targetId: publisher.targetId, hasReport: key => publisher.hasReport(key), publish: async input => {
       const receipt = await publisher.publish(input); effectWritten.resolve(); await releaseEffect.promise; return receipt
     } }
     const faultCore = new Proxy(core, { get(target, key) { if (key === 'remember') return async () => { throw new Error('Simulated interruption after committed receipt') }; const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value } })

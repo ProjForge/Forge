@@ -28,6 +28,7 @@ export class Coordinator {
     const controller = new AbortController()
     let timer: ReturnType<typeof setInterval> | undefined
     let beat: Promise<void> | undefined
+    let terminal = false
     const stopHeartbeat = async () => { clearInterval(timer); await beat }
     try {
       const prepared = await this.store.fenced(claim, async (current) => {
@@ -37,6 +38,14 @@ export class Coordinator {
         if (current.effectReceipt && !current.artifact) throw new PilotFailure('EFFECT_UNCONFIRMED')
         if (this.options.recovery && (current.taskId !== this.options.recovery.taskId || !current.artifact || !current.effectReceipt ||
             Object.keys(this.options.recovery.receipt).some(key => current.effectReceipt![key as keyof EffectReceipt] !== this.options.recovery!.receipt[key as keyof EffectReceipt]))) throw new PilotFailure('EFFECT_UNCONFIRMED')
+        if (!current.artifact && !current.effectReceipt && this.options.publisher) {
+          const publisher = this.options.publisher
+          if (typeof publisher.hasReport !== 'function') throw new PilotFailure('EFFECT_POLICY_MISMATCH')
+          if (await publisher.hasReport(`${executionKey(current)}:report`)) {
+            terminal = true
+            throw new PilotFailure('EFFECT_UNCONFIRMED')
+          }
+        }
         const task = await this.task(current)
         const execution = await this.execution(current, task)
         if (execution.status === 'succeeded') {
@@ -94,7 +103,7 @@ export class Coordinator {
       return 'completed'
     } catch (error) {
       if (error instanceof LeaseLostError) return 'lost'
-      await this.store.fail(claim, error instanceof PilotFailure ? error.code : 'WORKER_FAILED')
+      await this.store.fail(claim, error instanceof PilotFailure ? error.code : 'WORKER_FAILED', terminal)
       return 'failed'
     } finally { controller.abort(); await stopHeartbeat() }
   }

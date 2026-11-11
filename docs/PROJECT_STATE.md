@@ -59,6 +59,12 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- The local report worker detects a surviving report with neither prepared
+  output nor a receipt before Core admission. The affected job ends in
+  `failed / EFFECT_UNCONFIRMED`; other jobs retain their normal claim path.
+  Disposable PostgreSQL 18.4 JointRestore passed 24 native tests and the
+  limited-role contract. The blocked job preserved the report and Core state.
+  [Surviving-report evidence](acceptance/coordinator/2026-11-11-surviving-report/README.md)
 - The two-host Windows preproduction restore kit is staged locally. Its offline
   transfer check authenticated all four synthetic components and rejected
   tampering. A second kit can restore directly in a disposable Windows VM
@@ -289,13 +295,9 @@ LATER:
   ACLs remain outside Core; coordinator handlers must not bypass its write fence.
 - Coordinator control state needs protected backup and consistent recovery with
   Core before relying on recovery from data loss. No production service is activated.
-- The missing-artifact guard requires a retained receipt; it does not detect
-  loss of both artifact and receipt, reconstruct output from a report, or certify
-  arbitrary restore/state loss. A requeued job without either checkpoint may
-  still invoke its handler before encountering an existing report conflict.
-  Operator reconciliation remains required; existing bounded failure/requeue
-  policy is unchanged. No automatic worker retry or production activation was
-  performed for this local fix.
+- A surviving report without either checkpoint requires operator reconciliation.
+  If the report and both checkpoints are lost, the worker has no local evidence
+  of the prior effect. Recover from a consistent backup before reconciling.
 - Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
   this Windows host. Node 22 is the Windows CI baseline; the failure is not
   classified as an agent/provider error or hidden by acceptance retries.
