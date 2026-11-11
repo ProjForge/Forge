@@ -39,6 +39,18 @@ jobs:
           scripts/acceptance/test-forge-pi5.sh --plan-only
           node --check scripts/acceptance/write-pi5-result.mjs
       - run: npm run check
+      - name: Validate coherent replica transfer
+        run: node --test scripts/acceptance/remote-coherent-transfer.test.mjs
+      - if: runner.os == 'Windows'
+        name: Parse Windows VM restore scripts
+        shell: powershell
+        run: |
+          Get-ChildItem -LiteralPath scripts/acceptance/remote-coherent-vm -Recurse -Filter '*.ps1' -File | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw ($errors -join [Environment]::NewLine) }
+          }
       - if: runner.os == 'Windows'
         shell: powershell
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File packages/resilience/scripts/test-powershell-syntax.ps1

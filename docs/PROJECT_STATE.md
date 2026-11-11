@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-10
+Updated: 2026-11-11
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,14 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- The two-host Windows preproduction restore kit is staged locally. Its offline
+  transfer check authenticated all four synthetic components and rejected
+  tampering. A second kit can restore directly in a disposable Windows VM
+  under a separate standard custodian account. The direct VM launcher restored
+  both synthetic databases in sequential offline local guests. Seven table
+  hashes matched, the report reconciled with zero agent calls and custody
+  cleanup passed. The remote VM, independent-host run and its RPO/RTO are
+  pending. See [the VM rehearsal handoff](guides/COHERENT-BACKUP.md#remote-windows-vm-destination).
 - Local Core and coordinator restore passed under the separate custodian account
   in an offline Windows Sandbox. The custodian authenticated four components
   and restored both PostgreSQL 18.4 databases. Row hashes matched in seven
