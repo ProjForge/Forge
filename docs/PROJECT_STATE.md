@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-11
+Updated: 2026-11-12
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,14 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- `reconcile-report <projectId> <jobId>` closes only verified exhausted
+  immutable-report jobs whose matching Core execution already succeeded. Other
+  writers remain stopped; configured operational admission must be open after
+  normal backup-controller resume. Disposable PostgreSQL 18.4 with separate
+  Core and coordinator databases passed 28 native tests and the limited-role
+  contract, including closed-gate rejection, concurrent closure and replay.
+  [Procedure](guides/CONFIRMED-REPORT-RECOVERY.md#final-attempt-reconciliation)
+  [Split-database evidence](acceptance/coordinator/2026-11-12-reconcile-report/README.md)
 - `list-blocked <projectId> [afterJobId]` lists failed jobs and exhausted retries
   per project, including an expired final lease before the next worker claim.
   It reads coordinator state only and returns checkpoint presence without
@@ -286,7 +294,8 @@ NEXT:
 - Review production topology/gate activation, independent-host custody and replica/
   retention policy before any production worker activation. Local disposable
   operational acceptance does not authorize that activation.
-  Use `list-blocked` to locate exhausted jobs and failures for manual reconciliation.
+  Use `list-blocked` to locate jobs for reconciliation. Unconfirmed reports
+  and incomplete Core executions require independent operator evidence.
 - Accept another effect receiver only with durable idempotency/reconciliation;
   the current contract covers immutable local reports on retained storage.
 

@@ -1,5 +1,32 @@
 # Confirmed report recovery (isolated opt-in pilot)
 
+## Final-attempt reconciliation
+
+Keep all other writers stopped. Wait until backup copying/sealing has finished
+and its normal controller has resumed admission. Keep the operational admission
+barrier configured and open, if one is configured; a closed gate correctly rejects
+this mutation, so wait while it is closed. Do not bypass the barrier or reopen it
+if controller ownership/control has been lost. With the isolated Core/state
+connections and original `FORGE_COORDINATOR_REPORT_ROOT`, run
+`node packages/coordinator/dist/cli.js reconcile-report <projectId UUID> <jobId UUID>`
+using identifiers from `list-blocked`. Agent mode and provider configuration are
+irrelevant. Only an expired running final attempt or a failed
+`ATTEMPTS_EXHAUSTED` row is eligible; queued and other terminal failures are refused.
+The original pinned receiver, valid prepared output and exact complete receipt
+must verify against existing bytes. Core must already contain the matching done
+task and succeeded canonical coordinator execution. No Core or report writes,
+claims, attempt resets or receiver restoration occur.
+
+Outcomes are `completed`, `already_completed` (no new report certification),
+`not_found` and `not_eligible`; the last two and verification failures exit nonzero.
+Only the selected coordinator row changes; attempts, epoch and checkpoints remain
+intact. Row locks serialize concurrent reconciliation and worker publication.
+Core and coordinator databases do not share an atomic transaction: quiescence and
+coherent checkpoints remain operator requirements, including with separate DBs.
+This command does not certify backups or recover a relocated/replaced receiver.
+
+## Receiver restore procedure
+
 Keep all writers stopped. Use only the intended isolated Core/control databases,
 with their existing limited runtime/state roles. Do not activate a service.
 

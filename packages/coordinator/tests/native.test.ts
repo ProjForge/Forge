@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import test from 'node:test'
 import pg from 'pg'
-import { ForgePersistenceGateway } from 'forge-persistence-gateway'
+import { OperationalGate, ForgePersistenceGateway } from 'forge-persistence-gateway'
 import { Coordinator, ImmutableReportPublisher, LocalReportAgent, PostgresJobStore, captureReportTarget, reportIdentity } from '../src/index.js'
 import type { CorePort, Job, JobStore, WorkerIdentity } from '../src/index.js'
 
@@ -475,6 +475,106 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     })
   }
 
+  for (const swept of [false, true]) {
+    await context.test(`reconcile-report verifies final-attempt death without replay (swept=${swept})`, async () => {
+      const label = `reconcile-${swept}`
+      const agent = await core.registerAgent({ agentKey: `${suffix}-${label}`, name: label })
+      await core.assignAgent(project.id, agent.id, 'recovery-test')
+      const job = await enqueue(label, agent.id, 1, true)
+      const worker = spawn(agent.id, label, 'agent-crash-after-core')
+      await worker.wait('effect-core-finished')
+      worker.child.kill('SIGKILL'); await worker.done
+      const row = async () => (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+      const initial = await row()
+      const file = path.join(reportsRoot, initial.effect_receipt.filename)
+      const bytes = await readFile(file), info = await stat(file)
+      const snapshot = async () => {
+        const execution = await core.getExecutionByKey(project.id, `coordinator:v1:${project.id}:${job.taskId}`)
+        return { task: await core.getTaskByKey(project.id, job.taskKey), execution,
+          audit: await core.getAuditTrail(project.id, execution.id),
+          events: (await admin.query('SELECT * FROM forge.events WHERE project_id=$1 ORDER BY id', [project.id])).rows,
+          allAudit: (await admin.query('SELECT * FROM forge.audit_log WHERE project_id=$1 ORDER BY id', [project.id])).rows,
+          memories: await core.listMemories({ projectId: project.id, taskId: job.taskId }),
+          contexts: await core.listContinuationPackages({ projectId: project.id, executionId: execution.id }) }
+      }
+      const before = await snapshot(), providerCalls = calls.get(label)
+      const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
+      const env: NodeJS.ProcessEnv = { ...workerEnv, FORGE_COORDINATOR_REPORT_ROOT: reportsRoot, FORGE_COORDINATOR_AGENT_MODE: 'invalid' }
+      const invoke = (args = [project.id, job.id]) => promisify(execFile)(process.execPath, [cli, 'reconcile-report', ...args], { env, timeout: 15_000 })
+      const rejectUnchanged = async (args?: string[]) => {
+        const prior = await row()
+        await assert.rejects(invoke(args), (error: unknown) => {
+          const failure = error as { code: number; stdout: string; stderr: string }
+          assert.ok(failure.code === 1 || failure.code === 2)
+          assert.ok(!failure.stdout.includes(reportsRoot) && !failure.stderr.includes(reportsRoot))
+          return true
+        })
+        assert.deepEqual(await row(), prior)
+      }
+      // Seed a live lease only after process death released its transaction lock.
+      await state.query("UPDATE forge_coordinator.jobs SET lease_until=clock_timestamp()+interval '1 hour' WHERE id=$1", [job.id])
+      await rejectUnchanged()
+      await state.query("UPDATE forge_coordinator.jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1", [job.id])
+      assert.ok((await store.listBlocked(project.id)).jobs.some(item => item.id === job.id))
+      for (const args of [[], ['invalid', job.id], [project.id, 'invalid'], [project.id, job.id, 'extra'], [randomUUID(), job.id], [project.id, randomUUID()]]) await rejectUnchanged(args)
+      for (const patch of ["artifact=NULL", "effect_receipt=NULL", "effect_receipt=effect_receipt || '{\"sha256\":\"wrong\"}'::jsonb", "effect_target=repeat('b',64)", "state='queued'", "state='failed',error_code='EFFECT_UNCONFIRMED'", "max_attempts=2"]) {
+        await state.query(`UPDATE forge_coordinator.jobs SET ${patch} WHERE id=$1`, [job.id])
+        await rejectUnchanged()
+        await state.query("UPDATE forge_coordinator.jobs SET artifact=$2,effect_receipt=$3,effect_target=$4,state='running',error_code=NULL,max_attempts=1 WHERE id=$1",
+          [job.id, initial.artifact, initial.effect_receipt, initial.effect_target])
+      }
+      const hidden = `${file}.hidden`
+      await rename(file, hidden)
+      try { await rejectUnchanged(); assert.deepEqual(await readdir(reportsRoot), (await readdir(reportsRoot)).filter(name => name !== initial.effect_receipt.filename)) }
+      finally { await rename(hidden, file) }
+      await writeFile(file, 'corrupt')
+      try { await rejectUnchanged(); assert.equal(await readFile(file, 'utf8'), 'corrupt') }
+      finally { await writeFile(file, bytes) }
+      const verifiedInfo = await stat(file)
+      if (swept) {
+        assert.equal(await store.claim(identity(job, 'sweeper'), { kind: publisher.kind, targetId: publisher.targetId }), null)
+        assert.equal((await row()).error_code, 'ATTEMPTS_EXHAUSTED')
+      }
+      if (!swept) {
+        // Only this CLI receives admission configuration; keep gate files outside the receiver.
+        const gateParent = await mkdtemp(path.join(fixtureRoot ?? tmpdir(), 'forge-reconcile-gate-'))
+        context.after(() => rm(gateParent, { recursive: true, force: true }))
+        const gate = await OperationalGate.initialize(path.join(gateParent, 'admission'))
+        env.FORGE_OPERATIONAL_GATE_ROOT = gate.root
+        const lease = await gate.close()
+        await rejectUnchanged()
+        await lease.assertHeld()
+        await lease.resume()
+      }
+      const prior = await row()
+      const results = await Promise.all([invoke(), invoke()])
+      assert.deepEqual(results.map(result => JSON.parse(result.stdout).outcome).sort(), ['already_completed', 'completed'])
+      assert.equal(JSON.parse((await invoke()).stdout).outcome, 'already_completed')
+      const final = await row()
+      assert.deepEqual(final, { ...prior, state: 'completed', owner: null, lease_until: null, error_code: null, updated_at: final.updated_at })
+      assert.deepEqual(await snapshot(), before)
+      assert.equal(calls.get(label), providerCalls)
+      assert.deepEqual(await readFile(file), bytes)
+      const after = await stat(file)
+      assert.equal(after.ino, info.ino); assert.equal(after.mtimeMs, verifiedInfo.mtimeMs)
+    })
+  }
+
+  await context.test('reconcile-report refuses receipt with unfinished Core', async () => {
+    const agent = await core.registerAgent({ agentKey: `${suffix}-reconcile-incomplete`, name: 'Incomplete Core' })
+    await core.assignAgent(project.id, agent.id, 'recovery-test')
+    const job = await enqueue('reconcile-incomplete', agent.id, 1, true)
+    const worker = spawn(agent.id, 'incomplete', 'agent-crash-after-receipt')
+    await worker.wait('effect-confirmed'); worker.child.kill('SIGKILL'); await worker.done
+    await expired(job)
+      const before = (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+    const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
+    await assert.rejects(promisify(execFile)(process.execPath, [cli, 'reconcile-report', project.id, job.id], {
+      env: { ...workerEnv, FORGE_COORDINATOR_REPORT_ROOT: reportsRoot }, timeout: 15_000,
+    }))
+    assert.deepEqual((await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0], before)
+  })
+
   for (const afterDeath of [true, false]) {
     await context.test(afterDeath
       ? 'retained receipt rejects artifact loss after worker death following receipt commit'
@@ -705,8 +805,8 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     count(*) FILTER (WHERE state<>'completed' AND effect_receipt IS NOT NULL)::int AS retained
     FROM forge_coordinator.jobs WHERE project_id=$1`, [project.id])).rows[0]
   context.diagnostic(JSON.stringify({ mode: liveModel ? 'live-local-model' : 'protocol-fixture', model: liveModel ?? 'fixture-review-model', realCalls, totalCalls: [...calls.values()].reduce((sum, count) => sum + count, 0), reports: reportCount, completedConfirmedEffects: counts.completed, retainedReceiptsOnRejectedJobs: counts.retained, conflictsRejected: 1, providerFailures }))
-  assert.equal(counts.completed, 10)
-  assert.equal(counts.retained, 2)
+  assert.equal(counts.completed, 12)
+  assert.equal(counts.retained, 3)
   if (liveModel) assert.ok(realCalls >= 10, 'Real model inference must actually run in live acceptance')
 
   await context.test('opt-in joint logical restore retains confirmed report and Core identity', {

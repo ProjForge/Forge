@@ -3,7 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { ForgePersistenceGateway } from 'forge-persistence-gateway'
-import { Coordinator, validateArtifact } from './coordinator.js'
+import { Coordinator, reconcileReport, validateArtifact } from './coordinator.js'
 import { PostgresJobStore } from './store.js'
 import { LocalReportAgent } from './local-agent.js'
 import { ImmutableReportPublisher, RestoredReportVerifier, captureReportTarget } from './report-publisher.js'
@@ -16,6 +16,26 @@ if (command === 'capture-report-target' && (process.argv.length === 3 || process
     if (process.argv[3]) await writeFile(process.argv[3], json + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 })
     else console.log(json)
   } catch { console.error('REPORT_TARGET_CAPTURE_FAILED'); process.exitCode = 1 }
+} else if (command === 'reconcile-report') {
+  const [, projectId, jobId, extra] = process.argv.slice(2)
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!projectId || !uuid.test(projectId) || !jobId || !uuid.test(jobId) || extra !== undefined) {
+    console.error('Usage: reconcile-report <projectId UUID> <jobId UUID>'); process.exitCode = 2
+  } else {
+    const coreUrl = process.env.FORGE_DATABASE_URL
+    const stateUrl = process.env.FORGE_COORDINATOR_DATABASE_URL
+    if (!coreUrl || !stateUrl) { console.error('COORDINATOR_CONFIGURATION_REQUIRED'); process.exitCode = 1 }
+    else {
+      const core = ForgePersistenceGateway.connect({ connectionString: coreUrl, maxConnections: 2 })
+      const store = new PostgresJobStore(stateUrl)
+      try {
+        const outcome = await reconcileReport(store, core, projectId, jobId, process.env.FORGE_COORDINATOR_REPORT_ROOT ?? '')
+        console.log(JSON.stringify({ outcome }))
+        if (outcome === 'not_found' || outcome === 'not_eligible') process.exitCode = 1
+      } catch { console.error('COORDINATOR_RECONCILE_VERIFICATION_FAILED'); process.exitCode = 1 }
+      finally { await Promise.all([store.close(), core.close()]) }
+    }
+  }
 } else if (command === 'list-blocked') {
   const [, projectId, afterJobId, extra] = process.argv.slice(2)
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -99,7 +119,7 @@ try {
       await delay(1_000, undefined, { signal: stop.signal }).catch(() => undefined)
     } while (!stop.signal.aborted)
   } else {
-    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file> | list-blocked <projectId UUID> [afterJobId UUID]')
+    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file> | list-blocked <projectId UUID> [afterJobId UUID] | reconcile-report <projectId UUID> <jobId UUID>')
     process.exitCode = 2
   }
 } catch {

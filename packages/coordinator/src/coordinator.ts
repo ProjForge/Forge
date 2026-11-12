@@ -1,6 +1,32 @@
 import { NotFoundError, withOperationalAdmission, type Execution, type Task } from 'forge-persistence-gateway'
 import { LeaseLostError, PilotFailure, type Artifact, type ArtifactPublisher, type CorePort, type Handler, type Job, type JobStore, type EffectReceipt, type WorkerIdentity } from './types.js'
-import { reportIdentity } from './report-publisher.js'
+import { ImmutableReportPublisher, reportIdentity } from './report-publisher.js'
+import type { PostgresJobStore } from './store.js'
+
+export async function reconcileReport(store: PostgresJobStore, core: Pick<CorePort, 'assertReady' | 'getTaskByKey' | 'getExecutionByKey'>,
+  projectId: string, jobId: string, reportRoot: string) {
+  return withOperationalAdmission(() => store.reconcileReport(projectId, jobId, async current => {
+    if (current.effectKind !== 'immutable-report-v1' || !current.artifact || !current.effectReceipt) throw new Error('Unconfirmed report')
+    const publisher = new ImmutableReportPublisher(reportRoot)
+    if (publisher.targetId !== current.effectTarget) throw new Error('Receiver mismatch')
+    const artifact = validateArtifact(current.artifact)
+    const key = `${executionKey(current)}:report`
+    const expected = reportIdentity(key, artifact, publisher.targetId).receipt
+    const receipt = current.effectReceipt
+    if (Object.keys(receipt).length !== Object.keys(expected).length ||
+        Object.entries(expected).some(([key, value]) => receipt[key as keyof EffectReceipt] !== value)) throw new Error('Receipt mismatch')
+    await core.assertReady()
+    const task = await core.getTaskByKey(current.projectId, current.taskKey)
+    if (task.projectId !== current.projectId || task.taskKey !== current.taskKey || task.id !== current.taskId ||
+        task.assignedAgentId !== current.agentId || task.status !== 'done') throw new Error('Core task incomplete')
+    const execution = await core.getExecutionByKey(current.projectId, executionKey(current))
+    if (execution.projectId !== current.projectId || execution.executionKey !== executionKey(current) || execution.policyVersion !== 'external-coordinator-v1' ||
+        execution.taskId !== current.taskId || execution.agentId !== current.agentId || execution.metadata.coordinatorJobId !== current.id ||
+        execution.status !== 'succeeded') throw new Error('Core execution incomplete')
+    // expected is mandatory: this invocation can only read an existing report.
+    await publisher.publish({ key, artifact, expected: receipt, signal: new AbortController().signal })
+  }))
+}
 
 export function validateArtifact(value: Artifact): Artifact {
   if (typeof value?.title !== 'string' || !value.title.trim() || value.title.length > 500 ||
