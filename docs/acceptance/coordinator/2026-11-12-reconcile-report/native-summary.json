@@ -1,0 +1,23 @@
+{
+  "fixtureCheckedAtUtc": "2026-11-12T20:38:14.1322253Z",
+  "mode": "SplitDatabaseRestore",
+  "node": "v22.23.4",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "provider": "protocol-fixture",
+  "fixtureStatus": "PASS",
+  "nativeProcessExitCode": 0,
+  "nativeTests": { "passed": 28, "failed": 0, "skipped": 0 },
+  "limitedRoleTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "sourceClusterStopped": true,
+  "targetClusterStopped": true,
+  "newFixtureRoots": 0,
+  "npmCheckExitCode": 0,
+  "diffCheckExitCode": 0,
+  "selectedTap": [
+    "ok 18 - reconcile-report verifies final-attempt death without replay (swept=false)",
+    "ok 19 - reconcile-report verifies final-attempt death without replay (swept=true)",
+    "ok 20 - reconcile-report refuses receipt with unfinished Core",
+    "ok 27 - opt-in joint logical restore retains confirmed report and Core identity",
+    "ok 1 - runtime role follows the least-privilege contract"
+  ]
+}

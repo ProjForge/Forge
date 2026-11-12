@@ -50,6 +50,12 @@ booleans are returned. No prepared content, raw receipts, owner or target/path
 is returned. Project scoping is not caller authorization. Review failures and
 retained effects manually; this command does not retry them.
 
+The isolated coordinator CLI supports `reconcile-report <projectId UUID> <jobId UUID>`
+using exact identifiers from `list-blocked`. With writers quiescent, it closes only
+an exhausted coordinator row whose original immutable report and already-finished
+Core execution can both be verified. It never retries an agent or repairs Core or
+report files. See [reconciliation limits](../../docs/guides/CONFIRMED-REPORT-RECOVERY.md#final-attempt-reconciliation).
+
 ## Reproduce the isolated acceptance on Windows
 
 After `npm ci`, with PostgreSQL 18 and pgvector installed:

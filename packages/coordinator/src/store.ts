@@ -47,6 +47,27 @@ export class PostgresJobStore implements JobStore {
     return { jobs, nextAfterJobId: result.rows.length > 50 ? String(jobs[49]!.id) : null }
   }
 
+  // Exact-row closure; verification runs while worker publication is excluded.
+  async reconcileReport(projectId: string, jobId: string, verify: (current: Job) => Promise<void>): Promise<'completed' | 'already_completed' | 'not_found' | 'not_eligible'> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuid.test(projectId) || !uuid.test(jobId)) throw new TypeError('Invalid project or job UUID')
+    return this.transaction(async client => {
+      const selected = await client.query('SELECT * FROM forge_coordinator.jobs WHERE project_id=$1 AND id=$2 FOR UPDATE', [projectId, jobId])
+      const row = selected.rows[0]
+      if (!row) return 'not_found'
+      if (row.state === 'completed') return 'already_completed'
+      // Time must be evaluated after waiting for the same lock used by workers.
+      const expired = await client.query('SELECT lease_until<=clock_timestamp() AS expired FROM forge_coordinator.jobs WHERE project_id=$1 AND id=$2', [projectId, jobId])
+      if (Number(row.attempts) < Number(row.max_attempts) ||
+          !((row.state === 'running' && expired.rows[0]?.expired) ||
+            (row.state === 'failed' && row.error_code === 'ATTEMPTS_EXHAUSTED' && (row.lease_until === null || expired.rows[0]?.expired)))) return 'not_eligible'
+      await verify(job(row))
+      await client.query(`UPDATE forge_coordinator.jobs SET state='completed',owner=NULL,lease_until=NULL,error_code=NULL,updated_at=clock_timestamp()
+        WHERE project_id=$1 AND id=$2`, [projectId, jobId])
+      return 'completed'
+    })
+  }
+
   // Internal exact-task checkpoint; never exposed by the status projection.
   async recoveryCheckpoint(projectId: string, taskId: string): Promise<Job | null> {
     const result = await this.pool.query('SELECT * FROM forge_coordinator.jobs WHERE project_id=$1 AND task_id=$2', [projectId, taskId])
