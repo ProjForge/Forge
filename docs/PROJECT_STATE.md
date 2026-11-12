@@ -59,6 +59,12 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- `list-blocked <projectId> [afterJobId]` lists failed jobs and exhausted retries
+  per project, including an expired final lease before the next worker claim.
+  It reads coordinator state only and returns checkpoint presence without
+  report contents or receipt data. Disposable PostgreSQL 18.4 JointRestore
+  passed 25 native tests and the limited-role contract.
+  [Blocked-job evidence](acceptance/coordinator/2026-11-11-list-blocked/README.md)
 - The local report worker detects a surviving report with neither prepared
   output nor a receipt before Core admission. The affected job ends in
   `failed / EFFECT_UNCONFIRMED`; other jobs retain their normal claim path.
@@ -280,7 +286,7 @@ NEXT:
 - Review production topology/gate activation, independent-host custody and replica/
   retention policy before any production worker activation. Local disposable
   operational acceptance does not authorize that activation.
-  Exhausted jobs and survivor reports without receipts require manual reconciliation.
+  Use `list-blocked` to locate exhausted jobs and failures for manual reconciliation.
 - Accept another effect receiver only with durable idempotency/reconciliation;
   the current contract covers immutable local reports on retained storage.
 

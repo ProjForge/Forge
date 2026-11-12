@@ -354,10 +354,74 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
     worker.child.kill('SIGKILL')
     await worker.done
     await expired(job)
+    const beforeList = (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows
+    const blocked = (await store.listBlocked(job.projectId)).jobs.find((row) => row.id === job.id)
+    assert.ok(blocked)
+    assert.equal(blocked.state, 'running')
+    assert.equal(blocked.exhaustion_reason, 'ATTEMPTS_EXHAUSTED')
+    assert.deepEqual((await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows, beforeList)
     assert.equal(await new Coordinator(store, core).runOnce(identity(job, 'late-retry'), async () => { throw new Error('Must not run') }), 'idle')
     const failed = (await state.query('SELECT state,attempts,error_code FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
     assert.deepEqual(failed, { state: 'failed', attempts: 1, error_code: 'ATTEMPTS_EXHAUSTED' })
     assert.equal((await core.listExecutions({ projectId: job.projectId, taskId: job.taskId })).items.length, 1)
+  })
+
+  await context.test('list-blocked scopes, redacts and pages without mutating state or effects', async () => {
+    const projectId = randomUUID(), otherProject = randomUUID()
+    const inserted: string[] = []
+    const add = async (scope: string, stateName: string, attempts: number, lease: string | null, error: string | null = null) => {
+      const id = randomUUID()
+      inserted.push(id)
+      await state.query(`INSERT INTO forge_coordinator.jobs
+        (id,project_id,task_id,task_key,agent_id,state,attempts,max_attempts,lease_until,error_code,artifact,effect_receipt,effect_kind,effect_target,owner)
+        VALUES ($1,$2,$3,($1::uuid)::text,$4,$5,$6,3,$7,$8,'{"title":"private","content":"secret"}',
+          '{"filename":"private-path","sha256":"private-hash"}','immutable-report-v1',$9,'private-owner')`,
+      [id, scope, randomUUID(), randomUUID(), stateName, attempts, lease, error, 'a'.repeat(64)])
+      return id
+    }
+    try {
+      const terminal = await add(projectId, 'failed', 1, null, 'EFFECT_UNCONFIRMED')
+      const exhausted = await add(projectId, 'queued', 3, null, 'WORKER_FAILED')
+      await add(otherProject, 'failed', 1, null)
+      await add(projectId, 'running', 3, '2999-01-01')
+      await add(projectId, 'running', 1, '2000-01-01')
+      await add(projectId, 'queued', 0, null)
+      await add(projectId, 'completed', 3, null)
+      const expected = [terminal, exhausted, await add(projectId, 'running', 3, '2000-01-01')]
+      for (let i = 0; i < 51; i++) expected.push(await add(projectId, 'failed', 2, null))
+      const snapshot = async () => (await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=ANY($1::uuid[]) ORDER BY id', [inserted])).rows
+      const before = await snapshot()
+      const first = await store.listBlocked(projectId)
+      assert.equal(first.jobs.length, 50)
+      assert.equal(first.nextAfterJobId, first.jobs[49]!.id)
+      const second = await store.listBlocked(projectId, first.nextAfterJobId!)
+      assert.equal(second.nextAfterJobId, null)
+      assert.deepEqual([...first.jobs, ...second.jobs].map((row) => row.id), expected.sort())
+      assert.deepEqual(await store.listBlocked(projectId), first)
+      const failed = first.jobs.concat(second.jobs).find((row) => row.id === terminal)!
+      assert.equal(failed.error_code, 'EFFECT_UNCONFIRMED')
+      assert.equal(failed.exhaustion_reason, null)
+      assert.equal(failed.has_prepared_output, true)
+      assert.equal(failed.has_effect_receipt, true)
+      assert.deepEqual(Object.keys(failed).sort(), ['id','project_id','task_id','task_key','agent_id','state','attempts','max_attempts','error_code','created_at','updated_at','lease_until','effect_kind','has_prepared_output','has_effect_receipt','exhaustion_reason'].sort())
+      await assert.rejects(store.listBlocked('invalid'), /UUID/)
+      await assert.rejects(store.listBlocked(projectId, 'invalid'), /UUID/)
+      const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
+      const env: NodeJS.ProcessEnv = { ...workerEnv, FORGE_COORDINATOR_REPORT_ROOT: 'invalid-root', FORGE_COORDINATOR_AGENT_MODE: 'invalid-mode' }
+      delete env.FORGE_DATABASE_URL
+      const invoke = (args: string[]) => promisify(execFile)(process.execPath, [cli, ...args], { env, timeout: 15_000 })
+      assert.deepEqual(JSON.parse((await invoke(['list-blocked', projectId])).stdout), JSON.parse(JSON.stringify(first)))
+      assert.deepEqual(JSON.parse((await invoke(['list-blocked', projectId, first.nextAfterJobId!])).stdout), JSON.parse(JSON.stringify(second)))
+      for (const args of [[], ['invalid'], [projectId, 'invalid'], [projectId, randomUUID(), 'extra']]) {
+        await assert.rejects(invoke(['list-blocked', ...args]), (error: unknown) => {
+          const failure = error as { code: number; stderr: string }
+          assert.equal(failure.code, 2)
+          assert.match(failure.stderr, /Usage: list-blocked/)
+          return true
+        })
+      }
+      assert.deepEqual(await snapshot(), before)
+    } finally { await state.query('DELETE FROM forge_coordinator.jobs WHERE id=ANY($1::uuid[])', [inserted]) }
   })
 
   async function assertReport(job: Job) {

@@ -16,6 +16,22 @@ if (command === 'capture-report-target' && (process.argv.length === 3 || process
     if (process.argv[3]) await writeFile(process.argv[3], json + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 })
     else console.log(json)
   } catch { console.error('REPORT_TARGET_CAPTURE_FAILED'); process.exitCode = 1 }
+} else if (command === 'list-blocked') {
+  const [, projectId, afterJobId, extra] = process.argv.slice(2)
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!projectId || !uuid.test(projectId) || (afterJobId !== undefined && !uuid.test(afterJobId)) || extra !== undefined) {
+    console.error('Usage: list-blocked <projectId UUID> [afterJobId UUID]')
+    process.exitCode = 2
+  } else {
+    const stateUrl = process.env.FORGE_COORDINATOR_DATABASE_URL
+    if (!stateUrl) { console.error('FORGE_COORDINATOR_DATABASE_URL is required'); process.exitCode = 1 }
+    else {
+      const store = new PostgresJobStore(stateUrl)
+      try { console.log(JSON.stringify(await store.listBlocked(projectId, afterJobId))) }
+      catch { console.error('COORDINATOR_LIST_BLOCKED_FAILED'); process.exitCode = 1 }
+      finally { await store.close() }
+    }
+  }
 } else {
 const coreUrl = process.env.FORGE_DATABASE_URL
 const stateUrl = process.env.FORGE_COORDINATOR_DATABASE_URL
@@ -83,7 +99,7 @@ try {
       await delay(1_000, undefined, { signal: stop.signal }).catch(() => undefined)
     } while (!stop.signal.aborted)
   } else {
-    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file>')
+    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file> | list-blocked <projectId UUID> [afterJobId UUID]')
     process.exitCode = 2
   }
 } catch {

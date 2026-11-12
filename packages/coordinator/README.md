@@ -30,6 +30,26 @@ Core migration and does not expand `forge_runtime` privileges.
 See [ADR-010](../../docs/decisions/ADR-010-external-pilot-coordinator.md).
 The real-agent/effect contract is in [ADR-011](../../docs/decisions/ADR-011-local-review-agent-and-confirmed-effects.md).
 
+## Manual blocked-work reconciliation
+
+`list-blocked <projectId> [afterJobId]` accepts canonical UUIDs and requires only
+`FORGE_COORDINATOR_DATABASE_URL`. Core, provider, agent mode and report root are
+not used. It reads state without claiming work, changing attempts or effects.
+
+The JSON envelope contains `jobs` and `nextAfterJobId` (null at the end).
+Pages contain at most 50 rows in UUID order; pass the cursor for the exclusive
+next page. Each page has its own statement snapshot; concurrent queue changes
+can change membership, so this is not a frozen export.
+
+Rows include failed jobs, exhausted queued jobs and exhausted running jobs with
+expired leases at PostgreSQL statement time. Active leases and retryable jobs
+are excluded. Original `state` and `error_code` are preserved;
+`exhaustion_reason` separately reports `ATTEMPTS_EXHAUSTED` when applicable.
+Only identities, attempts, timestamps, effect kind and checkpoint-presence
+booleans are returned. No prepared content, raw receipts, owner or target/path
+is returned. Project scoping is not caller authorization. Review failures and
+retained effects manually; this command does not retry them.
+
 ## Reproduce the isolated acceptance on Windows
 
 After `npm ci`, with PostgreSQL 18 and pgvector installed:
