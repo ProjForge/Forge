@@ -11,7 +11,11 @@ Estado: pendiente de ejecución.
 | Cuenta de custodia separada, Win32 5 y misma SID en init/restore | Pendiente |
 | Negativos antes de aprovisionar y cuatro componentes autenticados | Pendiente |
 | Identificadores de sistema distintos y dos restores con salida 0 | Pendiente |
-| Siete tablas, vector, recibo e informe verificados | Pendiente |
+| Kit emparejado con generación, fixtureVersion 2; singleton histórico rechazado | Pendiente |
+| Siete hashes de tablas y vector exactos antes de reconciliar | Pendiente |
+| Inventario 3/3 en tres scopes, dos completados y un pendiente confirmado | Pendiente |
+| Por informe: hash de bytes, hash de recibo, longitud y estados/probes | Pendiente |
+| Filas/recibos/directorio exactos, archivos sin reescritura y completed no-op | Pendiente |
 | Marcador posterior ausente, reconciliación única y cero llamadas al agente | Pendiente |
 | RPO simulado en origen y RTO observado en destino, ms | Pendiente |
 | Cierre del Sandbox de origen, retirada de tarea, cuentas, clave e informe del destino | Pendiente |

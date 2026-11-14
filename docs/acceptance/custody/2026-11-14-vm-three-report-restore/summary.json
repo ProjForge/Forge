@@ -1,0 +1,76 @@
+{
+  "scope": "Two sequential offline Windows Sandbox guests on one physical host. Remote restoration pending.",
+  "base": "f054f26d9314656328130e4cb7625a48ede74b50",
+  "reviewedPatchSha256": "51ef5cef1880d3fb57dc6ca6d29806c4680927d07189d1333ac59c3042b744a2",
+  "checkedAtUtc": "2026-11-14T22:29:28.0489316Z",
+  "zipSha256": "8bab0e6b357a9187022c0dfcd091a16aba99a421b2963e60367abee6098b4369",
+  "exitCode": 0,
+  "node": "v22.23.4",
+  "postgres": "postgres (PostgreSQL) 18.4",
+  "sourceClosed": true,
+  "destinationClosed": true,
+  "remainingGuests": 0,
+  "restoredDatabases": 2,
+  "exactTableHashes": 7,
+  "reports": [
+    {
+      "reportHash": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b",
+      "receiptHash": "61b56abe5a974820f68b176871b1f264dcdd9ad5a118cb58be3a222a3d5f892c",
+      "bytes": 42,
+      "state": "completed"
+    },
+    {
+      "reportHash": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+      "receiptHash": "32e63fd6f2d2bf673aef63f0e935fdd7385498d6679dee56d5d92e59e58ff42e",
+      "bytes": 55,
+      "state": "queued"
+    },
+    {
+      "reportHash": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd",
+      "receiptHash": "91853d30821d5f24661042b4ede7d614a9e213fe0ca2a58181b540eaf1a1866c",
+      "bytes": 42,
+      "state": "completed"
+    }
+  ],
+  "probes": [
+    {
+      "reportHash": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b",
+      "before": "completed",
+      "first": "idle",
+      "replay": "idle",
+      "after": "completed",
+      "attempts": 1
+    },
+    {
+      "reportHash": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+      "before": "queued",
+      "first": "completed",
+      "replay": "idle",
+      "after": "completed",
+      "attempts": 2
+    },
+    {
+      "reportHash": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd",
+      "before": "completed",
+      "first": "idle",
+      "replay": "idle",
+      "after": "completed",
+      "attempts": 1
+    }
+  ],
+  "targetRoleContracts": true,
+  "negativesBeforeProvision": [
+    "wrong-private-key",
+    "missing-wrapped-key",
+    "wrong-symmetric-key",
+    "altered-report"
+  ],
+  "accountIsolationError": 5,
+  "cleanup": true,
+  "handlerReplay": 0,
+  "providerReplay": 0,
+  "reconciliation": 1,
+  "offlineSemanticNegatives": 17,
+  "incompleteAuthenticatedCollectionRejectedBeforeProvision": true,
+  "historicalSingletonRejected": true
+}

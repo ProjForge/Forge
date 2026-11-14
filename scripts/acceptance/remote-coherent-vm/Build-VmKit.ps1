@@ -57,7 +57,7 @@ foreach ($name in @('README.md','acta.md','bootstrap.ps1','sandbox-config.xml',
     'Start-Rehearsal.ps1','Submit-Replica.ps1','Start-VmDestination.ps1','Submit-VmReplica.ps1','Test-Kit.mjs')) {
     $copies += @{ Source = Join-Path $PSScriptRoot $name; Target = $name }
 }
-foreach ($name in @('acl.ps1','check-handoff.mjs','database.mjs','guest.ps1','probe.mjs','role.ps1')) {
+foreach ($name in @('acl.ps1','check-handoff.mjs','database.mjs','report-fixture.mjs','guest.ps1','probe.mjs','role.ps1')) {
     $copies += @{ Source = Join-Path $PSScriptRoot "input/$name"; Target = "input/$name" }
 }
 $copies += @{ Source = Join-Path $repo 'scripts/acceptance/remote-coherent-transfer.mjs'; Target = 'input/remote-coherent-transfer.mjs' }

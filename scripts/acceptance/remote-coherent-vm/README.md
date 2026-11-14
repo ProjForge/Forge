@@ -5,6 +5,44 @@ en una VM Windows x64 dedicada y descartable. Usa dos bases sintéticas y los
 runtimes de la restauración local de la PR #72. La ejecución remota y las
 mediciones siguen pendientes.
 
+## Contrato de informes del kit
+
+Empareja esta versión del kit con la generación capturada por ella. Se rechaza
+explícitamente el singleton histórico; una colección dañada nunca activa un
+fallback. El envelope cifrado v1 conserva sus cuatro componentes: Core,
+coordinator, identity y report. Los dos últimos contienen JSON de fixture
+`fixtureVersion: 2`: inventario y colección de exactamente tres informes.
+
+El origen publica tres informes reales mediante `ImmutableReportPublisher`,
+en tres proyectos: dos trabajos completados y uno pendiente con recibo confirmado
+antes de escribir su memoria Core. Bajo barrera y sellado SQL coteja la población
+declarada al crear tareas, las filas, todos los recibos y el directorio exacto.
+La colección incluye bytes en base64, longitud, SHA-256 y nombre canónico.
+
+Antes de `initdb`, el destino autentica los cuatro componentes y valida el
+conjunto exacto, scopes, proof y cada recibo contra el artefacto y nombre
+reconstruidos. No usa nombres recibidos para acceder al filesystem. Restaura
+dos bases vacías con `pg_restore --single-transaction` y compara los siete hashes
+de tablas antes de reconciliar. Comprueba tareas y ejecuciones Core por trabajo.
+Los completados devuelven `idle`; sólo el pendiente se completa, seguido de
+`idle`. Se preservan las filas completadas, recibos y bytes e identidades de
+archivo, con cero llamadas al handler y sin proveedor configurado.
+
+La evidencia reemplaza los antiguos `database.receiptHash/reportHash` singleton
+por `database.reports[]` (hash de bytes, hash de recibo, longitud y estado al corte)
+y `database.probes[]` (hash de informe, estados, intentos y replay).
+`reportsExpected/reportsCaptured/reportsRestored` deben acreditar 3/3;
+`executions/taskMemories` pasan a 3 tras reconciliar. Los recuentos al corte son
+projects/tasks/executions/jobs/memories=3 y embedding_profiles/embeddings=1.
+No hay otros consumidores de los campos singleton en los scripts del kit.
+
+`Test-Kit.mjs` usa el mismo `readRestoreIdentity` del destino: omisión, duplicado,
+bytes/recibo alterados, nombre no canónico, singleton histórico y un conjunto
+incompleto correctamente cifrado y autenticado se rechazan sin iniciar servidores.
+También comprueba que el último nombre inválido falla antes de acceder a una
+ruta de informe o directorio inexistente. Estas pruebas offline no sustituyen
+la ejecución de Source Sandbox y Destination VM con PostgreSQL descartable.
+
 ## Construir el kit desde el repositorio
 
 En un checkout de Forge para Windows x64, instala las dependencias del lockfile
