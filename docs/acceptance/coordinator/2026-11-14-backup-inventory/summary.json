@@ -1,0 +1,30 @@
+{
+  "scope": "disposable fixture, same physical host",
+  "base": "3a561fb04131bb390cffdf56688d978d37c188b7",
+  "reviewedPatchSha256": "7877506ae9a2d800d1f6cba9c86ea0c62eb1d23fcf3bc872724ac2bf97536b1c",
+  "nativeCompletedAtUtc": "2026-11-14T21:45:14.6743886Z",
+  "nativeExit": 0,
+  "node": "22.23.4",
+  "postgresql": "18.4",
+  "mode": "OperationalCoherent",
+  "writerProbes": [
+    "Gateway", "MCP", "Workbench", "embeddings", "enqueue", "claim",
+    "heartbeat", "fenced", "fail", "recovery", "report-publication",
+    "Coordinator.runOnce", "reconcileReport"
+  ],
+  "declaredWriters": ["forge_runtime", "operational_state", "operational_migration"],
+  "onlyLoginWhenSealed": "forge_pilot",
+  "backupReader": "operational_backup",
+  "backupReaderWriteAndDdlDeniedInBothDatabases": true,
+  "writerLoginRejections": { "sqlstate": "28000", "count": 6 },
+  "unlistedLoginRejectedWithoutRoleChangesOrPublication": true,
+  "reports": { "expected": 3, "archived": 3, "restored": 3 },
+  "exactRowsReceiptsAndBytes": true,
+  "reconciled": 1,
+  "handlerReplay": 0,
+  "providerReplay": 0,
+  "incompleteAuthenticatedBundleRejectedBeforeProvision": true,
+  "malformedReceiptRejectedBeforeReceiverAccess": true,
+  "cleanup": { "bothClustersStopped": true, "bothFixtureRootsRemoved": true },
+  "npmCheck": { "exit": 0, "testsPassed": 134 }
+}

@@ -59,6 +59,10 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Disposable PostgreSQL 18.4 acceptance checked the fixture writer/role
+  inventory and recovered all three expected reports with exact receipts and
+  zero replay. Deployment inventory and the remote multi-report path remain
+  pending. [Backup inventory evidence](acceptance/coordinator/2026-11-14-backup-inventory/README.md)
 - Reviewed the initial production topology and documented proposed custody,
   independent replica and retention policies. Destination, numerical windows
   and activation remain pending review and remote acceptance.
@@ -295,8 +299,8 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Validate the intended writer/role inventory and report coverage, approve the
-  destination, custody and retention settings, and run the independent-host
+- Verify the deployment writer/role inventory and full report coverage, approve
+  the destination, custody and retention settings, and run the independent-host
   restoration before deciding on production coordinator activation.
   Use `list-blocked` to locate jobs for reconciliation. Unconfirmed reports
   and incomplete Core executions require independent operator evidence.
