@@ -17,10 +17,16 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createForgeMcpServer } from '../../packages/mcp-server/dist/server.js'
 import { ForgeWorkbenchService } from '../../packages/workbench/dist/service.js'
 import { createWorkbenchServer } from '../../packages/workbench/dist/server.js'
+import { reportRows, inventory, validateReports, verifyReportFiles, captureReports } from './operational-report-fixture.mjs'
 
 const script = fileURLToPath(import.meta.url)
 const workspace = path.resolve(path.dirname(script), '../..')
 const evidence = path.join(workspace, '.run/evidence/operational-coherent')
+// An explicit fixture inventory is a coverage contract, not discovery or
+// certification of the production launcher and its out-of-process writers.
+const writerInventory = { scope: 'synthetic-fixture-only', launcherCertified: false, families: [
+  'Gateway', 'MCP', 'Workbench', 'embeddings', 'enqueue', 'claim', 'heartbeat',
+  'fenced', 'fail', 'recovery', 'report-publication', 'Coordinator.runOnce', 'reconcileReport' ] }
 let stage = 'preflight'
 setTimeout(() => { console.error('OPERATIONAL_ACCEPTANCE_DEADLINE'); process.exit(1) }, 120_000).unref()
 function systemEnvironment() {
@@ -44,12 +50,18 @@ async function restoreProcess(config, session) {
   const child = fork(script, [], { cwd: workspace, env: { ...systemEnvironment(),
     FORGE_RESTORE_ROOT: session.root, FORGE_RESTORE_PORT: session.port,
     FORGE_RESTORE_PROVISION_HASH: session.hash, FORGE_RESTORE_BIN: session.bin },
-    execArgv: [], windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
+    execArgv: [], windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
   let provisionStarted = false
-  child.on('message', message => { if (message?.provisionStarted === true) provisionStarted = true })
+  let componentsAuthenticated = false
+  let diagnostic = ''
+  child.stderr.on('data', bytes => { diagnostic += bytes })
+  child.on('message', message => {
+    if (message?.provisionStarted === true) provisionStarted = true
+    if (message?.componentsAuthenticated === true) componentsAuthenticated = true
+  })
   const result = new Promise((resolve, reject) => {
     child.once('error', reject)
-    child.once('exit', (code, signal) => resolve({ code, signal, provisionStarted }))
+    child.once('exit', (code, signal) => resolve({ code, signal, provisionStarted, componentsAuthenticated, diagnostic }))
   })
   child.send(config)
   const timer = setTimeout(() => child.kill(), 60_000)
@@ -88,9 +100,12 @@ async function restore(config) {
   const key = await readWrappedCoherentKey(config.keyFile, config.keyId, await readFile(config.privateFile, 'utf8'))
   try {
     await withVerifiedCoherentGeneration({ directory: config.replica, generation: config.generation, key }, async files => {
+      process.send?.({ componentsAuthenticated: true })
       const identity = JSON.parse(await readFile(files.identity, 'utf8'))
       assert.equal(identity.taskId, config.taskId)
       assert.equal(identity.projectId, config.projectId)
+      const payload = JSON.parse(await readFile(files.report, 'utf8'))
+      validateReports(identity, payload)
       // Authentication of every component precedes initdb or any target mutation.
       if (config.verifyOnly) return
       process.send?.({ provisionStarted: true })
@@ -127,14 +142,37 @@ async function restore(config) {
         const core = ForgePersistenceGateway.connect({ connectionString: coreUrl.toString() })
         const store = new PostgresJobStore(stateUrl.toString())
         await mkdir(config.reports)
-        await writeFile(path.join(config.reports, identity.receipt.filename), await readFile(files.report), { flag: 'wx' })
+        for (const file of payload.reports) await writeFile(path.join(config.reports, file.filename), Buffer.from(file.base64, 'base64'), { flag: 'wx' })
+        await verifyReportFiles(config.reports, identity, payload)
+        const restoredState = await client(new URL('/forge_restore_operational_state', target).toString())
+        try {
+          const rows = await reportRows(restoredState)
+          assert.deepEqual(JSON.parse(JSON.stringify(rows)), identity.rows)
+          assert.deepEqual(inventory(rows), identity.inventory)
+        } finally { await restoredState.end() }
         const verifier = new RestoredReportVerifier(config.reports, identity.proof)
         let replay = 0
         try {
-          const coordinator = new Coordinator(store, core, { publisher: verifier, recovery: { taskId: identity.taskId, receipt: identity.receipt } })
-          const worker = { projectId: identity.projectId, agentId: identity.agentId, workerId: randomUUID() }
-          assert.equal(await coordinator.runOnce(worker, async () => { replay++; throw new Error('Forbidden replay') }), 'completed')
-          assert.equal(await coordinator.runOnce(worker, async () => { replay++; throw new Error('Forbidden replay') }), 'idle')
+          for (const expected of identity.inventory) {
+            const coordinator = new Coordinator(store, core, { publisher: verifier, recovery: { taskId: expected.taskId, receipt: expected.receipt } })
+            const worker = { projectId: expected.projectId, agentId: expected.agentId, workerId: randomUUID() }
+            const forbidden = async () => { replay++; throw new Error('Forbidden replay') }
+            assert.equal(await coordinator.runOnce(worker, forbidden), expected.state === 'completed' ? 'idle' : 'completed')
+            assert.equal(await coordinator.runOnce(worker, forbidden), 'idle')
+            const checkpoint = await store.recoveryCheckpoint(expected.projectId, expected.taskId)
+            assert.deepEqual(checkpoint.effectReceipt, expected.receipt)
+            assert.deepEqual(checkpoint.artifact, expected.artifact)
+            assert.equal(checkpoint.attempts, expected.attempts + (expected.state === 'completed' ? 0 : 1))
+            const task = await core.getTaskByKey(expected.projectId, expected.taskKey)
+            assert.equal(task.id, expected.taskId); assert.equal(task.assignedAgentId, expected.agentId); assert.equal(task.status, 'done')
+            assert.equal((await core.listExecutions({ projectId: expected.projectId, taskId: expected.taskId })).items.length, 1)
+            assert.equal((await core.listMemories({ projectId: expected.projectId, taskId: expected.taskId })).items.length, 1)
+          }
+          const reconciled = await client(new URL('/forge_restore_operational_state', target).toString())
+          try {
+            assert.deepEqual(inventory(await reportRows(reconciled)), identity.inventory.map(row => ({ ...row, state: 'completed', attempts: row.attempts + (row.state === 'completed' ? 0 : 1) })))
+          } finally { await reconciled.end() }
+          await verifyReportFiles(config.reports, identity, payload)
           assert.equal(replay, 0)
           const row = await store.recoveryCheckpoint(identity.projectId, identity.taskId)
           assert.deepEqual(row.effectReceipt, identity.receipt)
@@ -144,7 +182,7 @@ async function restore(config) {
           assert.equal((await core.listMemories({ projectId: identity.projectId, taskId: identity.taskId })).items.length, 1)
           await assert.rejects(core.getProjectByKey('post-cutoff'))
           assert.equal((await execute(process.execPath, ['--test', 'packages/schema/tests/runtime-role.test.mjs'], { ...systemEnvironment(), FORGE_ADMIN_DATABASE_URL: new URL('/forge_restore_operational', target).toString(), FORGE_DATABASE_URL: coreUrl.toString() })).code, 0)
-          await writeFile(path.join(evidence, 'restore.json'), JSON.stringify({ independentProcess: true, replicaOnly: true, authenticatedBeforeProvision: true, receiptPreserved: true, reconciliation: 1, handlerReplay: replay, providerReplay: 0, targetRoleContract: 'passed' }, null, 2))
+          await writeFile(path.join(evidence, 'restore.json'), JSON.stringify({ independentProcess: true, replicaOnly: true, authenticatedBeforeProvision: true, receiptPreserved: true, reconciliation: 1, handlerReplay: replay, providerReplay: 0, targetRoleContract: 'passed', reportsRestored: identity.inventory.length, exactRowsReceiptsAndBytes: true, completedNoopAndReplay: true }, null, 2))
         } finally { await core.close(); await store.close() }
       } finally { await admin.end() }
     })
@@ -179,6 +217,21 @@ async function main() {
     await assert.rejects(client(denied.toString()), error => error.code === '28P01')
   }
   const admin = await client(adminUrl); const stateAdmin = await client(stateAdminUrl)
+  const roleNames = ['forge_runtime', 'operational_state', 'operational_migration', 'operational_backup', 'forge_pilot']
+  const roleSnapshots = {}
+  const inspectRoles = async (phase, sealed) => {
+    const rows = (await admin.query('SELECT rolname,rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls FROM pg_roles WHERE rolname=ANY($1) ORDER BY rolname', [roleNames])).rows
+    assert.equal(rows.length, 5)
+    for (const role of rows) {
+      const operator = role.rolname === 'forge_pilot'
+      assert.equal(role.rolcanlogin, operator || (!sealed && role.rolname !== 'operational_backup'))
+      if (!operator) for (const flag of ['rolsuper', 'rolcreaterole', 'rolcreatedb', 'rolreplication', 'rolbypassrls']) assert.equal(role[flag], false)
+      else assert.equal(role.rolsuper, true)
+    }
+    assert.deepEqual((await admin.query('SELECT rolname FROM pg_roles WHERE rolcanlogin ORDER BY rolname')).rows.map(row => row.rolname), rows.filter(row => row.rolcanlogin).map(row => row.rolname))
+    roleSnapshots[phase] = rows
+    return rows
+  }
   const adminIdentity = (await admin.query("SELECT current_setting('data_directory') AS directory,host(inet_server_addr()) AS host,current_user AS usr")).rows[0]
   assert.equal(path.resolve(adminIdentity.directory).toLowerCase(), path.join(root, 'data').toLowerCase())
   assert.equal(adminIdentity.host, '127.0.0.1'); assert.equal(adminIdentity.usr, 'forge_pilot')
@@ -219,8 +272,19 @@ async function main() {
     const agent = await core.registerAgent({ agentKey: 'operational-agent', name: 'Fixture' })
     await core.assignAgent(project.id, agent.id)
     const task = await core.createTask({ projectId: project.id, taskKey: 'effect', title: 'Fixture', status: 'ready', assignedAgentId: agent.id, idempotencyKey: 'operational-task' })
+    // Declare the exact fixture population at creation, independently of discovery.
+    const expected = [{ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }]
     await core.remember({ projectId: project.id, memoryType: 'observation', title: 'Embedding source', content: 'Synthetic vector fixture', idempotencyKey: 'operational-memory' })
     const publisher = new ImmutableReportPublisher(reports)
+    for (let index = 1; index <= 2; index++) {
+      const other = await core.registerProject({ projectKey: `operational-${index}`, name: 'Synthetic additional report' })
+      await core.assignAgent(other.id, agent.id)
+      const extra = await core.createTask({ projectId: other.id, taskKey: `effect-${index}`, title: 'Fixture', status: 'ready', assignedAgentId: agent.id, idempotencyKey: `operational-task-${index}` })
+      const identity = { projectId: other.id, taskId: extra.id, taskKey: extra.taskKey, agentId: agent.id }
+      expected.push(identity)
+      await store.enqueue(identity, 3, { kind: publisher.kind, targetId: publisher.targetId })
+      assert.equal(await new Coordinator(store, core, { publisher }).runOnce({ projectId: other.id, agentId: agent.id, workerId: randomUUID() }, async () => ({ title: `Synthetic report ${index}`, content: `Completed fixture ${index}` })), 'completed')
+    }
     await store.enqueue({ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }, 3, { kind: publisher.kind, targetId: publisher.targetId })
     // A real report file exists while the receipt transaction has NOT committed.
     const effectWritten = deferred(); const releaseEffect = deferred()
@@ -252,6 +316,16 @@ async function main() {
     await assert.rejects(runEmbeddingWorker({ gateway: core, projectId: project.id, profile: { profileKey: 'late-vector', dimensions: 3 }, provider: { name: 'fixture', model: 'synthetic', embed: async () => { throw new Error('must not call') } } })); late.push('embeddings')
     for (const operation of [() => store.enqueue({ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }), () => store.claim({ projectId: project.id, agentId: agent.id, workerId: randomUUID() }), () => store.heartbeat({}), () => store.fenced({}, async () => ({ value: null })), () => store.fail({}), () => store.recoveryCheckpoint(project.id, task.id), () => publisher.publish({ key: 'late', artifact: { title: 'Late', content: 'Late' }, signal: new AbortController().signal })]) await assert.rejects(operation())
     late.push('enqueue', 'claim', 'heartbeat', 'fenced', 'fail', 'recovery', 'report-publication')
+    let lateHandler = 0; let latePort = 0
+    const sentinel = new Proxy(store, { get(target, key) { const value = Reflect.get(target, key); return typeof value === 'function' ? (...args) => { latePort++; return value.apply(target, args) } : value } })
+    const sentinelCore = new Proxy(core, { get(target, key) { const value = Reflect.get(target, key); return typeof value === 'function' ? (...args) => { latePort++; return value.apply(target, args) } : value } })
+    await assert.rejects(new Coordinator(sentinel, sentinelCore, { publisher }).runOnce({ projectId: project.id, agentId: agent.id, workerId: randomUUID() }, async () => { lateHandler++; throw new Error('Forbidden late handler') }))
+    assert.equal(lateHandler, 0); assert.equal(latePort, 0); late.push('Coordinator.runOnce')
+    let lateVerification = 0
+    await assert.rejects(store.reconcileReport(project.id, randomUUID(), async () => { lateVerification++ }))
+    assert.equal(lateVerification, 0); late.push('reconcileReport')
+    assert.deepEqual([...late].sort(), [...writerInventory.families].sort())
+    assert.equal(writerInventory.launcherCertified, false)
     assert.equal(drained, false)
     assert.equal((await stateAdmin.query('SELECT effect_receipt FROM forge_coordinator.jobs WHERE task_id=$1', [task.id])).rows[0].effect_receipt, null)
     releaseEffect.resolve(); assert.equal(await job, 'failed')
@@ -268,7 +342,16 @@ async function main() {
     const direct = []
     for (const url of [source, sourceState]) { const migration = new URL(url); migration.username = 'operational_migration'; migration.password = migrationPassword; direct.push(await client(migration.toString())) }
     stage = 'database-seal'
+    const beforeRoles = await inspectRoles('before', false)
+    // Unknown LOGIN fails pre-seal without altering any inventoried role.
+    await admin.query('CREATE ROLE operational_unknown_fixture LOGIN')
+    try {
+      await assert.rejects(sealCoherentDatabases({ connectionString: adminUrl, dataDirectory: path.join(root, 'data'), databases: [source.pathname.slice(1), sourceState.pathname.slice(1)], writerRoles: ['forge_runtime', 'operational_state', 'operational_migration'], backupRole: 'operational_backup', maintenance: lease }), /Unmanaged login role/)
+      assert.deepEqual((await admin.query('SELECT rolname,rolcanlogin,rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls FROM pg_roles WHERE rolname=ANY($1) ORDER BY rolname', [roleNames])).rows, beforeRoles)
+      await assert.rejects(stat(path.join(root, 'primary')), { code: 'ENOENT' })
+    } finally { await admin.query('DROP ROLE operational_unknown_fixture') }
     databaseGate = await sealCoherentDatabases({ connectionString: adminUrl, dataDirectory: path.join(root, 'data'), databases: [source.pathname.slice(1), sourceState.pathname.slice(1)], writerRoles: ['forge_runtime', 'operational_state', 'operational_migration'], backupRole: 'operational_backup', maintenance: lease })
+    await inspectRoles('during', true)
     for (const db of direct) { await assert.rejects(db.query('CREATE TABLE public.late_ddl(id int)')); await db.end() }
     for (const url of [source, sourceState]) for (const role of ['forge_runtime', 'operational_state', 'operational_migration']) { const denied = new URL(url); denied.username = role; denied.password = role === 'operational_migration' ? migrationPassword : role === 'operational_state' ? statePassword : new URL(runtimeUrl).password; await assert.rejects(client(denied.toString()), error => error.code === '28000') }
     for (const url of [source, sourceState]) {
@@ -286,7 +369,25 @@ async function main() {
       }
     }
     const cutMono = performance.now(); const cutoff = new Date().toISOString()
-    const identity = { projectId: project.id, taskId: task.id, agentId: agent.id, receipt: saved.effect_receipt, proof: captureReportTarget(reports), systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier }
+    const sourceRows = JSON.parse(JSON.stringify(await reportRows(stateAdmin)))
+    const identity = { fixtureVersion: 1, expected, inventory: inventory(sourceRows), projectId: project.id, taskId: task.id, agentId: agent.id, receipt: saved.effect_receipt, proof: captureReportTarget(reports), systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier }
+    identity.rows = sourceRows
+    identity.writerInventory = writerInventory
+    identity.rolesAtSeal = roleSnapshots.during
+    const tasks = (await admin.query('SELECT id,project_id,assigned_agent_id,task_key FROM forge.tasks WHERE project_id=ANY($1::uuid[]) ORDER BY id', [expected.map(row => row.projectId)])).rows
+    assert.deepEqual(tasks.map(row => ({ taskId: row.id, projectId: row.project_id, agentId: row.assigned_agent_id, taskKey: row.task_key })), [...expected].sort((a, b) => a.taskId.localeCompare(b.taskId)))
+    // Even the last invalid receipt must fail before the missing root is inspected.
+    const invalidCapture = structuredClone(identity)
+    invalidCapture.inventory.at(-1).receipt.filename = '../synthetic-invalid.report.md'
+    const missingReports = path.join(scratch, 'nonexistent-report-contract-fixture')
+    await assert.rejects(captureReports(missingReports, invalidCapture),
+      error => error.message === 'REPORT_RECEIPT_CONTRACT_INVALID' && error.code !== 'ENOENT')
+    const receiptContractNegative = { checkedAt: new Date().toISOString(), passed: true,
+      invalidReceiptPosition: 'last-of-multiple', missingDirectory: true, error: 'REPORT_RECEIPT_CONTRACT_INVALID' }
+    assert.ok(invalidCapture.inventory.length > 1)
+    const reportPayload = await captureReports(reports, identity)
+    const reportFile = path.join(scratch, 'reports.json')
+    await writeFile(reportFile, JSON.stringify(reportPayload), { flag: 'wx' })
     await writeFile(path.join(scratch, 'identity.json'), JSON.stringify(identity), { flag: 'wx' })
     const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 3072, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } })
     const privateFile = path.join(custody, 'escrow.pem'); const keyFile = path.join(custody, 'wrapped.json'); const keyId = 'synthetic-operational'
@@ -295,7 +396,7 @@ async function main() {
     stage = 'archive-and-seal'
     const sealed = await createCoherentGeneration({ root: path.join(root, 'primary'), key, maintenance: databaseGate, capture: async () => {
       for (const [url, file] of [[source, 'core.dump'], [sourceState, 'state.dump']]) { await captureCoherentPostgresArchive({ connectionString: url.toString(), role: 'operational_backup', postgresBin: bin, destination: path.join(scratch, file) }) }
-      return { cutoff, files: { core: path.join(scratch, 'core.dump'), coordinator: path.join(scratch, 'state.dump'), report: path.join(reports, saved.effect_receipt.filename), identity: path.join(scratch, 'identity.json') } }
+      return { cutoff, files: { core: path.join(scratch, 'core.dump'), coordinator: path.join(scratch, 'state.dump'), report: reportFile, identity: path.join(scratch, 'identity.json') } }
     } })
     // Same-volume siblings are explicitly rejected, never called independent.
     const sameVolume = path.join(root, 'same-volume'); await mkdir(sameVolume)
@@ -303,6 +404,12 @@ async function main() {
     stage = 'replicate'
     const replica = await replicateCoherentGeneration({ ...sealed, root: replicaRoot, key })
     assert.notEqual(replica.sourceDevice, replica.replicaDevice)
+    // Valid encryption/authentication with an incomplete fixture inventory must
+    // still fail semantic validation in the restore process before provisioning.
+    const incomplete = path.join(scratch, 'incomplete-identity.json')
+    await writeFile(incomplete, JSON.stringify({ ...identity, inventory: identity.inventory.slice(1) }), { flag: 'wx' })
+    const semantic = await createCoherentGeneration({ root: path.join(root, 'semantic-primary'), key, maintenance: databaseGate, capture: async () => ({ cutoff, files: { core: path.join(scratch, 'core.dump'), coordinator: path.join(scratch, 'state.dump'), report: reportFile, identity: incomplete } }) })
+    const semanticReplica = await replicateCoherentGeneration({ ...semantic, root: replicaRoot, key })
     // A real ownership change after capture must leave no published generation.
     const lostGate = await OperationalGate.initialize(path.join(external, 'lost-gate'))
     const lostLease = await lostGate.close()
@@ -315,6 +422,8 @@ async function main() {
     await assert.rejects(lostLease.resume())
     // Validated normal finish releases DB control before managed admissions.
     await databaseGate.resume(); await databaseGate.close(); databaseGate = undefined
+    await inspectRoles('after', false)
+    assert.deepEqual(roleSnapshots.after, beforeRoles)
     await lease.resume()
     // Losing the DB controller never re-enables LOGIN or permits publication.
     const disconnectedLease = await gate.close()
@@ -341,11 +450,16 @@ async function main() {
     await assert.rejects(stat(path.join(root, 'data/postmaster.pid')), { code: 'ENOENT' })
     await rm(path.join(root, 'data'), { recursive: true })
     await rm(path.join(root, 'primary'), { recursive: true }); await rm(path.join(scratch, 'core.dump')); await rm(path.join(scratch, 'state.dump')); await rm(path.join(scratch, 'identity.json'))
+    await rm(path.join(root, 'semantic-primary'), { recursive: true }); await rm(reportFile); await rm(incomplete)
     await rename(reports, reports + '-lost')
     await rm(reports + '-lost', { recursive: true })
     const config = { root, bin, reports, replica: replica.directory, generation: sealed.generation, keyFile, privateFile, keyId, taskId: task.id, projectId: project.id,
       target: process.env.FORGE_COORDINATOR_TEST_FRESH_TARGET, provision }
     const session = { root, bin, port: new URL(config.target).port, hash: process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH }
+    const semanticRejected = await restoreProcess({ ...config, replica: semanticReplica.directory, generation: semantic.generation }, session)
+    assert.notEqual(semanticRejected.code, 0); assert.equal(semanticRejected.provisionStarted, false)
+    assert.equal(semanticRejected.componentsAuthenticated, true)
+    await assert.rejects(stat(path.join(root, 'target-data')), { code: 'ENOENT' })
     for (const change of [{ target: config.target.replace('127.0.0.1', '127.0.0.2') }, { provision: path.join(root, 'altered-provision.ps1') }]) {
       const rejected = await restoreProcess({ ...config, ...change }, session)
       assert.notEqual(rejected.code, 0); assert.equal(rejected.provisionStarted, false)
@@ -375,8 +489,12 @@ async function main() {
     stage = 'independent-restore'
     const positiveRestoreTime = Date.now()
     const restored = await restoreProcess(config, session)
-    await writeFile(path.join(evidence, 'restore-process.json'), JSON.stringify({ code: restored.code, signal: restored.signal }))
+    await writeFile(path.join(evidence, 'restore-process.json'), JSON.stringify(restored))
     assert.equal(restored.code, 0, 'Independent restore failed (sanitized; inspect fixture stage)')
+    await writeFile(path.join(evidence, 'inventory-summary.json'), JSON.stringify({ checkedAt: new Date().toISOString(), scope: 'exact synthetic fixture only; deployment-wide report backup pending', launcherCertified: false,
+      roles: roleSnapshots, writerInventory, families: late, reportsExpected: expected, reportsArchived: identity.inventory.map(({ taskId, projectId, agentId, receipt }) => ({ taskId, projectId, agentId, receipt })), reportsRestored: identity.inventory.length,
+      receiptContractNegative, sourceIdentityReads: 1, exactRowsReceiptsAndBytes: true, handlerReplay: 0, providerReplay: 0, authenticatedSemanticNegativeBeforeProvision: true, unknownLoginRejectedWithoutRoleChangesOrPublication: true,
+      cryptographicAndPreflightNegatives: 7, errors: [], cleanupEvidence: 'cleanup.json (written by owning wrapper)' }, null, 2))
     await writeFile(path.join(evidence, 'metrics.json'), JSON.stringify({ scope: 'disposable Windows preproduction only', cutoff, observedRpoMs: outageMono - cutMono, observedRtoMs: Date.now() - outageTime, positiveRestoreMs: Date.now() - positiveRestoreTime, restorePreflightNegatives: 2, allSevenNegativesBeforeProvision: true, lateRejected: late,
       drainedExternalEffectAndReceipt: true, drainedEmbeddingProviderAndWrite: true, directSqlAndDdlRejectedBothDatabases: true, backupDmlDdlRejectedBothDatabases: true, operatorAuthenticationNegatives28P01: 2, backupAuthenticationNegatives28P01: 2, writerCorrectCredentialNologinNegatives28000: 6, backupProbeNormalTransactions: true, operatorScramOnlyLoginWhileSealed: true, custodyNegatives: 3, replicaNegatives: 2, ownershipLossNoPublish: true, databaseControllerLossNoPublish: true, sameVolumeRejected: true,
       sourceDevice: replica.sourceDevice, replicaDevice: replica.replicaDevice, sourceClusterStoppedBeforeRestore: true, sourceClusterRemovedBeforeRestore: true, primaryGenerationRemovedBeforeRestore: true, sourcePlaintextRemoved: true, sharedHost: true }, null, 2))
