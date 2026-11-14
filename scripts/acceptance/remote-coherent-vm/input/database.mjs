@@ -3,6 +3,7 @@ async function snapshot(coreDb, stateDb) { const result = {}; for (const table o
     result[table] = { count: rows.length, sha256: hash(JSON.stringify(rows)) };
 } const rows = (await stateDb.query('SELECT * FROM forge_coordinator.jobs ORDER BY id')).rows; result.jobs = { count: rows.length, sha256: hash(JSON.stringify(rows)) }; return result; }
 import assert from 'node:assert/strict';
+import { reportRows, inventory, validatedReceipts, validateReports, verifyReportFiles, captureReports } from './report-fixture.mjs';
 import pg from 'pg';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -102,6 +103,17 @@ export async function capture() {
     await core.putEmbedding({ projectId: project.id, profileKey: 'custody-vector', sourceKind: 'memory', sourceId: seed.id, sourceVersion: seed.version, embedding: [1, 0, 0], idempotencyKey: 'fixture-vector' });
     dbEvidence.vector = 'synthetic pgvector [1,0,0]';
     const publisher = new ImmutableReportPublisher(reports);
+    // Creation-time population is independent of SQL/file discovery at the cut.
+    const expected = [{ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }];
+    for (let index = 1; index <= 2; index++) {
+        const other = await core.registerProject({ projectKey: `operational-${index}`, name: 'Synthetic additional report' });
+        await core.assignAgent(other.id, agent.id);
+        const extra = await core.createTask({ projectId: other.id, taskKey: `effect-${index}`, title: 'Fixture', status: 'ready', assignedAgentId: agent.id, idempotencyKey: `operational-task-${index}` });
+        const item = { projectId: other.id, taskId: extra.id, taskKey: extra.taskKey, agentId: agent.id };
+        expected.push(item);
+        await store.enqueue(item, 3, { kind: publisher.kind, targetId: publisher.targetId });
+        assert.equal(await new Coordinator(store, core, { publisher }).runOnce({ projectId: other.id, agentId: agent.id, workerId: randomUUID() }, async () => ({ title: `Synthetic report ${index}`, content: `Completed fixture ${index}` })), 'completed');
+    }
     await store.enqueue({ projectId: project.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }, 3, { kind: publisher.kind, targetId: publisher.targetId });
     const faultCore = new Proxy(core, { get(t, k) { if (k === 'remember')
             return async () => { throw new Error('Synthetic post-receipt interruption'); }; const v = Reflect.get(t, k); return typeof v === 'function' ? v.bind(t) : v; } });
@@ -137,12 +149,19 @@ export async function capture() {
     const originals = root + '/capturer/originals';
     await mkdir(originals);
     const sourceSnapshot = await snapshot(admin, state);
-    const identity = { sourceSnapshot, projectId: project.id, agentId: agent.id, taskId: task.id, receipt: saved.effect_receipt, proof: captureReportTarget(reports), systemIdentifier: c.id, cutoff };
-    await writeFile(originals + '/identity.json', JSON.stringify(identity));
-    const files = { core: originals + '/core.dump', coordinator: originals + '/state.dump', identity: originals + '/identity.json', report: reports + '/' + saved.effect_receipt.filename };
+    const rows = JSON.parse(JSON.stringify(await reportRows(state)));
+    const identity = { fixtureVersion: 2, expected, rows, inventory: inventory(rows), sourceSnapshot, proof: captureReportTarget(reports), systemIdentifier: c.id, cutoff };
+    const tasks = (await admin.query('SELECT id,project_id,assigned_agent_id,task_key FROM forge.tasks ORDER BY id')).rows;
+    assert.deepEqual(tasks.map(row => ({ taskId: row.id, projectId: row.project_id, agentId: row.assigned_agent_id, taskKey: row.task_key })), [...expected].sort((a, b) => a.taskId.localeCompare(b.taskId)));
+    await checkCoreRows(admin, identity, false);
+    const payload = await captureReports(reports, identity);
+    await writeFile(originals + '/identity.json', JSON.stringify(identity), { flag: 'wx' });
+    await writeFile(originals + '/reports.json', JSON.stringify(payload), { flag: 'wx' });
+    const files = { core: originals + '/core.dump', coordinator: originals + '/state.dump', identity: originals + '/identity.json', report: originals + '/reports.json' };
     dbEvidence.cutData = sourceSnapshot;
-    dbEvidence.receiptHash = hash(JSON.stringify(saved.effect_receipt));
-    dbEvidence.reportHash = hash(await readFile(files.report));
+    dbEvidence.reports = reportEvidence(identity, payload);
+    dbEvidence.reportsExpected = 3;
+    dbEvidence.reportsCaptured = 3;
     dbEvidence.sourceRoleContract = true;
     dbEvidence.receiptCommittedBeforeCoreMemory = true;
     dbEvidence.phase = 'dump';
@@ -155,17 +174,53 @@ export async function capture() {
 export async function finishCapture() { await seal.resume(); await admin.query("INSERT INTO forge.projects(project_key,name) VALUES ('post-cutoff','Excluded marker')"); dbEvidence.postCutoffMarkerCreated = true; await seal.close(); seal = undefined; await admin.end(); admin = undefined; await state.end(); state = undefined; delete process.env.FORGE_OPERATIONAL_GATE_ROOT; await stop(); dbEvidence.simulatedRpoMs = Math.round(performance.now() - cutTick); await rm(reports, { recursive: true }); await assert.rejects(stat(reports), { code: 'ENOENT' }); dbEvidence.reportRemoved = true; }
 export async function readRestoreIdentity(files) {
     const identity = JSON.parse(await readFile(files.identity, 'utf8'));
-    const receipt = identity.receipt;
-    assert.equal(receipt.kind, 'immutable-report-v1');
-    assert.equal(typeof receipt.key, 'string');
-    assert.equal(receipt.filename, hash(receipt.key) + '.report.md');
-    assert.equal(identity.proof.canonicalPath.toLowerCase(), path.resolve(reports).toLowerCase());
-    assert.equal(hash(await readFile(files.report)), receipt.sha256);
+    // Check every receipt/name before accessing even the aggregate report path.
+    validatedReceipts(identity);
+    assert.match(identity.systemIdentifier, /^[0-9]{1,20}$/);
+    assert.equal(new Date(identity.cutoff).toISOString(), identity.cutoff);
+    const payload = JSON.parse(await readFile(files.report, 'utf8'));
+    validateReports(identity, payload);
+    assert.deepEqual(Object.keys(identity.sourceSnapshot).sort(), ['projects', 'memories', 'executions', 'tasks', 'embedding_profiles', 'embeddings', 'jobs'].sort());
+    for (const [table, count] of Object.entries({ projects: 3, tasks: 3, executions: 3, jobs: 3, memories: 3, embeddings: 1, embedding_profiles: 1 })) {
+        assert.equal(identity.sourceSnapshot[table].count, count);
+        assert.match(identity.sourceSnapshot[table].sha256, /^[a-f0-9]{64}$/);
+    }
     return identity;
+}
+function reportEvidence(identity, payload) {
+    return identity.inventory.map(row => ({ reportHash: row.receipt.sha256, receiptHash: hash(JSON.stringify(row.receipt)), bytes: payload.reports.find(file => file.filename === row.receipt.filename).bytes, state: row.state }));
+}
+async function checkCoreRows(db, identity, reconciled) {
+    for (const row of identity.inventory) {
+        const tasks = (await db.query('SELECT * FROM forge.tasks WHERE id=$1', [row.taskId])).rows;
+        assert.equal(tasks.length, 1);
+        assert.equal(tasks[0].project_id, row.projectId);
+        assert.equal(tasks[0].assigned_agent_id, row.agentId);
+        assert.equal(tasks[0].task_key, row.taskKey);
+        const executions = (await db.query('SELECT * FROM forge.executions WHERE task_id=$1', [row.taskId])).rows;
+        assert.equal(executions.length, 1);
+        assert.equal(executions[0].project_id, row.projectId);
+        assert.equal(executions[0].agent_id, row.agentId);
+        assert.equal(executions[0].execution_key, `coordinator:v1:${row.projectId}:${row.taskId}`);
+        assert.equal(executions[0].policy_version, 'external-coordinator-v1');
+        assert.equal(executions[0].metadata.coordinatorJobId, identity.rows.find(job => job.task_id === row.taskId).id);
+        assert.equal(executions[0].status, reconciled || row.state === 'completed' ? 'succeeded' : 'running');
+        assert.equal(tasks[0].status, reconciled || row.state === 'completed' ? 'done' : 'in_progress');
+        const memories = (await db.query('SELECT * FROM forge.memories WHERE task_id=$1', [row.taskId])).rows;
+        assert.equal(memories.length, reconciled || row.state === 'completed' ? 1 : 0);
+        for (const memory of memories) {
+            assert.equal(memory.project_id, row.projectId);
+            assert.equal(memory.created_by_agent_id, row.agentId);
+            assert.equal(memory.memory_type, 'execution_summary');
+            const provenance = (await db.query('SELECT source_kind,source_ref FROM forge.memory_provenance WHERE memory_id=$1', [memory.id])).rows;
+            assert.deepEqual(provenance, [{ source_kind: 'execution', source_ref: executions[0].id }]);
+        }
+    }
 }
 export async function restore(files) {
     dbEvidence.phase = 'validate-restored-report';
     const identity = await readRestoreIdentity(files);
+    const payload = JSON.parse(await readFile(files.report, 'utf8'));
     dbEvidence.phase = 'authenticated-target-init';
     const c = await cluster('target');
     assert.notEqual(c.id, identity.systemIdentifier);
@@ -189,6 +244,8 @@ export async function restore(files) {
         dbEvidence.exactCutData = true;
         assert.equal((await restoredCore.query('SELECT embedding::text value FROM forge.embeddings')).rows[0].value, '[1,0,0]');
         dbEvidence.vectorRestored = true;
+        assert.deepEqual(JSON.parse(JSON.stringify(await reportRows(restoredState))), identity.rows);
+        await checkCoreRows(restoredCore, identity, false);
     }
     finally {
         await restoredCore.end();
@@ -223,33 +280,51 @@ export async function restore(files) {
     store = new PostgresJobStore(String(stateRuntime));
     await assert.rejects(core.getProjectByKey('post-cutoff'));
     await mkdir(reports);
-    await writeFile(reports + '/' + identity.receipt.filename, await readFile(files.report), { flag: 'wx' });
-    assert.equal(hash(await readFile(files.report)), identity.receipt.sha256);
+    for (const report of validatedReceipts(identity)) {
+        await writeFile(path.join(reports, report.receipt.filename), report.bytes, { flag: 'wx' });
+    }
+    const fileIdentities = await verifyReportFiles(reports, identity, payload);
     const proof = captureReportTarget(reports);
     assert.equal(proof.canonicalPath, identity.proof.canonicalPath);
     dbEvidence.sameCanonicalReportPath = true;
     const verifier = new RestoredReportVerifier(reports, identity.proof);
     let replay = 0;
-    const coordinator = new Coordinator(store, core, { publisher: verifier, recovery: { taskId: identity.taskId, receipt: identity.receipt } }), worker = { projectId: identity.projectId, agentId: identity.agentId, workerId: randomUUID() };
     dbEvidence.phase = 'reconcile';
-    assert.equal(await coordinator.runOnce(worker, async () => { replay++; throw new Error('Forbidden replay'); }), 'completed');
-    assert.equal(await coordinator.runOnce(worker, async () => { replay++; throw new Error('Forbidden replay'); }), 'idle');
+    dbEvidence.probes = [];
+    const completedBefore = (await state.query("SELECT * FROM forge_coordinator.jobs WHERE state='completed' ORDER BY id")).rows;
+    for (const expected of identity.inventory) {
+        const coordinator = new Coordinator(store, core, { publisher: verifier, recovery: { taskId: expected.taskId, receipt: expected.receipt } });
+        const worker = { projectId: expected.projectId, agentId: expected.agentId, workerId: randomUUID() };
+        const forbidden = async () => { replay++; throw new Error('Forbidden replay'); };
+        const first = await coordinator.runOnce(worker, forbidden);
+        assert.equal(first, expected.state === 'completed' ? 'idle' : 'completed');
+        assert.equal(await coordinator.runOnce(worker, forbidden), 'idle');
+        const row = await store.recoveryCheckpoint(expected.projectId, expected.taskId);
+        assert.deepEqual(row.effectReceipt, expected.receipt);
+        assert.deepEqual(row.artifact, expected.artifact);
+        assert.equal(row.attempts, expected.attempts + (expected.state === 'completed' ? 0 : 1));
+        assert.equal((await core.getTaskByKey(expected.projectId, expected.taskKey)).status, 'done');
+        dbEvidence.probes.push({ reportHash: expected.receipt.sha256, before: expected.state, first, replay: 'idle', after: 'completed', attempts: row.attempts });
+    }
+    assert.deepEqual((await state.query('SELECT * FROM forge_coordinator.jobs WHERE id=ANY($1::uuid[]) ORDER BY id', [completedBefore.map(row => row.id)])).rows, completedBefore);
+    assert.deepEqual(inventory(await reportRows(state)), identity.inventory.map(row => ({ ...row, state: 'completed', attempts: row.attempts + (row.state === 'completed' ? 0 : 1) })));
+    const finalCore = await client(cu);
+    try { await checkCoreRows(finalCore, identity, true); } finally { await finalCore.end(); }
+    assert.deepEqual(await verifyReportFiles(reports, identity, payload), fileIdentities);
     assert.equal(replay, 0);
-    const row = await store.recoveryCheckpoint(identity.projectId, identity.taskId);
-    assert.deepEqual(row.effectReceipt, identity.receipt);
-    assert.equal(row.attempts, 2);
-    assert.equal((await core.getTaskByKey(identity.projectId, 'effect')).status, 'done');
-    assert.equal((await core.listExecutions({ projectId: identity.projectId, taskId: identity.taskId })).items.length, 1);
-    assert.equal((await core.listMemories({ projectId: identity.projectId, taskId: identity.taskId })).items.length, 1);
     dbEvidence.reconciliation = 1;
     dbEvidence.handlerReplay = 0;
+    dbEvidence.providerReplay = 0;
     dbEvidence.providerConfigured = false;
     dbEvidence.replacementReportIdentityVerified = true;
-    dbEvidence.executions = 1;
-    dbEvidence.taskMemories = 1;
+    dbEvidence.executions = 3;
+    dbEvidence.taskMemories = 3;
     dbEvidence.taskDone = true;
-    dbEvidence.receiptHash = hash(JSON.stringify(row.effectReceipt));
-    dbEvidence.reportHash = hash(await readFile(files.report));
+    dbEvidence.reports = reportEvidence(identity, payload);
+    dbEvidence.reportsRestored = 3;
+    dbEvidence.exactRowsReceiptsAndBytes = true;
+    dbEvidence.completedNoopAndReplay = true;
+    dbEvidence.reportFilesNotRewritten = true;
     dbEvidence.postCutoffAbsent = true;
 }
 export async function cleanup() { delete process.env.FORGE_OPERATIONAL_GATE_ROOT; for (const x of [core, store])

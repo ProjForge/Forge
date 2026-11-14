@@ -52,7 +52,7 @@ while ($null -ne $ancestor) {
 $inputPath = Join-Path $PSScriptRoot 'input'
 Assert-SafeTree $inputPath
 $inputAllowed = @('guest.ps1','role.ps1','acl.ps1','node.exe','check-handoff.mjs',
-    'remote-coherent-transfer.mjs','probe.mjs','database.mjs','packages','node_modules','postgres')
+    'remote-coherent-transfer.mjs','probe.mjs','database.mjs','report-fixture.mjs','packages','node_modules','postgres')
 foreach ($entry in Get-ChildItem -LiteralPath $inputPath -Force) {
     if ($entry.Name -notin $inputAllowed) { throw "Unexpected input output or entry: $($entry.Name)" }
 }
@@ -63,7 +63,7 @@ foreach ($entry in Get-ChildItem -LiteralPath $PSScriptRoot -Force) {
     if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Redirected kit entry' }
 }
 foreach ($relative in @('guest.ps1','role.ps1','acl.ps1','node.exe','check-handoff.mjs',
-    'remote-coherent-transfer.mjs','probe.mjs','database.mjs',
+    'remote-coherent-transfer.mjs','probe.mjs','database.mjs','report-fixture.mjs',
     'postgres/bin/initdb.exe','postgres/bin/pg_ctl.exe','postgres/bin/pg_dump.exe',
     'postgres/bin/pg_restore.exe','postgres/bin/psql.exe')) {
     if (!(Test-Path -LiteralPath (Join-Path $inputPath $relative) -PathType Leaf)) { throw "Missing kit file: $relative" }

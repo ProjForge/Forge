@@ -347,12 +347,15 @@ synthetic files. The restore on a second host and its timings are pending.
 
 ### Remote Windows VM destination
 
-The alternate kit at `.run/evidence/cross-host-coherent/vm-kit.zip` keeps the
-Windows Sandbox source and runs the destination directly in a disposable Windows
-x64 VM. It includes a separate README, an acceptance record and the native
+The VM kit keeps the Windows Sandbox source and runs the destination directly
+in a disposable Windows x64 VM. It includes a README, an acceptance record and the native
 launchers from `scripts/acceptance/remote-coherent-vm/`. Rebuild it from a
 checkout using the [kit instructions](../../scripts/acceptance/remote-coherent-vm/README.md).
-Verify the matching SHA-256 before using the VM console.
+Use the portable PostgreSQL runtime with its required Windows DLLs included.
+Check that the packaged `postgres.exe` starts in an offline guest. A version
+check on the build host can succeed using libraries already installed there.
+Verify the matching SHA-256 before using the VM console. The three-report kit
+requires a generation captured by the matching kit version.
 
 The destination launcher verifies the expected VM, NTFS paths and default
 routes. It stages the runtime in protected directories and starts an owned
@@ -371,8 +374,11 @@ to the destination custodian. Both PostgreSQL restores passed, seven table
 hashes matched, and report reconciliation made zero agent calls. A separate
 wrong-key run rejected the handoff before PostgreSQL provisioning and verified
 key, account and task cleanup. The
-[local evidence](../acceptance/custody/2026-11-11-vm-restore/README.md) records
-the capture, restore, wrong-key result and archive provenance.
+[initial local evidence](../acceptance/custody/2026-11-11-vm-restore/README.md)
+records the single-report rehearsal. The latest kit restored three reports
+and their exact receipts together with both databases through the same direct
+launcher. It reconciled only the pending job, with zero agent calls.
+[Three-report rehearsal](../acceptance/custody/2026-11-14-vm-three-report-restore/README.md)
 The remote VM, independent storage, end-to-end run and remote RPO/RTO
 are still pending.
 

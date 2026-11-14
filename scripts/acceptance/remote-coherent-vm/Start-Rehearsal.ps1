@@ -39,7 +39,7 @@ $xml = [xml]$config
 if ($xml.Configuration.Networking -ne 'Disable' -or $xml.Configuration.ClipboardRedirection -ne 'Disable' -or $xml.Configuration.MappedFolders) {
     throw 'Expected the offline Sandbox configuration'
 }
-foreach ($file in @('node.exe','probe.mjs','database.mjs','guest.ps1','role.ps1','remote-coherent-transfer.mjs',
+foreach ($file in @('node.exe','probe.mjs','database.mjs','report-fixture.mjs','guest.ps1','role.ps1','remote-coherent-transfer.mjs',
                      'postgres/bin/pg_dump.exe','postgres/bin/pg_restore.exe','postgres/lib/vector.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $inputDir $file) -PathType Leaf)) { throw "Kit file missing: $file" }
 }

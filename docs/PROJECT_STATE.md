@@ -61,8 +61,12 @@ physical WAL/PITR are separate recovery layers.
 NOW:
 - Disposable PostgreSQL 18.4 acceptance checked the fixture writer/role
   inventory and recovered all three expected reports with exact receipts and
-  zero replay. Deployment inventory and the remote multi-report path remain
-  pending. [Backup inventory evidence](acceptance/coordinator/2026-11-14-backup-inventory/README.md)
+  zero replay. The three-report Windows VM kit reproduced the restore through
+  its direct destination launcher in two sequential offline local guests.
+  The custodian verified the three receipts and seven table hashes before
+  reconciliation. Deployment-wide coverage and remote restoration remain
+  pending. [VM kit evidence](acceptance/custody/2026-11-14-vm-three-report-restore/README.md)
+  [Backup inventory evidence](acceptance/coordinator/2026-11-14-backup-inventory/README.md)
 - Reviewed the initial production topology and documented proposed custody,
   independent replica and retention policies. Destination, numerical windows
   and activation remain pending review and remote acceptance.
