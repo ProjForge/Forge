@@ -100,6 +100,9 @@ verification exercises, not only a successful restore's authentication cost.
 
 ## Retention and remaining gates
 
+The [proposed production recovery policy](COORDINATOR-PRODUCTION-RECOVERY.md)
+covers the writer topology, custody, independent replica and retention.
+
 Safe policy here is **no automatic deletion**. The unit fixture copies a generation
 to an independent local directory and authenticates that copy before considering
 it usable; it does not model a separate failure domain. Production retention may
