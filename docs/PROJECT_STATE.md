@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-12
+Updated: 2026-11-14
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,10 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Reviewed the initial production topology and documented proposed custody,
+  independent replica and retention policies. Destination, numerical windows
+  and activation remain pending review and remote acceptance.
+  [Production recovery policy](guides/COORDINATOR-PRODUCTION-RECOVERY.md)
 - `reconcile-report <projectId> <jobId>` closes only verified exhausted
   immutable-report jobs whose matching Core execution already succeeded. Other
   writers remain stopped; configured operational admission must be open after
@@ -291,9 +295,9 @@ NOW:
   again before commit; production audit remains zero.
 
 NEXT:
-- Review production topology/gate activation, independent-host custody and replica/
-  retention policy before any production worker activation. Local disposable
-  operational acceptance does not authorize that activation.
+- Validate the intended writer/role inventory and report coverage, approve the
+  destination, custody and retention settings, and run the independent-host
+  restoration before deciding on production coordinator activation.
   Use `list-blocked` to locate jobs for reconciliation. Unconfirmed reports
   and incomplete Core executions require independent operator evidence.
 - Accept another effect receiver only with durable idempotency/reconciliation;
