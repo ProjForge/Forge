@@ -121,12 +121,13 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   await state.query(await readFile(new URL('../../sql/setup.sql', import.meta.url), 'utf8'))
   const store = new PostgresJobStore(stateUrl.toString(), 3_000)
   const core = ForgePersistenceGateway.connect({ connectionString: coreUrl!, maxConnections: 2 })
-  const workerEnv: NodeJS.ProcessEnv = {}
+  const platformEnv: NodeJS.ProcessEnv = {}
   for (const key of ['PATH', 'Path', 'PATHEXT', 'ComSpec', 'SystemRoot', 'WINDIR', 'HOME', 'USERPROFILE', 'TEMP', 'TMP']) {
-    if (process.env[key] !== undefined) workerEnv[key] = process.env[key]
+    if (process.env[key] !== undefined) platformEnv[key] = process.env[key]
   }
-  workerEnv.FORGE_DATABASE_URL = coreUrl!
-  workerEnv.FORGE_COORDINATOR_DATABASE_URL = stateUrl.toString()
+  const workerEnv: NodeJS.ProcessEnv = {
+    ...platformEnv, FORGE_DATABASE_URL: coreUrl!, FORGE_COORDINATOR_DATABASE_URL: stateUrl.toString(),
+  }
   const children: ChildProcess[] = []
   const reportsRoot = await mkdtemp(path.join(tmpdir(), 'forge-agent-reports-'))
   const publisher = new ImmutableReportPublisher(reportsRoot)
@@ -193,8 +194,8 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   async function expired(job: Job): Promise<void> {
     await until(async () => (await state.query('SELECT lease_until<=clock_timestamp() AS expired FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0].expired === true)
   }
-  function spawn(agentId: string, workerId: string, mode = 'normal', reportRoot = reportsRoot) {
-    const child = fork(fileURLToPath(new URL('./worker.js', import.meta.url)), [project.id, agentId, workerId, mode], {
+  function spawn(agentId: string, workerId: string, mode = 'normal', reportRoot = reportsRoot, projectId = project.id) {
+    const child = fork(fileURLToPath(new URL('./worker.js', import.meta.url)), [projectId, agentId, workerId, mode], {
       env: { ...workerEnv, FORGE_COORDINATOR_REPORT_ROOT: reportRoot }, silent: true, execArgv: [],
     })
     children.push(child)
@@ -808,6 +809,296 @@ test('coordinates trusted agents across processes, death, lease loss and uncerta
   assert.equal(counts.completed, 12)
   assert.equal(counts.retained, 3)
   if (liveModel) assert.ok(realCalls >= 10, 'Real model inference must actually run in live acceptance')
+
+  await context.test('split restore blocks an uncheckpointed post-cut report and reconciles its confirmed sibling', {
+    skip: !split,
+  }, async () => {
+    const resiliencePackage: string = 'forge-resilience'
+    const { captureCoherentPostgresArchive } = await import(resiliencePackage)
+    const scope = await core.registerProject({ projectKey: `post-cut-${suffix}`, name: 'Post-cut survivor fixture' })
+    const agent = await core.registerAgent({ agentKey: `post-cut-${suffix}`, name: 'Post-cut survivor agent' })
+    await core.assignAgent(scope.id, agent.id, 'recovery-test')
+    const policy = { kind: publisher.kind, targetId: publisher.targetId }
+    const add = async (label: string) => {
+      const task = await core.createTask({ projectId: scope.id, taskKey: label, title: label, objective: 'Review subtract(a,b) returning a+b.', assignedAgentId: agent.id, status: 'ready', idempotencyKey: label })
+      return store.enqueue({ projectId: scope.id, taskId: task.id, taskKey: task.taskKey, agentId: agent.id }, 3, policy)
+    }
+    const survivor = await add('post-cut-survivor')
+    const confirmed = await add('pre-cut-confirmed')
+    const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+    const reportKey = (job: Job) => `coordinator:v1:${job.projectId}:${job.taskId}:report`
+    const row = async (db: pg.Client, job: Job) => (await db.query('SELECT * FROM forge_coordinator.jobs WHERE id=$1', [job.id])).rows[0]
+    const coreSnapshot = async (db: pg.Client) => {
+      const rows = async (table: string) => (await db.query(`SELECT * FROM forge.${table} WHERE project_id=$1 ORDER BY id`, [scope.id])).rows
+      return {
+        tasks: await rows('tasks'), executions: await rows('executions'), memories: await rows('memories'),
+        contexts: await rows('context_packages'), contextItems: await rows('context_package_items'),
+        events: await rows('events'), audit: await rows('audit_log'),
+      }
+    }
+    const crash = async (job: Job) => {
+      const worker = spawn(agent.id, job.taskKey, 'agent-crash-after-receipt', reportsRoot, scope.id)
+      try { await worker.wait('effect-confirmed') }
+      finally {
+        const killed = worker.child.kill('SIGKILL')
+        const code = await worker.done
+        assert.equal(killed, true)
+        assert.ok(code !== 0 || worker.child.signalCode === 'SIGKILL')
+      }
+      assert.equal(calls.get(job.taskKey), 1)
+      const saved = await row(state, job)
+      assert.equal(saved.state, 'running')
+      assert.equal(saved.attempts, 1)
+      assert.ok(saved.artifact && saved.effect_receipt)
+      assert.deepEqual(saved.effect_receipt, reportIdentity(reportKey(job), saved.artifact, policy.targetId).receipt)
+      return saved
+    }
+
+    // The fixture claim skips locked rows. Preserve the survivor's original
+    // queue position and release its lock before the quiescent dumps.
+    const preCutJob = await row(state, survivor)
+    await stateAdmin.query('BEGIN')
+    let preCutConfirmed
+    try {
+      await stateAdmin.query('SELECT id FROM forge_coordinator.jobs WHERE id=$1 FOR UPDATE', [survivor.id])
+      preCutConfirmed = await crash(confirmed)
+    } finally { await stateAdmin.query('ROLLBACK') }
+    await expired(confirmed)
+    assert.deepEqual(await row(state, survivor), preCutJob)
+    assert.equal(preCutJob.state, 'queued')
+    assert.equal(preCutJob.attempts, 0)
+    assert.equal(preCutJob.artifact, null)
+    assert.equal(preCutJob.effect_receipt, null)
+    assert.equal(await publisher.hasReport(reportKey(survivor)), false)
+
+    const beforeCut = await coreSnapshot(admin)
+    assert.equal(beforeCut.tasks.find(task => task.id === survivor.taskId)?.status, 'ready')
+    assert.equal(beforeCut.executions.length, 1)
+    assert.equal(beforeCut.executions[0].task_id, confirmed.taskId)
+    assert.equal(beforeCut.executions[0].status, 'running')
+    assert.deepEqual(beforeCut.memories, [])
+    assert.deepEqual(beforeCut.contexts, [])
+
+    const fileSnapshot = async (filename: string) => {
+      const canonicalPath = await realpath(filename)
+      const info = await stat(filename, { bigint: true })
+      return { canonicalPath, dev: info.dev, ino: info.ino, mtimeNs: info.mtimeNs, bytes: await readFile(filename) }
+    }
+    const rootIdentity = captureReportTarget(reportsRoot)
+    const confirmedFile = path.join(reportsRoot, preCutConfirmed.effect_receipt.filename)
+    const confirmedReport = await fileSnapshot(confirmedFile)
+    assert.equal(digest(confirmedReport.bytes), preCutConfirmed.effect_receipt.sha256)
+    const namesAtCut = (await readdir(reportsRoot)).sort()
+    const backup = await mkdtemp(path.join(fixtureRoot, 'post-cut-'))
+    const bin = process.env.FORGE_COORDINATOR_TEST_PG_BIN!
+    assert.ok(path.isAbsolute(bin))
+    const dbUrl = (dsn: string, db: string) => { const url = new URL(dsn); url.pathname = '/' + db; return url.toString() }
+    const tag = randomUUID().replaceAll('-', '')
+    const archives = [
+      { component: 'core', dsn: adminUrl!, name: `post_cut_core_${tag}`, db: admin },
+      { component: 'coordinator', dsn: stateAdminUrl, name: `post_cut_state_${tag}`, db: stateAdmin },
+    ].map(entry => ({ ...entry, file: path.join(backup, entry.component + '.dump') }))
+    const created: string[] = []
+    const connections: pg.Client[] = []
+    const dbClock = async () => (await admin.query('SELECT clock_timestamp() AS stamp')).rows[0].stamp as Date
+    const oid = async (db: pg.Client) => (await db.query('SELECT oid FROM pg_database WHERE datname=current_database()')).rows[0].oid as number
+    let restoredStore: PostgresJobStore | undefined
+    let restoredCore: ForgePersistenceGateway | undefined
+    try {
+      const dumps = []
+      for (const archive of archives) {
+        await captureCoherentPostgresArchive({ connectionString: archive.dsn, postgresBin: bin, destination: archive.file })
+        dumps.push({ component: archive.component, completedAt: await dbClock(), sha256: digest(await readFile(archive.file)) })
+      }
+      assert.deepEqual(await coreSnapshot(admin), beforeCut)
+      assert.deepEqual(await row(state, confirmed), preCutConfirmed)
+      assert.deepEqual(await row(state, survivor), preCutJob)
+      assert.deepEqual((await readdir(reportsRoot)).sort(), namesAtCut)
+
+      const sourceJob = await crash(survivor)
+      const sourceCore = await coreSnapshot(admin)
+      const sourceExecution = sourceCore.executions.find(execution => execution.task_id === survivor.taskId)
+      assert.ok(sourceExecution)
+      assert.equal(sourceExecution.status, 'running')
+      assert.equal(sourceCore.tasks.find(task => task.id === survivor.taskId)?.status, 'in_progress')
+      assert.deepEqual(sourceCore.memories, [])
+      assert.deepEqual(sourceCore.contexts, [])
+      const survivorFile = path.join(reportsRoot, sourceJob.effect_receipt.filename)
+      const survivorReport = await fileSnapshot(survivorFile)
+      assert.equal(digest(survivorReport.bytes), sourceJob.effect_receipt.sha256)
+      // This observation bounds when the receipt was visible. The row timestamp can come from a heartbeat.
+      const receiptObservedAt = await dbClock()
+      for (const dump of dumps) {
+        assert.ok(sourceExecution.started_at >= dump.completedAt)
+        assert.ok(survivorReport.mtimeNs >= BigInt(dump.completedAt.getTime()) * 1_000_000n)
+      }
+      assert.ok(sourceJob.updated_at >= sourceExecution.started_at && receiptObservedAt >= sourceJob.updated_at)
+      const names = [...namesAtCut, sourceJob.effect_receipt.filename].sort()
+      const assertFiles = async () => {
+        assert.deepEqual(captureReportTarget(reportsRoot), rootIdentity)
+        assert.deepEqual((await readdir(reportsRoot)).sort(), names)
+        assert.deepEqual(await fileSnapshot(survivorFile), survivorReport)
+        assert.deepEqual(await fileSnapshot(confirmedFile), confirmedReport)
+      }
+      await assertFiles()
+
+      const databaseOids = []
+      for (const archive of archives) {
+        await admin.query(`CREATE DATABASE ${archive.name} TEMPLATE template0`)
+        created.push(archive.name)
+        const source = new URL(archive.dsn)
+        await promisify(execFile)(path.join(bin, 'pg_restore.exe'), [
+          '--exit-on-error', '--single-transaction', '--dbname', archive.name, archive.file,
+        ], { timeout: 30_000, env: { ...workerEnv, PGHOST: source.hostname, PGPORT: source.port, PGUSER: source.username, PGPASSWORD: decodeURIComponent(source.password) } })
+        const restored = new pg.Client({ connectionString: dbUrl(archive.dsn, archive.name) })
+        connections.push(restored)
+        await restored.connect()
+        databaseOids.push({ component: archive.component, source: await oid(archive.db), restored: await oid(restored) })
+      }
+      assert.equal(new Set(databaseOids.flatMap(db => [db.source, db.restored])).size, 4)
+      const [restoredAdmin, restoredState] = connections as [pg.Client, pg.Client]
+      const runtimeUrl = dbUrl(coreUrl!, archives[0]!.name)
+      const jobUrl = dbUrl(stateUrl.toString(), archives[1]!.name)
+      restoredCore = ForgePersistenceGateway.connect({ connectionString: runtimeUrl, maxConnections: 2 })
+      restoredStore = new PostgresJobStore(jobUrl, 3_000)
+      const privilege = await promisify(execFile)(process.execPath, [
+        '--test', fileURLToPath(new URL('../../../schema/tests/runtime-role.test.mjs', import.meta.url)),
+      ], { env: { ...platformEnv, FORGE_DATABASE_URL: runtimeUrl }, timeout: 20_000 })
+      assert.match(privilege.stdout, /^# pass 1$/m)
+      assert.match(privilege.stdout, /^# fail 0$/m)
+      assert.match(privilege.stdout, /^# skipped 0$/m)
+
+      const restoredCoordinatorRole = new pg.Client({ connectionString: jobUrl })
+      try {
+        await restoredCoordinatorRole.connect()
+        const { rows } = await restoredCoordinatorRole.query(`
+          SELECT current_database() AS database_name, rolname,
+                 rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls,
+                 EXISTS (SELECT 1 FROM pg_auth_members WHERE member = roles.oid) AS has_memberships
+          FROM pg_roles AS roles
+          WHERE rolname = current_user
+        `)
+        assert.deepEqual(rows, [{
+          database_name: archives[1]!.name, rolname: role,
+          rolsuper: false, rolcreatedb: false, rolcreaterole: false,
+          rolreplication: false, rolbypassrls: false, has_memberships: false,
+        }])
+      } finally {
+        await restoredCoordinatorRole.end()
+      }
+      assert.deepEqual(await coreSnapshot(restoredAdmin), beforeCut)
+      assert.deepEqual(await row(restoredState, survivor), preCutJob)
+      assert.deepEqual(await row(restoredState, confirmed), preCutConfirmed)
+      await assertFiles()
+
+      const coreCalls: string[] = []
+      const observed: CorePort = new Proxy(restoredCore, {
+        get(target, property) {
+          const value: unknown = Reflect.get(target, property)
+          if (typeof value !== 'function') return value
+          return (...args: unknown[]) => { coreCalls.push(String(property)); return Reflect.apply(value, target, args) }
+        },
+      })
+      let handlerCalls = 0
+      const never = async (): Promise<never> => { handlerCalls++; throw new Error('Restored handler must never run') }
+      const providerCalls = [...calls.entries()]
+      let verifiedPublishes = 0
+      const restored = new Coordinator(restoredStore, observed, { publisher: {
+        ...policy,
+        hasReport: key => publisher.hasReport(key),
+        publish: input => {
+          verifiedPublishes++
+          assert.equal(input.key, reportKey(confirmed))
+          assert.deepEqual(input.expected, preCutConfirmed.effect_receipt)
+          return publisher.publish(input)
+        },
+      } })
+      const worker = identity(survivor, 'post-cut-restore')
+      assert.equal(await restored.runOnce(worker, never), 'failed')
+      assert.deepEqual(coreCalls, ['assertReady'])
+      assert.deepEqual(await coreSnapshot(restoredAdmin), beforeCut)
+      assert.deepEqual(await row(restoredState, confirmed), preCutConfirmed)
+      const blocked = await row(restoredState, survivor)
+      assert.equal(blocked.state, 'failed')
+      assert.equal(blocked.error_code, 'EFFECT_UNCONFIRMED')
+      assert.equal(blocked.attempts, 1)
+      assert.equal(blocked.artifact, null)
+      assert.equal(blocked.effect_receipt, null)
+      const cli = fileURLToPath(new URL('../../dist/cli.js', import.meta.url))
+      const coreBeforeList = await coreSnapshot(restoredAdmin)
+      const confirmedBeforeList = await row(restoredState, confirmed)
+      const sourceBeforeList = await coreSnapshot(admin)
+      const listed = JSON.parse((await promisify(execFile)(process.execPath, [cli, 'list-blocked', scope.id], {
+        env: { ...platformEnv, FORGE_COORDINATOR_DATABASE_URL: jobUrl }, timeout: 15_000,
+      })).stdout)
+      assert.deepEqual(await coreSnapshot(restoredAdmin), coreBeforeList)
+      assert.deepEqual(await row(restoredState, survivor), blocked)
+      assert.deepEqual(await row(restoredState, confirmed), confirmedBeforeList)
+      assert.deepEqual(await coreSnapshot(admin), sourceBeforeList)
+      assert.deepEqual(listed.jobs.map((job: { id: string }) => job.id), [survivor.id])
+      assert.equal(listed.jobs[0].error_code, 'EFFECT_UNCONFIRMED')
+      assert.equal(listed.jobs[0].has_prepared_output, false)
+      assert.equal(listed.jobs[0].has_effect_receipt, false)
+      await assertFiles()
+
+      assert.equal(await restored.runOnce(worker, never), 'completed')
+      assert.deepEqual(await row(restoredState, survivor), blocked)
+      const completed = await row(restoredState, confirmed)
+      assert.equal(completed.state, 'completed')
+      assert.equal(completed.attempts, preCutConfirmed.attempts + 1)
+      assert.deepEqual(completed.effect_receipt, preCutConfirmed.effect_receipt)
+      assert.deepEqual(completed.artifact, preCutConfirmed.artifact)
+      const after = await coreSnapshot(restoredAdmin)
+      assert.deepEqual(after.tasks.find(task => task.id === survivor.taskId), beforeCut.tasks.find(task => task.id === survivor.taskId))
+      assert.equal(after.tasks.find(task => task.id === confirmed.taskId)?.status, 'done')
+      assert.equal(after.executions.length, 1)
+      const execution = after.executions[0]
+      assert.equal(execution.id, beforeCut.executions[0].id)
+      assert.equal(execution.status, 'succeeded')
+      assert.equal(after.memories.length, 1)
+      assert.equal(after.memories[0].task_id, confirmed.taskId)
+      assert.equal(after.memories[0].content, preCutConfirmed.artifact.content)
+      assert.equal(after.contexts.length, 1)
+      assert.equal(after.contexts[0].execution_id, execution.id)
+      for (const action of ['execution.start', 'memory.remember', 'context.compile', 'execution.finish']) {
+        assert.equal(after.audit.filter(entry => entry.execution_id === execution.id && entry.action === action).length, 1)
+      }
+      for (const [previous, current] of [[beforeCut.events, after.events], [beforeCut.audit, after.audit]] as const) {
+        assert.deepEqual(current.filter(entry => previous.some(saved => saved.id === entry.id)), previous)
+        for (const entry of current.filter(entry => !previous.some(saved => saved.id === entry.id))) assert.equal(entry.execution_id, execution.id)
+      }
+      assert.equal(await restored.runOnce(worker, never), 'idle')
+      assert.deepEqual(await coreSnapshot(restoredAdmin), after)
+      assert.deepEqual(await row(restoredState, survivor), blocked)
+      assert.deepEqual(await row(restoredState, confirmed), completed)
+      assert.deepEqual(await coreSnapshot(admin), sourceCore)
+      assert.deepEqual(await row(state, survivor), sourceJob)
+      assert.deepEqual(await row(state, confirmed), preCutConfirmed)
+      assert.equal(handlerCalls, 0)
+      assert.equal(verifiedPublishes, 1)
+      assert.deepEqual([...calls.entries()], providerCalls)
+      await assertFiles()
+      context.diagnostic(JSON.stringify({ postCutSurvivorRestore: {
+        dumps, databaseOids, receiptObservedAt, executionStartedAt: sourceExecution.started_at,
+        runtimeRole: true, coordinatorRoleLimited: true,
+        receiptRowUpdatedAt: sourceJob.updated_at, reportMtimeNs: survivorReport.mtimeNs.toString(),
+        reportSha256: sourceJob.effect_receipt.sha256, confirmedReportSha256: preCutConfirmed.effect_receipt.sha256,
+        source: { state: sourceJob.state, task: 'in_progress', artifact: true, receipt: true },
+        restored: { state: preCutJob.state, task: 'ready', artifact: false, receipt: false, executions: 0 },
+        blocked: { error: blocked.error_code, attempts: blocked.attempts },
+        confirmed: { attempts: completed.attempts, executions: after.executions.length, memories: after.memories.length, contexts: after.contexts.length, auditActions: ['execution.start', 'memory.remember', 'context.compile', 'execution.finish'] },
+        replay: 'idle', verifiedPublishes, handlerCalls, recoveryProviderCalls: 0, receiverUnchanged: true,
+      } }))
+    } finally {
+      await Promise.all([restoredStore?.close(), restoredCore?.close(), ...connections.map(db => db.end())])
+      for (const name of created.reverse()) await admin.query(`DROP DATABASE ${name}`)
+      const resolved = path.resolve(backup)
+      assert.equal(path.dirname(resolved), path.resolve(fixtureRoot))
+      assert.match(path.basename(resolved), /^post-cut-/)
+      await rm(resolved, { recursive: true, force: true })
+    }
+  })
+
 
   await context.test('opt-in joint logical restore retains confirmed report and Core identity', {
     skip: process.env.FORGE_COORDINATOR_TEST_RESTORE !== '1', timeout: split ? 120_000 : 60_000,

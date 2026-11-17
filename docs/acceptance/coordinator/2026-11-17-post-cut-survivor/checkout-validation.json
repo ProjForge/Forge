@@ -1,0 +1,14 @@
+{
+  "candidate": "2c45257f-9842-4fba-bd89-afe927513571",
+  "sourceSha256": "79003d7dcd15c41c98242cb63e105768287ddac84d19c83173ea7b90b2fd5d7f",
+  "review": "564a5e5c-5138-428e-a8e1-5e459b2fa1d7",
+  "startedAt": "2026-11-17T20:19:00.5218427Z",
+  "finishedAt": "2026-11-17T20:19:32.2249807Z",
+  "exitCode": 0,
+  "tests": 134,
+  "patchSha256": "4baaf9af8be8a5e5e086f86c84631031acf74752877dda890680cb1adda91474",
+  "testedSummarySha256": "62144179665d6867692ae140ac7a9f19009af794d97726fa6689a39bcfc46423",
+  "checkLogSha256": "56a2be6543411a4d52abf5772f879738d1eae4775267549edef05f2fc2a9cad5",
+  "diffCheck": 0,
+  "publishedSummarySha256": "2be0c93c0a7de79d44c84f9256391a892e5fb96cad7aeac789615f6beb956093"
+}
