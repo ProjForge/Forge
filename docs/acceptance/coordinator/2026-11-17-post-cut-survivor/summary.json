@@ -1,0 +1,110 @@
+{
+  "status": "PASS",
+  "review": "bfbaba2d-d9df-48d0-bb5c-12c0e93334bc",
+  "sourceHead": "222d0148c323fdcb784a25fb07275375379012b5",
+  "priorCandidateSha256": "7182712d11f5e8acb780de754dcf8291ab726b1ad6971d1f2dbea076008aece4",
+  "testFile": "packages/coordinator/tests/native.test.ts",
+  "testFileSha256": "79003d7dcd15c41c98242cb63e105768287ddac84d19c83173ea7b90b2fd5d7f",
+  "patchSha256": "4baaf9af8be8a5e5e086f86c84631031acf74752877dda890680cb1adda91474",
+  "checks": {
+    "npmRunCheck": 0,
+    "node": "v22.23.4",
+    "gitDiffCheck": 0
+  },
+  "pilot": {
+    "sourceCoreContractSkipped": 0,
+    "nativePassed": 29,
+    "hidden": true,
+    "exitCode": 0,
+    "postgresql": "18.4",
+    "shell": "Windows PowerShell 5.1",
+    "stderrBytes": 0,
+    "mode": "SplitDatabaseRestore",
+    "sourceCoreContractPassed": 1,
+    "nativeSkipped": 0
+  },
+  "cleanup": {
+    "sourceClusterStopped": true,
+    "remainingFixtureRoots": 0,
+    "targetClusterStopped": true
+  },
+  "postCutSurvivorRestore": {
+    "dumps": [
+      {
+        "component": "core",
+        "completedAt": "2026-11-17T20:14:00.852Z",
+        "sha256": "dbfcf3395f0ac74d161911bf86059956f8d5db7c06cc4d8b24235132437a3114"
+      },
+      {
+        "component": "coordinator",
+        "completedAt": "2026-11-17T20:14:01.082Z",
+        "sha256": "2a7bc2580309ef43efae253e1e4c3497b99469b22576aea8c671ac805f2de68e"
+      }
+    ],
+    "databaseOids": [
+      {
+        "component": "core",
+        "source": 16384,
+        "restored": 17558
+      },
+      {
+        "component": "coordinator",
+        "source": 17520,
+        "restored": 18663
+      }
+    ],
+    "receiptObservedAt": "2026-11-17T20:14:01.519Z",
+    "executionStartedAt": "2026-11-17T20:14:01.448Z",
+    "runtimeRole": true,
+    "coordinatorRoleLimited": true,
+    "receiptRowUpdatedAt": "2026-11-17T20:14:01.49Z",
+    "reportMtimeNs": "1794946441481468800",
+    "reportSha256": "9abf6b613b6abdf4dddaf846bc83bb16ea9d364241637d9688482d7bf3b01b85",
+    "confirmedReportSha256": "9abf6b613b6abdf4dddaf846bc83bb16ea9d364241637d9688482d7bf3b01b85",
+    "source": {
+      "state": "running",
+      "task": "in_progress",
+      "artifact": true,
+      "receipt": true
+    },
+    "restored": {
+      "state": "queued",
+      "task": "ready",
+      "artifact": false,
+      "receipt": false,
+      "executions": 0
+    },
+    "blocked": {
+      "error": "EFFECT_UNCONFIRMED",
+      "attempts": 1
+    },
+    "confirmed": {
+      "attempts": 2,
+      "executions": 1,
+      "memories": 1,
+      "contexts": 1,
+      "auditActions": [
+        "execution.start",
+        "memory.remember",
+        "context.compile",
+        "execution.finish"
+      ]
+    },
+    "replay": "idle",
+    "verifiedPublishes": 1,
+    "handlerCalls": 0,
+    "recoveryProviderCalls": 0,
+    "receiverUnchanged": true
+  },
+  "evidenceSha256": {
+    "changes.patch": "4baaf9af8be8a5e5e086f86c84631031acf74752877dda890680cb1adda91474",
+    "check.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "check.stdout.log": "5d55f86f4e40cdcc472265bb8714d1ec64433ca5494ffcd2a949702ccd79a342",
+    "checks.json": "d0c77389f08adbeb97a7267d5643591fedca13fe383509b387f759067ca6921b",
+    "cleanup.json": "28c063a855e958e29ab7a80fbce719091765ff4c5db128c934c55dca729a0ebc",
+    "pilot-result.json": "ca29e0a4c22618ef4fc49bca08e315b9161ea418ca23b68008a024e12c71f727",
+    "process.json": "390a7043f68dcba88d3f3691d790d0c3525beb16303cb281813613e21fe0b00c",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "3f3a4ebd7aeb1814abf6993f08df4e61ee7d8e21aad85db645ffd0292fe1f88c"
+  }
+}

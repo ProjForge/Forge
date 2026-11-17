@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-14
+Updated: 2026-11-17
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,12 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- A real post-cut report survives worker death and restoration of separate Core
+  and coordinator dumps in disposable PostgreSQL. Its restored job blocks before
+  Core admission with `EFFECT_UNCONFIRMED`; its confirmed sibling closes once
+  with the original receipt, zero handler/provider replay and unchanged reports.
+  Native 29/29 and limited-role contracts passed; independent-host restoration
+  remains pending. [Post-cut evidence](acceptance/coordinator/2026-11-17-post-cut-survivor/README.md)
 - Disposable PostgreSQL 18.4 acceptance checked the fixture writer/role
   inventory and recovered all three expected reports with exact receipts and
   zero replay. The three-report Windows VM kit reproduced the restore through
@@ -343,6 +349,8 @@ LATER:
 
 ## Recent Changes
 
+- Added real two-database post-cut rollback regression with the original receiver,
+  read-only blocked-job inspection and restored limited-role checks; runtime unchanged.
 - Workbench validates the loopback Host and listening port before serving files
   or issuing the API token. HTTP regression covers foreign and duplicate Host.
 - Reject receipt-without-artifact recovery before regeneration, using the

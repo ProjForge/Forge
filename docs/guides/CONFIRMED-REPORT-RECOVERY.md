@@ -86,6 +86,15 @@ before Core admission. The job becomes terminal with `EFFECT_UNCONFIRMED` in
 independent evidence. A retained prepared output still allows an exact matching
 report to reconcile when the worker stopped before the receipt commit.
 
+The opt-in `-SplitDatabaseRestore` rehearsal also takes two real dumps before a
+survivor report is published, kills the worker after its real receipt is visible,
+and restores into two new disposable databases while retaining the original
+receiver. The restored uncheckpointed job blocks before Core admission; a sibling
+with its original receipt completes once, with zero handler/provider calls.
+`list-blocked` runs without a Core DSN and preserves both jobs and Core snapshots.
+See [the post-cut evidence](../acceptance/coordinator/2026-11-17-post-cut-survivor/README.md).
+This is a local logical-restore rehearsal; independent-host restoration remains pending.
+
 The native -JointRestore acceptance uses only disposable PostgreSQL and synthetic
 provider output. It removes the full original receiver, holds its emptied inode
 until replacement creation to prevent reuse, removes the old directory, restores
