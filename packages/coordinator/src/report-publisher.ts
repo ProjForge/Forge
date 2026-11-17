@@ -6,7 +6,7 @@ import { operationalPort } from 'forge-persistence-gateway'
 import type { Artifact, ArtifactPublisher, EffectReceipt } from './types.js'
 import { PilotFailure } from './types.js'
 
-function reportFilename(key: string): string {
+export function reportFilename(key: string): string {
   if (!key || key.length > 200) throw new Error('Invalid report key')
   return `${createHash('sha256').update(key).digest('hex')}.report.md`
 }
@@ -132,9 +132,15 @@ function proofIdentity(proof: unknown): { canonicalPath: string; dev: bigint; in
 }
 
 export function captureReportTarget(root: string): ReportTargetProof {
-  new ImmutableReportPublisher(root)
+  if (!path.isAbsolute(root) || root.startsWith('\\')) throw new Error('Report root must be an absolute local directory')
   const info = lstatSync(root, { bigint: true })
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Report root must not be a link')
   return { version: 2, canonicalPath: realpathSync(root), dev: info.dev.toString(), ino: info.ino.toString() }
+}
+
+export function reportTargetId(proof: unknown): string {
+  const { canonicalPath, dev, ino } = proofIdentity(proof)
+  return targetIdentity(canonicalPath, dev, ino)
 }
 
 // Verification-only adapter: physical identity substitution never leaves this verifier.

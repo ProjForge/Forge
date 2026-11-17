@@ -1,0 +1,23 @@
+{
+  "review": "6fab1a7d-6260-416f-b28f-e618d1213c48",
+  "securityReview": "3be7f303-834f-4b55-8390-985f914af3c5",
+  "backendPatchSha256": "affa9b321031edfbf4b120c97fc3efe4a266e77164a8332f9ba6bb0bd779d00e",
+  "candidate": "ee725d80-a669-4a6d-a75d-24e3cd045e45",
+  "finishedAt": "2026-11-17T21:44:37.8145076Z",
+  "exitCode": 0,
+  "startedAt": "2026-11-17T21:44:03.5546604Z",
+  "tests": 140,
+  "sourceFilesByteExact": 7,
+  "originalSummarySha256": "a7295eaca6d8ffce5545c031b7e8eee07daf959c24a0139c830e71290592de1f",
+  "publishedSummarySha256": "8aa531483cc13571b7000f916fb7ad312a3a9bfd312b832fcb087aeab7a25a0d",
+  "checkLogSha256": "1d92d00b9dd8160eff964046563ad470118e0353125ec434e471fa24fe2300c4",
+  "filesystemProbe": {
+    "injectedAfterEnumeration": true,
+    "observedOutcome": "incomplete",
+    "falseComplete": false,
+    "actualEntryCount": 2,
+    "replacedRootOutcome": "incomplete",
+    "replacedRootQueryCalled": false
+  },
+  "diffCheck": 0
+}

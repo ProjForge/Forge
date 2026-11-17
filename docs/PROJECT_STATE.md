@@ -59,6 +59,13 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- `audit-reports <proof-file>` compares all projects in the original receiver
+  against coordinator checkpoints using read-only SQL, with no Core/provider
+  calls or admission tickets. Trusted pre-loss identity is mandatory; replaced
+  receivers, unstable scans and exceeded limits return `incomplete`.
+  Disposable PostgreSQL proves detection when both task and queue row were born
+  after the cut and disappear on restore. Check 140/140, native 29/29 and limited
+  roles passed. [Orphan audit evidence](acceptance/coordinator/2026-11-17-orphan-report-audit/README.md)
 - A real post-cut report survives worker death and restoration of separate Core
   and coordinator dumps in disposable PostgreSQL. Its restored job blocks before
   Core admission with `EFFECT_UNCONFIRMED`; its confirmed sibling closes once
@@ -329,6 +336,8 @@ LATER:
 - Coordinator control state needs protected backup and consistent recovery with
   Core before relying on recovery from data loss. No production service is activated.
 - A surviving report without either checkpoint requires operator reconciliation.
+  Read-only auditing needs trusted pre-loss receiver proof and quiescent writers;
+  it does not repair missing identity, verify a replacement or authorize dispatch.
   If the report and both checkpoints are lost, the worker has no local evidence
   of the prior effect. Recover from a consistent backup before reconciling.
 - Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
@@ -349,6 +358,8 @@ LATER:
 
 ## Recent Changes
 
+- Added bounded read-only receiver audit with mandatory original-identity proof,
+  orphan detection after real rollback, drift checks and SELECT-only acceptance.
 - Added real two-database post-cut rollback regression with the original receiver,
   read-only blocked-job inspection and restored limited-role checks; runtime unchanged.
 - Workbench validates the loopback Host and listening port before serving files
@@ -367,10 +378,6 @@ LATER:
 - Redesigned Workbench with theme-aware surfaces and persisted light/dark/Auto
   preference, preserving FORGE colors and using official logo variants.
 - Stable checkout created in the current workspace; historical installation kept.
-- Fixed WAL batch starvation and exposed queue freshness.
-- Updated SDK MCP/Zod and compatible locked dependencies; audit reports zero.
-- Added provider/worker health, error-code display and sanitized diagnostics.
-- Added disposable native logical restore acceptance with synthetic data.
 
 ## Open Questions
 

@@ -8,9 +8,21 @@ import { PostgresJobStore } from './store.js'
 import { LocalReportAgent } from './local-agent.js'
 import { ImmutableReportPublisher, RestoredReportVerifier, captureReportTarget } from './report-publisher.js'
 
+import { auditReportReceiver, incompleteReportAudit, readReportAuditProof } from './report-audit.js'
+
 const [command] = process.argv.slice(2)
 // Capturing the pre-loss identity needs no database or provider configuration.
-if (command === 'capture-report-target' && (process.argv.length === 3 || process.argv.length === 4)) {
+if (command === 'audit-reports') {
+  let result: Awaited<ReturnType<typeof auditReportReceiver>> = incompleteReportAudit
+  if (process.argv.length === 4) {
+    try {
+      const proof = await readReportAuditProof(process.argv[3]!)
+      result = await auditReportReceiver(process.env.FORGE_COORDINATOR_DATABASE_URL ?? '', process.env.FORGE_COORDINATOR_REPORT_ROOT ?? '', proof)
+    } catch { /* Keep file and parsing errors out of the public result. */ }
+  }
+  console.log(JSON.stringify(result))
+  if (result.outcome !== 'complete') process.exitCode = 1
+} else if (command === 'capture-report-target' && (process.argv.length === 3 || process.argv.length === 4)) {
   try {
     const json = JSON.stringify(captureReportTarget(process.env.FORGE_COORDINATOR_REPORT_ROOT ?? ''))
     if (process.argv[3]) await writeFile(process.argv[3], json + '\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 })
@@ -119,7 +131,7 @@ try {
       await delay(1_000, undefined, { signal: stop.signal }).catch(() => undefined)
     } while (!stop.signal.aborted)
   } else {
-    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file> | list-blocked <projectId UUID> [afterJobId UUID] | reconcile-report <projectId UUID> <jobId UUID>')
+    console.error('Usage: enqueue <projectKey> <taskKey> | status <projectKey> <taskKey> | worker [--watch] | capture-report-target [proof-file] | recover-report <projectKey> <taskKey> <proof-file> | audit-reports <proof-file> | list-blocked <projectId UUID> [afterJobId UUID] | reconcile-report <projectId UUID> <jobId UUID>')
     process.exitCode = 2
   }
 } catch {
