@@ -1,0 +1,193 @@
+{
+  "scope": "Disposable local Windows worktree and synthetic PostgreSQL fixtures",
+  "base": "775951d9096d8124c1ae6fe2ddda1f4c94aba7a9",
+  "canonicalPatchSha256": "0c66503c807292601942638f33f00be4117fe3aa24468f7d8322a553900ceeb4",
+  "workerPatchSha256": "55c3f6135639f0dce97568ae0406d23978fcbbe3b756b49e08053b0ddbf25d04",
+  "checkedAt": "2026-11-17T21:37:59.1325021Z",
+  "files": [
+    {
+      "file": "packages/coordinator/README.md",
+      "sha256": "6db7ab9f46eec229496143ce8a1b1e939fbbae165a3cd014865a57f2cf56f3ef"
+    },
+    {
+      "file": "packages/coordinator/src/cli.ts",
+      "sha256": "db352b0dcc962ad2298b165251c8e59a9375e248edf92e76495459a83601eb3b"
+    },
+    {
+      "file": "packages/coordinator/src/index.ts",
+      "sha256": "2620bb8bdd08df72dcbdbad93530c1beb441baf7efff0b8eb65559f537ec082b"
+    },
+    {
+      "file": "packages/coordinator/src/report-publisher.ts",
+      "sha256": "e0485bcd45625fbcdca370cdbbeeefce5b9f76d042314d4e7afa341ea4238f6b"
+    },
+    {
+      "file": "packages/coordinator/tests/native.test.ts",
+      "sha256": "520f6698284b1c0a5bdc92e70dc7cb7180873c7829b68ab7f4421531763f113c"
+    },
+    {
+      "file": "packages/coordinator/tests/unit.test.ts",
+      "sha256": "4d443e004f8565f667170f10ec9dfca644d4f7c3edaa931ae170d9184ba8988c"
+    },
+    {
+      "file": "packages/coordinator/src/report-audit.ts",
+      "sha256": "c14ef1aa4fe08d0610c44f48617f8f5f38df8f6213c718e3d4c626da227d7c28"
+    }
+  ],
+  "checks": [
+    {
+      "exit": 0,
+      "finishedAt": "2026-11-17T21:34:11.4085448Z",
+      "startedAt": "2026-11-17T21:33:09.9207782Z",
+      "command": "npm run check"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    },
+    {
+      "command": "git apply --reverse --check --whitespace=error worker-candidate.patch",
+      "exit": 0
+    }
+  ],
+  "coordinatorTests": {
+    "passed": 36,
+    "raceCases": [
+      "addition",
+      "deletion",
+      "modification"
+    ]
+  },
+  "missingProofCli": {
+    "command": "node packages/coordinator/dist/cli.js audit-reports [missing proof file]",
+    "outcome": "incomplete",
+    "exits": [
+      1,
+      1
+    ]
+  },
+  "raceProbe": {
+    "command": "node race-probe.mjs packages/coordinator/.test-dist/src/",
+    "startedAt": "2026-11-17T21:35:38.5808953Z",
+    "finishedAt": "2026-11-17T21:35:38.7165492Z",
+    "exit": 0,
+    "result": {
+      "injectedAfterEnumeration": true,
+      "observedOutcome": "incomplete",
+      "falseComplete": false,
+      "actualEntryCount": 2,
+      "replacedRootOutcome": "incomplete",
+      "replacedRootQueryCalled": false
+    },
+    "initialAttempt": "Environment cleanup left an empty gate variable; probe stopped before fixtures"
+  },
+  "native": {
+    "cutArchives": [
+      {
+        "component": "core",
+        "completedAt": "2026-11-17T21:37:24.135Z",
+        "sha256": "605ced326b018f6c914d63456cac14af04867848f48ab3c19e7bc6476832af2c"
+      },
+      {
+        "component": "coordinator",
+        "completedAt": "2026-11-17T21:37:24.266Z",
+        "sha256": "519a315c8fa322e9e266212c7d185ae3b9ce2955bd7d3e25c939cca8967a90db"
+      }
+    ],
+    "orphan": {
+      "jobCreatedAt": "2026-11-17T21:37:24.274Z",
+      "reportSha256": "9abf6b613b6abdf4dddaf846bc83bb16ea9d364241637d9688482d7bf3b01b85",
+      "receiptObservedAt": "2026-11-17T21:37:24.501Z",
+      "absentAfterRestore": true,
+      "childExit": {
+        "code": null,
+        "signal": "SIGKILL"
+      },
+      "taskCreatedAt": "2026-11-17T21:37:24.273Z"
+    },
+    "initialWorktreeAttempt": {
+      "exit": 1,
+      "remainingFixtureRoots": 0,
+      "reason": "Environment cleanup left the operational gate variable empty; removed it from child environment before rerun",
+      "startedAt": "2026-11-17T21:34:37.6590291Z",
+      "finishedAt": "2026-11-17T21:34:54.4338887Z"
+    },
+    "audit": {
+      "counts": {
+        "jobs": 3,
+        "entries": 3,
+        "confirmed": 1,
+        "pending": 1,
+        "invalidEntries": 0
+      },
+      "providerCalls": 0,
+      "receiverUnchanged": true,
+      "findingClasses": [
+        "orphan",
+        "unconfirmed"
+      ],
+      "exits": [
+        1,
+        1
+      ],
+      "gateClosed": true,
+      "oversizedCheckpointsIncomplete": [
+        "artifact",
+        "effect_receipt"
+      ],
+      "selectOnly": true,
+      "handlerCalls": 0,
+      "identical": true,
+      "outcome": "review_required",
+      "snapshotSha256": "bd188347e42f169d4e5f401a736b513d5d5a370bcb7b77b3df7e9c27e9adf3b8",
+      "unchanged": true
+    },
+    "cleanup": {
+      "checkedAt": "2026-11-17T21:37:47.1019232Z",
+      "sourceClusterStopped": true,
+      "targetClusterStopped": true,
+      "remainingFixtureRoots": 0
+    },
+    "survivor": {
+      "confirmed": {
+        "attempts": 2,
+        "executions": 1,
+        "memories": 1,
+        "contexts": 1,
+        "auditActions": [
+          "execution.start",
+          "memory.remember",
+          "context.compile",
+          "execution.finish"
+        ]
+      },
+      "verifiedPublishes": 1,
+      "blocked": {
+        "error": "EFFECT_UNCONFIRMED",
+        "attempts": 1
+      },
+      "recoveryProviderCalls": 0,
+      "replay": "idle"
+    },
+    "run": {
+      "powershell": "5.1.26100.9818",
+      "command": "Windows PowerShell 5.1 (hidden) Test-FORGE-CoordinatorPilot.ps1 -SplitDatabaseRestore",
+      "exit": 0,
+      "finishedAt": "2026-11-17T21:37:47.1243703Z",
+      "startedAt": "2026-11-17T21:36:18.9943323Z",
+      "node": "v22.23.4",
+      "remainingFixtureRoots": 0,
+      "stderrBytes": 0,
+      "postgres": "postgres (PostgreSQL) 18.4"
+    },
+    "tapPassed": [
+      29,
+      1
+    ],
+    "priorCandidateFailures": [
+      "foreign key fixture",
+      "exit collector",
+      "initial race probe import"
+    ]
+  }
+}

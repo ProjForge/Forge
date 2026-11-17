@@ -186,3 +186,42 @@ the state database or a production restore.
 {publisher})`. Its immutable effect policy must also be supplied when enqueuing
 through the library. A model transport failure can retry within the job's
 attempt budget before output is prepared; confirmed output/effects are reused.
+
+## Read-only report receiver audit
+
+Run `forge-coordinator-pilot audit-reports <proof-file>` against a quiescent private local
+receiver. Configure only `FORGE_COORDINATOR_DATABASE_URL` and
+`FORGE_COORDINATOR_REPORT_ROOT`. Use a database account with schema usage and
+SELECT on coordinator jobs. This trusted-operator command examines the receiver
+across projects, including reports left on disk by tasks and jobs created
+after a restored database cut. A filename hash cannot identify a task or project
+whose row is absent. Core and the provider are unnecessary. Supply a trusted record of the original
+receiver identity from `capture-report-target <proof-file>` taken before loss,
+or from an authenticated record of that identity. Keep the proof outside the
+receiver. Its authority comes from the trusted operator and record provenance.
+Missing, invalid or mismatched proof makes the audit incomplete. Capturing a
+replacement directory after loss cannot establish the original identity.
+
+The command emits one deterministic JSON result. Exit 0 means the comparison
+completed without findings. Exit 1 means review is required or the comparison
+was incomplete. Findings distinguish orphan files, known files without a
+receipt, invalid checkpoints, missing or changed files and invalid entries.
+Unexpected names are counted without printing them. A verified report requires
+the retained artifact, matching receipt and exact on-disk bytes. Queued jobs
+without a report can be pending. The audit does not establish Core completion
+or readiness.
+
+Stop writers to both the database and the receiver before running the audit.
+PostgreSQL uses a repeatable-read, read-only transaction, and filesystem
+checks pin the receiver identity and compare bounded inventories before and
+after report verification. Observed changes make the audit incomplete.
+NOLOGIN writer roles must remain sealed throughout the audit. The command
+does not unseal roles or authorize dispatch. PostgreSQL and the
+filesystem share no atomic snapshot. The audit fails closed above 1,024 matching
+jobs or 4,096 directory entries, oversized checkpoints and proof files larger
+than 4,096 bytes. Use an absolute local directory. The receiver itself must be
+a directory and cannot be a link. Ancestors resolve via realpath. The proof
+pins the canonical path and physical identity. Keep ancestors private and
+stable. Windows file reads rely on descriptor and metadata checks under
+these quiescent conditions. The command does not claim jobs, enqueue work or
+repair reports.

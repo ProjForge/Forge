@@ -25,6 +25,41 @@ Core and coordinator databases do not share an atomic transaction: quiescence an
 coherent checkpoints remain operator requirements, including with separate DBs.
 This command does not certify backups or recover a relocated/replaced receiver.
 
+## Read-only orphan report audit
+
+Before resuming work, keep all database and receiver writers stopped. Run
+`node packages/coordinator/dist/cli.js audit-reports <proof-file>` using only
+`FORGE_COORDINATOR_DATABASE_URL` and `FORGE_COORDINATOR_REPORT_ROOT`. The database
+identity needs schema usage and SELECT on coordinator jobs. No Core, model or
+provider configuration is needed. The audit can run while the operational gate
+is closed and creates no admission tickets. Keep sealed writer roles sealed;
+use an already authorized read-only identity, without changing grants or LOGIN.
+
+Supply the trusted original receiver proof captured with `capture-report-target`
+before loss, or obtained from an authenticated record. Keep it outside the
+receiver. Missing, invalid or mismatched proof returns `incomplete` before the
+job query. Do not recapture a replacement after loss to establish old identity.
+This command checks the original physical receiver; use the existing replacement
+restore procedure separately when the original receiver is gone.
+
+The comparison covers every project using that receiver, including files whose
+task and queue row disappeared with a database rollback. It cannot infer project
+or task identity from a hashed filename. Results contain safe filenames, classes
+and counts, never report contents or raw checkpoints. An `orphan` has no matching
+job; `unconfirmed` has a known job without a retained receipt. Missing or
+changed confirmed reports and invalid entries/checkpoints also require review.
+
+Exit 0 means `complete` without findings. Exit 1 means `review_required` or
+`incomplete`; inspect the JSON outcome. Connection, proof, observed stability
+failures and exceeded limits make the comparison incomplete. The SQL snapshot
+and two directory inventories require private, stable paths and quiescent
+writers; they are not a joint atomic snapshot. The audit does not claim work,
+adopt receipts, publish, repair, requeue or authorize dispatch. Preserve ambiguous
+files for operator review using independent evidence.
+
+See [the disposable orphan audit rehearsal](../acceptance/coordinator/2026-11-17-orphan-report-audit/README.md).
+Independent-host restoration and remote RPO/RTO remain pending.
+
 ## Receiver restore procedure
 
 Keep all writers stopped. Use only the intended isolated Core/control databases,
