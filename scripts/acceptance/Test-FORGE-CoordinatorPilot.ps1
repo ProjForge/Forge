@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin', [ValidateRange(1024,65535)][int]$Port=55441,
-    [switch]$AuditSqlSeal, [switch]$OperationalCoherent, [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
+    [switch]$AuditSqlSeal, [switch]$SealedOrphanRestore, [switch]$OperationalCoherent, [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runRoot=[IO.Path]::GetFullPath((Join-Path $workspace '.run'))
@@ -10,11 +10,12 @@ $started=$false
 $targetStarted=$false
 $operationalRoot=$null
 $previousOperationalRoot=$env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT
+if ($SealedOrphanRestore) { $AuditSqlSeal=$true }
 if ($AuditSqlSeal) {
     if ($CoherentBackup -or $SplitDatabaseRestore -or $FreshClusterRestore -or $JointRestore -or $LiveAgent) { throw 'AuditSqlSeal is a separate synthetic-only mode' }
     $OperationalCoherent=$true
 }
-$evidenceDirectory=Join-Path $runRoot $(if ($AuditSqlSeal) {'evidence/audit-sql-seal'} else {'evidence/operational-coherent'})
+$evidenceDirectory=Join-Path $runRoot $(if ($SealedOrphanRestore) {"evidence/sealed-orphan-restore/$(Split-Path -Leaf $root)"} elseif ($AuditSqlSeal) {'evidence/audit-sql-seal'} else {'evidence/operational-coherent'})
 if ($CoherentBackup -or $OperationalCoherent) { $SplitDatabaseRestore=$true }
 $previousKeyFile=$env:FORGE_COHERENT_TEST_KEY_FILE
 # Obtain unused generated loopback ports for the two-cluster drill only.
@@ -28,6 +29,45 @@ if ($FreshClusterRestore -or $SplitDatabaseRestore) {
     if ($LiveAgent -or $JointRestore) { throw 'FreshClusterRestore is a separate synthetic-only mode' }
     $Port=Get-FixturePort
     if (-not $AuditSqlSeal) { do { $targetPort=Get-FixturePort } while ($targetPort -eq $Port) }
+}
+
+# Bound the sealed mode's foreground Node and build trees. The
+# PostgreSQL process is started separately and belongs to wrapper cleanup.
+function Invoke-SealedStep {
+    param([string]$File,[string]$Arguments,[int]$TimeoutMs,[string]$Label)
+    $info=[Diagnostics.ProcessStartInfo]::new($File,$Arguments)
+    $info.WorkingDirectory=$workspace
+    $info.UseShellExecute=$false
+    $info.CreateNoWindow=$true
+    $info.RedirectStandardOutput=$true
+    $info.RedirectStandardError=$true
+    $child=[Diagnostics.Process]::Start($info)
+    try {
+        $null=$child.Handle
+        $stdout=$child.StandardOutput.ReadToEndAsync()
+        $stderr=$child.StandardError.ReadToEndAsync()
+        if (-not $child.WaitForExit($TimeoutMs)) {
+            $killInfo=[Diagnostics.ProcessStartInfo]::new(
+                (Join-Path ([Environment]::SystemDirectory) 'taskkill.exe'), "/PID $($child.Id) /T /F")
+            $killInfo.UseShellExecute=$false
+            $killInfo.CreateNoWindow=$true
+            $kill=[Diagnostics.Process]::Start($killInfo)
+            try {
+                if (-not $kill.WaitForExit(10000)) {
+                    $kill.Kill()
+                    throw "$Label timed out; subtree termination unconfirmed"
+                }
+                if (-not $child.WaitForExit(5000) -or $kill.ExitCode -ne 0) {
+                    throw "$Label timed out; subtree termination unconfirmed"
+                }
+            } finally { $kill.Dispose() }
+            throw "$Label timed out"
+        }
+        if (-not [Threading.Tasks.Task]::WaitAll(@($stdout,$stderr),5000)) { throw "$Label output did not close" }
+        if ($stdout.Result) { [Console]::Out.Write($stdout.Result) }
+        if ($stderr.Result) { [Console]::Error.Write($stderr.Result) }
+        if ($child.ExitCode -ne 0) { throw "$Label failed (exit $($child.ExitCode))" }
+    } finally { $child.Dispose() }
 }
 
 function Initialize-FixtureTarget {
@@ -142,11 +182,20 @@ try {
     $env:FORGE_ADMIN_DATABASE_URL="postgresql://${sourceUser}@127.0.0.1:$Port/forge_coordinator_pilot"
     $env:FORGE_DATABASE_URL=$env:FORGE_ADMIN_DATABASE_URL
     if ($OperationalCoherent) { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
-    & node packages/schema/scripts/migrate.mjs
-    if ($LASTEXITCODE -ne 0) { throw 'Pilot Core migrations failed' }
+    if ($SealedOrphanRestore) {
+        $sealedNode=(Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
+        Invoke-SealedStep $sealedNode 'packages/schema/scripts/migrate.mjs' 60000 'Sealed Core migrations'
+    } else {
+        & node packages/schema/scripts/migrate.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Pilot Core migrations failed' }
+    }
     $env:FORGE_RUNTIME_PASSWORD=[Guid]::NewGuid().ToString('N')
-    & node packages/schema/scripts/configure-runtime-role.mjs
-    if ($LASTEXITCODE -ne 0) { throw 'Pilot runtime role creation failed' }
+    if ($SealedOrphanRestore) {
+        Invoke-SealedStep $sealedNode 'packages/schema/scripts/configure-runtime-role.mjs' 60000 'Sealed runtime role setup'
+    } else {
+        & node packages/schema/scripts/configure-runtime-role.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Pilot runtime role creation failed' }
+    }
     $env:FORGE_DATABASE_URL='postgresql://forge_runtime:{0}@127.0.0.1:{1}/forge_coordinator_pilot' -f $env:FORGE_RUNTIME_PASSWORD,$Port
     $env:FORGE_COORDINATOR_TEST_ADMIN_URL=$env:FORGE_ADMIN_DATABASE_URL
     $env:FORGE_COORDINATOR_TEST_ALLOW_SETUP='1'
@@ -181,16 +230,21 @@ try {
     $env:FORGE_COORDINATOR_TEST_SPLIT=if ($SplitDatabaseRestore) {'1'} else {'0'}
     $env:FORGE_COORDINATOR_TEST_RESTORE=if (-not $AuditSqlSeal -and ($JointRestore -or $FreshClusterRestore -or $SplitDatabaseRestore)) {'1'} else {'0'}
     $env:FORGE_COORDINATOR_TEST_PG_BIN=$PostgresBin
-    & npm.cmd run build -w forge-persistence-gateway
-    if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
-    & npm.cmd run build -w forge-resilience
-    if ($LASTEXITCODE -ne 0) { throw 'Resilience build failed' }
-    if ($OperationalCoherent) {
-        & npm.cmd run build
-        if ($LASTEXITCODE -ne 0) { throw 'Operational topology build failed' }
-        & node scripts/acceptance/operational-coherent.mjs
-    } else { & npm.cmd run test:integration -w forge-coordinator }
-    if ($LASTEXITCODE -ne 0) { throw 'Coordinator pilot acceptance failed' }
+    if ($SealedOrphanRestore) {
+        Invoke-SealedStep (Join-Path ([Environment]::SystemDirectory) 'cmd.exe') '/d /c npm.cmd run build' 300000 'Sealed fixture build'
+        Invoke-SealedStep $sealedNode 'scripts/acceptance/operational-coherent.mjs --sealed-orphan-restore' 135000 'Sealed restore fixture'
+    } else {
+        & npm.cmd run build -w forge-persistence-gateway
+        if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
+        & npm.cmd run build -w forge-resilience
+        if ($LASTEXITCODE -ne 0) { throw 'Resilience build failed' }
+        if ($OperationalCoherent) {
+            & npm.cmd run build
+            if ($LASTEXITCODE -ne 0) { throw 'Operational topology build failed' }
+            & node scripts/acceptance/operational-coherent.mjs
+        } else { & npm.cmd run test:integration -w forge-coordinator }
+        if ($LASTEXITCODE -ne 0) { throw 'Coordinator pilot acceptance failed' }
+    }
     if (-not $OperationalCoherent) {
         & npm.cmd run test:runtime-role -w forge-postgresql-schema
         if ($LASTEXITCODE -ne 0) { throw 'Core runtime privilege contract failed' }
@@ -228,7 +282,18 @@ try {
         if (Test-Path -LiteralPath $resolvedExternal) { Remove-Item -LiteralPath $resolvedExternal -Recurse -Force }
         if ($AuditSqlSeal) {
             if ((Test-Path -LiteralPath $root) -or (Test-Path -LiteralPath $resolvedExternal)) { throw 'Audit fixture removal unconfirmed' }
-            @{sourceStopped=$sourceStopped;sourceRootRemoved=$true;externalRootRemoved=$true;targetStarted=$targetStarted;checkedAt=[datetime]::UtcNow.ToString('o')} |
+            $cleanup=@{sourceStopped=$sourceStopped;sourceRootRemoved=$true;externalRootRemoved=$true;targetStarted=$targetStarted;checkedAt=[datetime]::UtcNow.ToString('o')}
+            if ($SealedOrphanRestore -and $sourceStopped) {
+                $probe=[Net.Sockets.TcpClient]::new()
+                try {
+                    $probe.Connect([Net.IPAddress]::Loopback,$Port)
+                    throw 'Fixture port still accepts connections'
+                } catch [Net.Sockets.SocketException] {
+                    if ($_.Exception.SocketErrorCode -ne [Net.Sockets.SocketError]::ConnectionRefused) { throw }
+                    $cleanup.loopbackPortClosed=$true
+                } finally { $probe.Dispose() }
+            }
+            $cleanup |
                 ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'cleanup.json') -Encoding UTF8
         } else {
             @{sourceRoot=$root;externalRoot=$resolvedExternal;sourceRootRemoved=(-not (Test-Path -LiteralPath $root));externalRootRemoved=(-not (Test-Path -LiteralPath $resolvedExternal));bothOwnedClustersStopped=$true;checkedAt=[datetime]::UtcNow.ToString('o')} |
@@ -238,7 +303,7 @@ try {
 }
 if ($AuditSqlSeal) {
     if (-not $sourceStopped -or $targetStarted) { throw 'Audit fixture shutdown unconfirmed' }
-    @{status='PASS';checkedAt=[datetime]::UtcNow.ToString('o');scope='isolated SQL seal audit';sourceStopped=$true;targetStarted=$false} |
+    @{status='PASS';checkedAt=[datetime]::UtcNow.ToString('o');scope=$(if ($SealedOrphanRestore) {'isolated sealed orphan restore'} else {'isolated SQL seal audit'});sourceStopped=$true;targetStarted=$false} |
         ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8
     return
 }
