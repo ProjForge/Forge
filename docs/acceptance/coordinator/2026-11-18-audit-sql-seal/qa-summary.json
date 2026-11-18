@@ -1,0 +1,596 @@
+{
+  "status": "PASS",
+  "job": "d692b9f3-7cc0-47e2-8802-07382a5369d4",
+  "head": "cf5fd26ccca690a269a023ab4a2833eb0058dcab",
+  "patchSha256": "2bce2762263c64b7ae4fcca4f6360d81aa66aedd9fed936da7dccecdf4fa62f3",
+  "command": "powershell.exe -NoProfile -NonInteractive -File scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1 -AuditSqlSeal -PostgresBin \"C:/Program Files/PostgreSQL/18/bin\"",
+  "execution": {
+    "positiveExit": 0,
+    "incompatibleFlagExit": 1,
+    "nativeEvidenceUnchanged": true,
+    "sourceUnchanged": true,
+    "sourceMapSha256": "cc616b9232f71d1955a9b4e54037f8410036f1fdd25c291c56c904a6fa2b4545",
+    "logHashes": [
+      {
+        "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "file": "negative-live-flag.exit.txt"
+      },
+      {
+        "sha256": "28806f96a8719dddcff355eb263c4e59c37e35a747ca5fc37ed130405b676052",
+        "file": "negative-live-flag.stderr.log"
+      },
+      {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "file": "negative-live-flag.stdout.log"
+      },
+      {
+        "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "file": "positive.exit.txt"
+      },
+      {
+        "sha256": "093b92db75e3adf2d26fbfe07b6159888c6b77d18aa0b67d848c64ae95ac77c7",
+        "file": "positive.stderr.log"
+      },
+      {
+        "sha256": "3db1acc1b426248f8574dffe0fe298fc704c55c4ae077b9149d2868c7c4928b5",
+        "file": "positive.stdout.log"
+      }
+    ],
+    "nativeHashes": [
+      {
+        "Path": "E:\\DATOS IA\\Proyectos IA\\Agentic Environment\\.run\\worktrees\\5bc06c7c-1aae-491d-96ef-e049cbe451ce\\.run\\evidence\\audit-sql-seal\\audit-sql-seal.json",
+        "Hash": "1811964F726DAF5EE84F0E750305C99D56D391AB6D3C076DF1489C70D6EB07FB"
+      },
+      {
+        "Path": "E:\\DATOS IA\\Proyectos IA\\Agentic Environment\\.run\\worktrees\\5bc06c7c-1aae-491d-96ef-e049cbe451ce\\.run\\evidence\\audit-sql-seal\\cleanup.json",
+        "Hash": "00A9D5E79407CABBAB510C974A5F66BBA1663A069B6B8D0EA4E16A64EDD972E6"
+      },
+      {
+        "Path": "E:\\DATOS IA\\Proyectos IA\\Agentic Environment\\.run\\worktrees\\5bc06c7c-1aae-491d-96ef-e049cbe451ce\\.run\\evidence\\audit-sql-seal\\final-seal.json",
+        "Hash": "A8694764FECCF127DDD7264621CC3903809625BFC5C3D2C74B07E4FF18D6423F"
+      },
+      {
+        "Path": "E:\\DATOS IA\\Proyectos IA\\Agentic Environment\\.run\\worktrees\\5bc06c7c-1aae-491d-96ef-e049cbe451ce\\.run\\evidence\\audit-sql-seal\\wrapper-result.json",
+        "Hash": "E66E5FFBBA4EA08517B296BE5FCE7FBA6D98CFD1E2B47F95F83EE216B2303D8B"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "complete",
+      "exit": 0,
+      "outcome": "complete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "observed": {
+        "context": {
+          "effective_role": "operational_backup",
+          "login_role": "forge_pilot",
+          "read_only": "on"
+        },
+        "jobs": 3
+      },
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "inertEntry",
+      "exit": 1,
+      "outcome": "review_required",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "observed": {
+        "context": {
+          "effective_role": "operational_backup",
+          "login_role": "forge_pilot",
+          "read_only": "on"
+        },
+        "jobs": 3
+      },
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "repeatComplete",
+      "exit": 0,
+      "outcome": "complete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "observed": {
+        "context": {
+          "effective_role": "operational_backup",
+          "login_role": "forge_pilot",
+          "read_only": "on"
+        },
+        "jobs": 3
+      },
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "wrongProof",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 0,
+        "core": 0,
+        "closes": 0,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "emptyRole",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 0,
+        "core": 0,
+        "closes": 0,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "unknownRole",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "loginOperator",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "stateOwner",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "membership",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "migrationWriter",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "sharedOwner",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "startupRoleOverride",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": null,
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    },
+    {
+      "name": "authenticationError",
+      "exit": 1,
+      "outcome": "incomplete",
+      "sqlState": "28P01",
+      "calls": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "observed": null,
+      "snapshotsMatch": true,
+      "snapshotContexts": [
+        {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        }
+      ],
+      "fixtureCallsMatch": true
+    }
+  ],
+  "finalSeal": {
+    "sqlGateHeld": true,
+    "fileGateHeld": true,
+    "resumeAttempts": {
+      "file": 0,
+      "sql": 0
+    },
+    "rolesAtShutdown": [
+      {
+        "rolname": "forge_pilot",
+        "rolcanlogin": true,
+        "rolsuper": true,
+        "rolcreaterole": true,
+        "rolcreatedb": true,
+        "rolreplication": true,
+        "rolbypassrls": true
+      },
+      {
+        "rolname": "forge_runtime",
+        "rolcanlogin": false,
+        "rolsuper": false,
+        "rolcreaterole": false,
+        "rolcreatedb": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      },
+      {
+        "rolname": "operational_backup",
+        "rolcanlogin": false,
+        "rolsuper": false,
+        "rolcreaterole": false,
+        "rolcreatedb": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      },
+      {
+        "rolname": "operational_migration",
+        "rolcanlogin": false,
+        "rolsuper": false,
+        "rolcreaterole": false,
+        "rolcreatedb": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      },
+      {
+        "rolname": "operational_state",
+        "rolcanlogin": false,
+        "rolsuper": false,
+        "rolcreaterole": false,
+        "rolcreatedb": false,
+        "rolreplication": false,
+        "rolbypassrls": false
+      }
+    ],
+    "snapshotsUnchanged": true,
+    "unknownLoginRejectedWithoutRoleChangesOrPublication": true
+  },
+  "cleanup": {
+    "sourceRootRemoved": true,
+    "sourceStopped": true,
+    "targetStarted": false,
+    "checkedAt": "2026-11-17T22:59:09.5520141Z",
+    "externalRootRemoved": true
+  },
+  "remainingOwnClusterDirectories": 0,
+  "negativeSqlStates": {
+    "writerLogin": "28000",
+    "backupLogin": "28P01",
+    "backupWrites": "42501"
+  },
+  "sharedOwner": {
+    "role": "operational_shared_owner_fixture",
+    "ownership": {
+      "privileged": false,
+      "membership": false,
+      "dbid": 0,
+      "database": "forge_audit_sacrificial_fixture",
+      "schema_usage": true,
+      "jobs_select": true
+    }
+  },
+  "limits": [
+    "Native local PostgreSQL and fixture reports with synthetic provider",
+    "One repeatable read snapshot per database",
+    "Remote restore, RPO and RTO untested"
+  ]
+}

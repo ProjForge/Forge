@@ -225,3 +225,16 @@ pins the canonical path and physical identity. Keep ancestors private and
 stable. Windows file reads rely on descriptor and metadata checks under
 these quiescent conditions. The command does not claim jobs, enqueue work or
 repair reports.
+
+For the disposable operational coherent fixture, set `FORGE_COORDINATOR_AUDIT_ROLE`
+(API option `{ auditRole }`) to the existing `operational_backup` NOLOGIN role
+and use the fixture operator's coordinator DSN. The audit checks the authenticated
+identity, validates the role and its effective privileges, and verifies the role
+and read-only transaction on the same connection before reading checkpoints.
+Empty or rejected role configuration returns `incomplete`. Leaving the option
+unset uses the original read-only audit outside the SQL seal.
+
+Keep both database and receiver seals held externally. The audit does not manage
+admission, the seal, or recovery. The trusted operator and other privileged
+administrative activity are outside the seal's threat model. Independent-host
+recovery remains unverified by this fixture.

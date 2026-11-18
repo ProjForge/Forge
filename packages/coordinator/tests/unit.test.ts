@@ -5,8 +5,9 @@ import { syncBuiltinESMExports } from 'node:module'
 import { link as linkFile, mkdir, mkdtemp, rename, rm, symlink, writeFile, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import pg from 'pg'
 import { compareReportReceiver, auditReportReceiver, readReportAuditProof } from '../src/report-audit.js'
-import { ImmutableReportPublisher, captureReportTarget, reportFilename, reportIdentity } from '../src/report-publisher.js'
+import { ImmutableReportPublisher, captureReportTarget, reportFilename, reportIdentity, reportTargetId } from '../src/report-publisher.js'
 import { validateArtifact, Coordinator, LeaseLostError, PostgresJobStore } from '../src/index.js'
 import type { CorePort, JobStore, Claim, Change, Job } from '../src/index.js'
 
@@ -241,4 +242,64 @@ test('fails closed for inventory bounds, database errors, and receiver replaceme
   assert.deepEqual(await auditReportReceiver('postgres://%invalid', next, captureReportTarget(next)), {
     scope: 'receiver', outcome: 'incomplete', error: 'REPORT_AUDIT_INCOMPLETE',
   })
+})
+
+test('sealed report audit validates the role and reads only in the verified transaction', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'forge-audit-role-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const proof = captureReportTarget(root)
+  const url = 'postgresql://fixture_operator@127.0.0.1/fixture'
+  const role = 'fixture"; SELECT 1; --'
+  const incomplete = { scope: 'receiver', outcome: 'incomplete', error: 'REPORT_AUDIT_INCOMPLETE' }
+  let statements: string[] = []
+  let connections = 0
+  let closes = 0
+  let switched = false
+  let fault = ''
+  t.mock.method(pg.Client.prototype, 'connect', async () => { connections++ })
+  t.mock.method(pg.Client.prototype, 'end', async () => { closes++ })
+  t.mock.method(pg.Client.prototype, 'query', async (sql: string, params?: unknown[]) => {
+    statements.push(sql)
+    if (sql.startsWith('SELECT current_user')) return { rows: [{
+      login_role: fault === 'login' ? 'other' : 'fixture_operator',
+      effective_role: fault === 'startup' || (switched && fault === 'switch') ? 'other' : switched ? role : 'fixture_operator',
+      read_only: switched && fault === 'read-only' ? 'off' : 'on',
+    }] }
+    if (sql.includes('pg_catalog.pg_roles')) {
+      assert.deepEqual(params, [role])
+      assert.match(sql, /pg_auth_members m WHERE m\.member = r\.oid OR m\.roleid = r\.oid/)
+      return { rows: fault === 'membership' ? [] : [{}] }
+    }
+    if (sql.startsWith('SET LOCAL ROLE')) {
+      assert.equal(sql, 'SET LOCAL ROLE "fixture""; SELECT 1; --"')
+      switched = true
+    }
+    if (sql.includes('FROM forge_coordinator.jobs')) {
+      assert.deepEqual(params, [reportTargetId(proof), 1025])
+      if (fault === 'read-error') throw new Error('synthetic private diagnostic')
+    }
+    return { rows: [] }
+  })
+  for (const auditRole of ['', '  ', '\0', 'é'.repeat(32)]) {
+    assert.deepEqual(await auditReportReceiver(url, root, proof, { auditRole }), incomplete)
+  }
+  assert.equal(connections, 0)
+  for (fault of ['login', 'startup', 'membership', 'switch', 'read-only', 'read-error', '']) {
+    statements = []
+    switched = false
+    const result = await auditReportReceiver(url, root, proof, { auditRole: role })
+    assert.equal(statements[0], 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    const read = statements.findIndex(sql => sql.includes('FROM forge_coordinator.jobs'))
+    assert.equal(read >= 0, fault === '' || fault === 'read-error')
+    if (read >= 0) assert.match(statements[read - 1]!, /^SELECT current_user/)
+    assert.equal(statements.includes('COMMIT'), fault === '')
+    if (fault) assert.deepEqual(result, incomplete)
+    else assert.equal(result.outcome, 'complete')
+    assert.equal(connections, closes)
+  }
+  statements = []
+  assert.equal((await auditReportReceiver(url, root, proof)).outcome, 'complete')
+  assert.equal(statements.length, 3)
+  assert.equal(statements.at(-1), 'COMMIT')
+  assert.equal(connections, closes)
 })
