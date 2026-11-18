@@ -1,0 +1,113 @@
+{
+  "recordedAt": "2026-11-17T23:14:44.609Z",
+  "scope": "Local disposable Windows PostgreSQL; production unchanged; remote restoration pending",
+  "sourceHead": "cf5fd26ccca690a269a023ab4a2833eb0058dcab",
+  "branch": "codex/coordinator-audit-sql-seal",
+  "committed": false,
+  "sourceBytes": "SHA-256 of final tested Windows checkout bytes, before Git text normalization",
+  "sources": {
+    "packages/coordinator/README.md": "d049f4347283ce4f171879b5fcb598e3c808fb7bc8267a17f25e4b17051b1060",
+    "packages/coordinator/src/cli.ts": "108d4248dcf1fe78a088a3a457b75bb15df93bb0d6f3b38009c9e591a43c4d1f",
+    "packages/coordinator/src/report-audit.ts": "b4c9d683cbf4eb021de1817cc7413bd9a5269874d004d16e91b26583955fce95",
+    "packages/coordinator/tests/unit.test.ts": "eff28f7b460ad9e40d702fd8c6186a3d2e02295cfa29ccdd7ce9ccf947440468",
+    "scripts/acceptance/Test-FORGE-CoordinatorPilot.ps1": "7c550560005cf517d9f99b2951aac75754a4e7323db1a192dda7e639b28f2ec5",
+    "scripts/acceptance/operational-audit-fixture.mjs": "81f271830efc43e2590a98d8d8c40196328e7f30e3e3a6d805f551861e9c0eaa",
+    "scripts/acceptance/operational-coherent.mjs": "5ffaa5d9f11566dd5f923c324a95fa63e9dd430c6d19bbb39999ea8e46a79107"
+  },
+  "composition": {
+    "integration": {
+      "job": "d692b9f3-7cc0-47e2-8802-07382a5369d4",
+      "canonicalPatchSha256": "2bce2762263c64b7ae4fcca4f6360d81aa66aedd9fed936da7dccecdf4fa62f3"
+    },
+    "finalAcceptanceScopeFix": {
+      "job": "79b1d43e-d2eb-490c-826f-00efcdb6e756",
+      "baselineTree": "6b9413d06c8ff79d6cc6ef4180ba70cfc99b6701",
+      "baselineToken": "23db9653c2c16f3a4edd3a7bcfbc2dbecd3b329584328768aedf46a185f0c2dc",
+      "canonicalPatchSha256": "090e94f3898a1c21bae9dcb91d873292b93e486feb653cbaac73f1773775e9f1"
+    }
+  },
+  "reviews": {
+    "functional": {
+      "job": "fb6bc8f2-4f1a-484c-bd6e-a861bbb640e8",
+      "verdict": "APPROVE",
+      "scope": "Combined final seven files and incremental patch",
+      "resolvedReview": "fb9d16a6-a9ab-4d1a-aa57-139739e629a3"
+    },
+    "security": {
+      "job": "2ae92ce2-caf0-41b9-945e-dfabb396c98b",
+      "verdict": "No blocking findings",
+      "priorFindingsResolved": 2,
+      "securityFiles": [
+        "packages/coordinator/src/report-audit.ts",
+        "packages/coordinator/src/cli.ts",
+        "packages/coordinator/tests/unit.test.ts",
+        "scripts/acceptance/operational-audit-fixture.mjs"
+      ],
+      "unchangedSecurityFileBytes": true,
+      "scope": "Permission/role and snapshot files unchanged after the final opt-in control-flow move"
+    },
+    "independentQa": {
+      "job": "5bc06c7c-1aae-491d-96ef-e049cbe451ce",
+      "verdict": "PASS",
+      "scope": "Thirteen native cases before the final acceptance-only branch move; final branch repeated all thirteen afterward",
+      "initialAttemptWithoutExecution": "GLOBAL_CAPACITY_EXHAUSTED"
+    }
+  },
+  "checkoutChecks": {
+    "scope": "Applied checkout, native host, synthetic tests only",
+    "testsPassed": 141,
+    "testsFailed": 0,
+    "node": "22.23.4",
+    "exit": 0,
+    "finishedAt": "2026-11-17T23:12:53.9768768Z",
+    "startedAt": "2026-11-17T23:12:21.7580038Z",
+    "gitDiffCheck": 0
+  },
+  "preservedSandboxFailure": {
+    "exit": 1,
+    "failedTests": 3,
+    "cause": "EPERM creating NTFS links in the Codex sandbox; native host rerun passed unchanged tests",
+    "evidence": ".run/evidence/audit-sql-seal/checkout/"
+  },
+  "reports": [
+    {
+      "filename": "0e3eb310b65dd02ec02620cd645880cc7feef62d0f7150cde077c32029d96511.report.md",
+      "inode": "12666373952725209",
+      "mtimeNs": "1794956945534566300",
+      "bytes": "42",
+      "sha256": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd"
+    },
+    {
+      "filename": "36d5cbab985742fc5dd8ff01f04a39fb247c44cbc4ae425570ab4b96bcae56f3.report.md",
+      "inode": "8162774325354716",
+      "mtimeNs": "1794956945618168700",
+      "bytes": "55",
+      "sha256": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666"
+    },
+    {
+      "filename": "f932fa66d94bc85114be13cb00005ef25d892c1024eac46cc51b1da6ba369ddd.report.md",
+      "inode": "9570149208907994",
+      "mtimeNs": "1794956945582728800",
+      "bytes": "42",
+      "sha256": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b"
+    }
+  ],
+  "publication": {
+    "summary.json": {
+      "originalWindowsBytesSha256": "db826636737407681f247900d659cfccb3ab19a0f240bbbcacfac69adf7b018e",
+      "publishedLfSha256": "9d82a1e457d80ab0bcac647bb6bf6e1e6969389e0e9dc88e1b3a0aada73e5671",
+      "originalEvidence": ".run/evidence/audit-sql-seal/final-native/summary.json"
+    },
+    "qa-summary.json": {
+      "originalWindowsBytesSha256": "f8b3242b935cc56c8237bbf2b2b3291be8b60809f5fa4bc91243225c3e72ed4c",
+      "publishedLfSha256": "f19f331875b6e905a6837cb9c63019486fc564a9dca9946e4f06fe0aad8e3261",
+      "originalEvidence": ".run/evidence/audit-sql-seal/independent-qa/summary.json"
+    }
+  },
+  "limits": [
+    "Synthetic fixture only",
+    "Privileged operator trusted outside the seal boundary",
+    "Consistent snapshots per database, no joint atomic database/filesystem snapshot",
+    "No target or new restore/RPO/RTO measurement; remote restoration pending"
+  ]
+}

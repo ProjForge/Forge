@@ -1,0 +1,363 @@
+{
+  "sqlGateHeld": true,
+  "fixtureCallDelta": {
+    "core": 0,
+    "agent": 0,
+    "provider": 0
+  },
+  "cleanup": {
+    "sourceRootRemoved": true,
+    "sourceStopped": true,
+    "targetStarted": false,
+    "checkedAt": "2026-11-17T23:09:11.189751Z",
+    "externalRootRemoved": true
+  },
+  "caseCount": 13,
+  "retainedHandle": true,
+  "negativeSqlStates": {
+    "writerLogin": "28000",
+    "backupLogin": "28P01",
+    "backupWrites": "42501"
+  },
+  "fileGateHeld": true,
+  "resumeAttempts": {
+    "file": 0,
+    "sql": 0
+  },
+  "repeatMatches": true,
+  "initialSnapshotsRestored": true,
+  "runtime": [
+    "Windows PowerShell 5.1.26100.9818",
+    "v22.23.4",
+    "postgres (PostgreSQL) 18.4"
+  ],
+  "status": "PASS",
+  "exitCode": 0,
+  "cases": [
+    {
+      "jobsRead": 3,
+      "context": {
+        "effective_role": "operational_backup",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "exitCode": 0,
+      "outcome": "complete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "sealDuringRead": true,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "complete"
+    },
+    {
+      "jobsRead": 3,
+      "context": {
+        "effective_role": "operational_backup",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "exitCode": 1,
+      "outcome": "review_required",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "sealDuringRead": true,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "inertEntry"
+    },
+    {
+      "jobsRead": 3,
+      "context": {
+        "effective_role": "operational_backup",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "exitCode": 0,
+      "outcome": "complete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 1,
+        "commits": 1,
+        "switches": 1
+      },
+      "sealDuringRead": true,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "repeatComplete"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": false,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 0,
+        "core": 0,
+        "closes": 0,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": null,
+      "name": "wrongProof"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": false,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 0,
+        "core": 0,
+        "closes": 0,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": null,
+      "name": "emptyRole"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "unknownRole"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "loginOperator"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "stateOwner"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "membership"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "migrationWriter"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "forge_pilot",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "sharedOwner"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": true,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": null,
+      "sealBeforeAfter": true,
+      "initialContext": {
+        "effective_role": "operational_backup",
+        "login_role": "forge_pilot",
+        "read_only": "on"
+      },
+      "name": "startupRoleOverride"
+    },
+    {
+      "jobsRead": null,
+      "context": null,
+      "exitCode": 1,
+      "outcome": "incomplete",
+      "sealDuringConnection": false,
+      "snapshotsUnchanged": true,
+      "counts": {
+        "connections": 1,
+        "core": 0,
+        "closes": 1,
+        "jobsReads": 0,
+        "commits": 0,
+        "switches": 0
+      },
+      "sealDuringRead": false,
+      "sqlState": "28P01",
+      "sealBeforeAfter": true,
+      "initialContext": null,
+      "name": "authenticationError"
+    }
+  ]
+}

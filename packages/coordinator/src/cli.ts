@@ -17,7 +17,9 @@ if (command === 'audit-reports') {
   if (process.argv.length === 4) {
     try {
       const proof = await readReportAuditProof(process.argv[3]!)
-      result = await auditReportReceiver(process.env.FORGE_COORDINATOR_DATABASE_URL ?? '', process.env.FORGE_COORDINATOR_REPORT_ROOT ?? '', proof)
+      const auditRole = process.env.FORGE_COORDINATOR_AUDIT_ROLE
+      result = await auditReportReceiver(process.env.FORGE_COORDINATOR_DATABASE_URL ?? '', process.env.FORGE_COORDINATOR_REPORT_ROOT ?? '', proof,
+        auditRole === undefined ? {} : { auditRole })
     } catch { /* Keep file and parsing errors out of the public result. */ }
   }
   console.log(JSON.stringify(result))

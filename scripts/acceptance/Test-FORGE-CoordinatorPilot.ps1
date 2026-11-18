@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin', [ValidateRange(1024,65535)][int]$Port=55441,
-    [switch]$OperationalCoherent, [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
+    [switch]$AuditSqlSeal, [switch]$OperationalCoherent, [switch]$CoherentBackup, [switch]$SplitDatabaseRestore, [switch]$FreshClusterRestore, [switch]$JointRestore, [switch]$LiveAgent, [string]$AgentBaseUrl='http://127.0.0.1:1234/v1', [string]$AgentModel='forge-agent-pilot-qwen35')
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runRoot=[IO.Path]::GetFullPath((Join-Path $workspace '.run'))
@@ -10,6 +10,11 @@ $started=$false
 $targetStarted=$false
 $operationalRoot=$null
 $previousOperationalRoot=$env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT
+if ($AuditSqlSeal) {
+    if ($CoherentBackup -or $SplitDatabaseRestore -or $FreshClusterRestore -or $JointRestore -or $LiveAgent) { throw 'AuditSqlSeal is a separate synthetic-only mode' }
+    $OperationalCoherent=$true
+}
+$evidenceDirectory=Join-Path $runRoot $(if ($AuditSqlSeal) {'evidence/audit-sql-seal'} else {'evidence/operational-coherent'})
 if ($CoherentBackup -or $OperationalCoherent) { $SplitDatabaseRestore=$true }
 $previousKeyFile=$env:FORGE_COHERENT_TEST_KEY_FILE
 # Obtain unused generated loopback ports for the two-cluster drill only.
@@ -22,7 +27,7 @@ if ($SplitDatabaseRestore -and ($FreshClusterRestore -or $JointRestore -or $Live
 if ($FreshClusterRestore -or $SplitDatabaseRestore) {
     if ($LiveAgent -or $JointRestore) { throw 'FreshClusterRestore is a separate synthetic-only mode' }
     $Port=Get-FixturePort
-    do { $targetPort=Get-FixturePort } while ($targetPort -eq $Port)
+    if (-not $AuditSqlSeal) { do { $targetPort=Get-FixturePort } while ($targetPort -eq $Port) }
 }
 
 function Initialize-FixtureTarget {
@@ -48,12 +53,14 @@ function Initialize-FixtureTarget {
         if ($LASTEXITCODE -ne 0) { throw 'Target startup failed' }
 }
 
-$names=@('FORGE_COORDINATOR_TEST_ROOT','FORGE_COORDINATOR_TEST_PROVISION_HASH','FORGE_COORDINATOR_TEST_SPLIT','FORGE_COORDINATOR_TEST_STATE_ADMIN','FORGE_COORDINATOR_TEST_PROVISION','FORGE_COORDINATOR_TEST_FRESH_TARGET','FORGE_COORDINATOR_TEST_RESTORE','FORGE_COORDINATOR_TEST_PG_BIN','FORGE_DATABASE_URL','FORGE_ADMIN_DATABASE_URL','FORGE_RUNTIME_PASSWORD','FORGE_COORDINATOR_TEST_ADMIN_URL','FORGE_COORDINATOR_TEST_ALLOW_SETUP','FORGE_COORDINATOR_LIVE_BASE_URL','FORGE_COORDINATOR_LIVE_MODEL')
+$resultPath=if ($AuditSqlSeal) { Join-Path $evidenceDirectory 'wrapper-result.json' } else { Join-Path $runRoot 'coordinator-pilot-result.json' }
+if ($AuditSqlSeal) { New-Item -ItemType Directory -Force -Path $evidenceDirectory | Out-Null }
+$names=@('FORGE_COORDINATOR_TEST_AUDIT_SQL_SEAL','FORGE_COORDINATOR_TEST_ROOT','FORGE_COORDINATOR_TEST_PROVISION_HASH','FORGE_COORDINATOR_TEST_SPLIT','FORGE_COORDINATOR_TEST_STATE_ADMIN','FORGE_COORDINATOR_TEST_PROVISION','FORGE_COORDINATOR_TEST_FRESH_TARGET','FORGE_COORDINATOR_TEST_RESTORE','FORGE_COORDINATOR_TEST_PG_BIN','FORGE_DATABASE_URL','FORGE_ADMIN_DATABASE_URL','FORGE_RUNTIME_PASSWORD','FORGE_COORDINATOR_TEST_ADMIN_URL','FORGE_COORDINATOR_TEST_ALLOW_SETUP','FORGE_COORDINATOR_LIVE_BASE_URL','FORGE_COORDINATOR_LIVE_MODEL')
 $previous=@{}
 foreach ($name in $names) { $previous[$name]=[Environment]::GetEnvironmentVariable($name) }
 New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
 @{status='RUNNING';checkedAt=[datetime]::UtcNow.ToString('o');scope='isolated coordinator pilot'} |
-    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
+    ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8
 Push-Location $workspace
 try {
     # libpq hostaddr/service defaults can override an explicit -h. Keep them inert
@@ -66,12 +73,13 @@ try {
         }
         $env:FORGE_COORDINATOR_TEST_ROOT=$root
     }
+    $env:FORGE_COORDINATOR_TEST_AUDIT_SQL_SEAL=if ($AuditSqlSeal) {'1'} else {$null}
     if (($FreshClusterRestore -or $SplitDatabaseRestore) -and (& (Join-Path $PostgresBin 'postgres.exe') --version) -notmatch '18\.4(?:\D|$)') { throw 'Fresh cluster rehearsal requires PostgreSQL 18.4' }
     if ($JointRestore -and $LiveAgent) { throw 'Joint restore requires the synthetic provider' }
     if ($LiveAgent -and ([string]::IsNullOrWhiteSpace($AgentModel) -or [string]::IsNullOrWhiteSpace($AgentBaseUrl))) { throw 'Live agent model and loopback base URL must not be blank' }
     New-Item -ItemType Directory -Force -Path $root | Out-Null
     if ($OperationalCoherent) {
-        New-Item -ItemType Directory -Force -Path (Join-Path $runRoot 'evidence/operational-coherent') | Out-Null
+        New-Item -ItemType Directory -Force -Path $evidenceDirectory | Out-Null
         # The managed worker redirects TEMP to E:. Select the authorized local
         # disposable C: temporary parent explicitly, then prove device identity.
         $externalParent=[IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Temp'))+'\'
@@ -86,8 +94,10 @@ try {
         $actualAcl=[IO.Directory]::GetAccessControl($operationalRoot)
         $actualRules=@($actualAcl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
         if (-not $actualAcl.AreAccessRulesProtected -or $actualRules.Count -ne 1 -or $actualRules[0].IdentityReference -ne $privateOwner) { throw 'Custody ACL identity mismatch' }
-        @{ownerOnly=$true;inheritanceProtected=$actualAcl.AreAccessRulesProtected;accessRules=$actualRules.Count;custody='synthetic RSA escrow in separately generated private C root';checkedAt=[datetime]::UtcNow.ToString('o')} |
-            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'evidence/operational-coherent/custody-acl.json') -Encoding UTF8
+        if (-not $AuditSqlSeal) {
+            @{ownerOnly=$true;inheritanceProtected=$actualAcl.AreAccessRulesProtected;accessRules=$actualRules.Count;custody='synthetic RSA escrow in separately generated private C root';checkedAt=[datetime]::UtcNow.ToString('o')} |
+                ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'custody-acl.json') -Encoding UTF8
+        }
         $env:FORGE_OPERATIONAL_TEST_EXTERNAL_ROOT=$operationalRoot
     }
     if ($SplitDatabaseRestore -and -not $OperationalCoherent) {
@@ -153,7 +163,7 @@ try {
     } else {
         Remove-Item Env:FORGE_COORDINATOR_LIVE_BASE_URL,Env:FORGE_COORDINATOR_LIVE_MODEL -ErrorAction SilentlyContinue
     }
-    if ($FreshClusterRestore -or $SplitDatabaseRestore) {
+    if (-not $AuditSqlSeal -and ($FreshClusterRestore -or $SplitDatabaseRestore)) {
         $adminPassword=[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')
         $targetStarted=$true # A partial startup must still be stopped in finally.
         if ($SplitDatabaseRestore) {
@@ -167,8 +177,9 @@ try {
         } else { Initialize-FixtureTarget $root $PostgresBin $targetPort $adminPassword }
         $env:FORGE_COORDINATOR_TEST_FRESH_TARGET="postgresql://forge_pilot:${adminPassword}@127.0.0.1:$targetPort/postgres"
     } else { Remove-Item Env:FORGE_COORDINATOR_TEST_FRESH_TARGET -ErrorAction SilentlyContinue }
+    if ($AuditSqlSeal) { Remove-Item Env:FORGE_COORDINATOR_TEST_PROVISION,Env:FORGE_COORDINATOR_TEST_PROVISION_HASH -ErrorAction SilentlyContinue }
     $env:FORGE_COORDINATOR_TEST_SPLIT=if ($SplitDatabaseRestore) {'1'} else {'0'}
-    $env:FORGE_COORDINATOR_TEST_RESTORE=if ($JointRestore -or $FreshClusterRestore -or $SplitDatabaseRestore) {'1'} else {'0'}
+    $env:FORGE_COORDINATOR_TEST_RESTORE=if (-not $AuditSqlSeal -and ($JointRestore -or $FreshClusterRestore -or $SplitDatabaseRestore)) {'1'} else {'0'}
     $env:FORGE_COORDINATOR_TEST_PG_BIN=$PostgresBin
     & npm.cmd run build -w forge-persistence-gateway
     if ($LASTEXITCODE -ne 0) { throw 'Gateway build failed' }
@@ -186,7 +197,7 @@ try {
     }
 } catch {
     @{status='FAIL';checkedAt=[datetime]::UtcNow.ToString('o');errorCode='COORDINATOR_PILOT_FAILED'} |
-        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
+        ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8
     throw
 } finally {
     $env:FORGE_COHERENT_TEST_KEY_FILE=$previousKeyFile
@@ -194,6 +205,7 @@ try {
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name,$previous[$name]) }
     Pop-Location
     $stopFailures=@()
+    $sourceStopped=$false
     # Each owned cluster must be attempted even when the other stop fails.
     foreach ($cluster in @(@{active=$targetStarted;directory='target-data'},@{active=$started;directory='data'})) {
         if ($cluster.active -and (Test-Path -LiteralPath (Join-Path $root $cluster.directory))) {
@@ -201,6 +213,7 @@ try {
             try {
                 & (Join-Path $PostgresBin 'pg_ctl.exe') -D (Join-Path $root $cluster.directory) -m fast -w stop
                 if ($LASTEXITCODE -ne 0) { throw 'Stop unconfirmed' }
+                if ($cluster.directory -eq 'data') { $sourceStopped=$true }
             } catch { $stopFailures += $cluster.directory }
         }
     }
@@ -213,9 +226,21 @@ try {
         $resolvedExternal=[IO.Path]::GetFullPath($operationalRoot)
         if (-not $resolvedExternal.StartsWith($externalParent,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolvedExternal) -notmatch '^forge-operational-[a-f0-9]{32}$') { throw 'Unsafe external cleanup root' }
         if (Test-Path -LiteralPath $resolvedExternal) { Remove-Item -LiteralPath $resolvedExternal -Recurse -Force }
-        @{sourceRoot=$root;externalRoot=$resolvedExternal;sourceRootRemoved=(-not (Test-Path -LiteralPath $root));externalRootRemoved=(-not (Test-Path -LiteralPath $resolvedExternal));bothOwnedClustersStopped=$true;checkedAt=[datetime]::UtcNow.ToString('o')} |
-            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'evidence/operational-coherent/cleanup.json') -Encoding UTF8
+        if ($AuditSqlSeal) {
+            if ((Test-Path -LiteralPath $root) -or (Test-Path -LiteralPath $resolvedExternal)) { throw 'Audit fixture removal unconfirmed' }
+            @{sourceStopped=$sourceStopped;sourceRootRemoved=$true;externalRootRemoved=$true;targetStarted=$targetStarted;checkedAt=[datetime]::UtcNow.ToString('o')} |
+                ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'cleanup.json') -Encoding UTF8
+        } else {
+            @{sourceRoot=$root;externalRoot=$resolvedExternal;sourceRootRemoved=(-not (Test-Path -LiteralPath $root));externalRootRemoved=(-not (Test-Path -LiteralPath $resolvedExternal));bothOwnedClustersStopped=$true;checkedAt=[datetime]::UtcNow.ToString('o')} |
+                ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'cleanup.json') -Encoding UTF8
+        }
     }
 }
+if ($AuditSqlSeal) {
+    if (-not $sourceStopped -or $targetStarted) { throw 'Audit fixture shutdown unconfirmed' }
+    @{status='PASS';checkedAt=[datetime]::UtcNow.ToString('o');scope='isolated SQL seal audit';sourceStopped=$true;targetStarted=$false} |
+        ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8
+    return
+}
 @{splitDatabaseRestore=[bool]$SplitDatabaseRestore;status='PASS';checkedAt=[datetime]::UtcNow.ToString('o');clusterStopped=$true;targetClusterStopped=[bool]($FreshClusterRestore -or $SplitDatabaseRestore);freshClusterRestore=[bool]$FreshClusterRestore;liveAgent=[bool]$LiveAgent;model=if($LiveAgent){$AgentModel}else{'protocol-fixture'};scope='isolated coordinator acceptance; no production data or workers'} |
-    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runRoot 'coordinator-pilot-result.json') -Encoding utf8
+    ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8

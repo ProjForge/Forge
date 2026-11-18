@@ -186,6 +186,14 @@ unknown external receivers, unawaited effects and processes deliberately omittin
 the gate are excluded. Unknown SQL credentials cause rejection rather than an
 assumption that a table lock covers them.
 
+The read-only report audit can also use that existing operator connection
+and backup role, without altering grants or reopening writers; see
+[the SQL-sealed audit procedure](CONFIRMED-REPORT-RECOVERY.md#read-only-orphan-report-audit).
+The disposable `-AuditSqlSeal` acceptance mode terminates with both seals held
+and destroys its source cluster without running the normal resume/restore path.
+[Acceptance evidence](../acceptance/coordinator/2026-11-18-audit-sql-seal/README.md)
+records its actual role context, unchanged snapshots and zero resume attempts.
+
 Creation revalidates ownership/database admission before and after capture/seal
 and immediately before publication. Normal completion authenticates the generation
 and replica before explicit DB LOGIN restoration, then managed resume. Failure

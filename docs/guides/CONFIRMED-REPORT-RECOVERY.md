@@ -35,6 +35,17 @@ provider configuration is needed. The audit can run while the operational gate
 is closed and creates no admission tickets. Keep sealed writer roles sealed;
 use an already authorized read-only identity, without changing grants or LOGIN.
 
+For the disposable SQL-sealed topology, leave writers `NOLOGIN` and use the
+existing trusted operator's coordinator connection with
+`FORGE_COORDINATOR_AUDIT_ROLE=operational_backup` (API `{ auditRole }`). The
+backup stays `NOLOGIN`; the audit uses `SET LOCAL ROLE` inside its read-only
+transaction, verifies initial and effective identities on the same connection,
+and rejects unsafe roles or DSN startup role overrides before reading jobs.
+An explicitly empty/rejected role returns `incomplete`; omitting the option
+preserves the original path. Do not grant new privileges or change LOGIN to
+make this command run. The trusted operator remains outside the seal's
+boundary; the audit never resumes either gate.
+
 Supply the trusted original receiver proof captured with `capture-report-target`
 before loss, or obtained from an authenticated record. Keep it outside the
 receiver. Missing, invalid or mismatched proof returns `incomplete` before the
@@ -58,6 +69,8 @@ adopt receipts, publish, repair, requeue or authorize dispatch. Preserve ambiguo
 files for operator review using independent evidence.
 
 See [the disposable orphan audit rehearsal](../acceptance/coordinator/2026-11-17-orphan-report-audit/README.md).
+The [SQL-sealed audit rehearsal](../acceptance/coordinator/2026-11-18-audit-sql-seal/README.md)
+also verifies the existing NOLOGIN backup role without reopening writers.
 Independent-host restoration and remote RPO/RTO remain pending.
 
 ## Receiver restore procedure

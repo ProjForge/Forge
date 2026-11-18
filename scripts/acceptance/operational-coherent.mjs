@@ -19,9 +19,12 @@ import { ForgeWorkbenchService } from '../../packages/workbench/dist/service.js'
 import { createWorkbenchServer } from '../../packages/workbench/dist/server.js'
 import { reportRows, inventory, validateReports, verifyReportFiles, captureReports } from './operational-report-fixture.mjs'
 
+import { auditUnderSeal, provisionSharedOwner } from './operational-audit-fixture.mjs'
+
 const script = fileURLToPath(import.meta.url)
 const workspace = path.resolve(path.dirname(script), '../..')
-const evidence = path.join(workspace, '.run/evidence/operational-coherent')
+const auditOnly = process.env.FORGE_COORDINATOR_TEST_AUDIT_SQL_SEAL === '1'
+const evidence = path.join(workspace, '.run/evidence', auditOnly ? 'audit-sql-seal' : 'operational-coherent')
 // An explicit fixture inventory is a coverage contract, not discovery or
 // certification of the production launcher and its out-of-process writers.
 const writerInventory = { scope: 'synthetic-fixture-only', launcherCertified: false, families: [
@@ -201,8 +204,15 @@ async function main() {
   assert.equal(path.parse(external).root.toLowerCase(), 'c:\\')
   const bin = process.env.FORGE_COORDINATOR_TEST_PG_BIN
   const provision = process.env.FORGE_COORDINATOR_TEST_PROVISION
-  assert.equal(provision, path.join(root, 'provision-target.ps1'))
-  assert.equal(createHash('sha256').update(await readFile(provision)).digest('hex'), process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH)
+  if (auditOnly) {
+    assert.equal(provision, undefined)
+    assert.equal(process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH, undefined)
+    assert.equal(process.env.FORGE_COORDINATOR_TEST_FRESH_TARGET, undefined)
+    assert.equal(process.env.FORGE_COORDINATOR_TEST_RESTORE, '0')
+  } else {
+    assert.equal(provision, path.join(root, 'provision-target.ps1'))
+    assert.equal(createHash('sha256').update(await readFile(provision)).digest('hex'), process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH)
+  }
   const adminUrl = process.env.FORGE_COORDINATOR_TEST_ADMIN_URL
   const stateAdminUrl = process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN
   const runtimeUrl = process.env.FORGE_DATABASE_URL
@@ -239,8 +249,9 @@ async function main() {
   assert.equal(source.host, sourceState.host); assert.notEqual(source.pathname, sourceState.pathname)
   await mkdir(evidence, { recursive: true })
   const reports = path.join(external, 'reports'); await mkdir(reports)
+  const preLossProof = captureReportTarget(reports)
   const custody = path.join(external, 'custody'); const replicaRoot = path.join(external, 'replicas')
-  await mkdir(custody); await mkdir(replicaRoot)
+  if (!auditOnly) { await mkdir(custody); await mkdir(replicaRoot) }
   const scratch = path.join(external, 'scratch'); await mkdir(scratch)
   // Windows ignores POSIX mode bits. Inherit the wrapper's owner-only C: ACL
   // for every private verification materialization, including restore children.
@@ -263,6 +274,7 @@ async function main() {
     await db.query(`GRANT SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO operational_backup`)
     await db.query(`GRANT CREATE ON SCHEMA ${schema} TO operational_migration`)
   }
+  const sharedOwner = auditOnly ? await provisionSharedOwner(admin, stateAdmin) : undefined
   let core = ForgePersistenceGateway.connect({ connectionString: runtimeUrl })
   let store = new PostgresJobStore(stateUrl.toString())
   let databaseGate
@@ -332,6 +344,12 @@ async function main() {
     assert.equal(drained, false, 'Embedding external call still admitted')
     releaseEmbed.resolve(); assert.equal((await embeddings).embedded, 1)
     const lease = await closing
+    const resumeAttempts = { file: 0, sql: 0 }
+    const blockResume = kind => async () => {
+      resumeAttempts[kind]++
+      throw new Error('Audit fixture must keep writers sealed')
+    }
+    if (auditOnly) lease.resume = blockResume('file')
     assert.equal((await admin.query("SELECT count(*)::int AS n FROM forge.projects WHERE project_key LIKE 'late-%'")).rows[0].n, 0)
     const saved = (await stateAdmin.query('SELECT * FROM forge_coordinator.jobs WHERE task_id=$1', [task.id])).rows[0]
     assert.ok(saved.effect_receipt); assert.equal(saved.state, 'queued'); assert.equal(handlerCalls, 1); assert.equal(providerCalls, 1)
@@ -351,6 +369,7 @@ async function main() {
       await assert.rejects(stat(path.join(root, 'primary')), { code: 'ENOENT' })
     } finally { await admin.query('DROP ROLE operational_unknown_fixture') }
     databaseGate = await sealCoherentDatabases({ connectionString: adminUrl, dataDirectory: path.join(root, 'data'), databases: [source.pathname.slice(1), sourceState.pathname.slice(1)], writerRoles: ['forge_runtime', 'operational_state', 'operational_migration'], backupRole: 'operational_backup', maintenance: lease })
+    if (auditOnly) databaseGate.resume = blockResume('sql')
     await inspectRoles('during', true)
     for (const db of direct) { await assert.rejects(db.query('CREATE TABLE public.late_ddl(id int)')); await db.end() }
     for (const url of [source, sourceState]) for (const role of ['forge_runtime', 'operational_state', 'operational_migration']) { const denied = new URL(url); denied.username = role; denied.password = role === 'operational_migration' ? migrationPassword : role === 'operational_state' ? statePassword : new URL(runtimeUrl).password; await assert.rejects(client(denied.toString()), error => error.code === '28000') }
@@ -368,9 +387,26 @@ async function main() {
         } finally { await backup.query('ROLLBACK') }
       }
     }
+    if (auditOnly) {
+      stage = 'audit-under-seal'
+      const audit = await auditUnderSeal({ admin, stateAdmin, stateAdminUrl, reports, scratch, proof: preLossProof, sharedOwner,
+        env: systemEnvironment(), gate, seal: databaseGate, counters: () => ({ handlerCalls, providerCalls }) })
+      await writeFile(path.join(evidence, 'audit-sql-seal.json'), JSON.stringify(audit, null, 2))
+      await databaseGate.assertHeld()
+      await lease.assertHeld()
+      const rolesAtShutdown = await inspectRoles('shutdown', true)
+      assert.deepEqual(rolesAtShutdown, roleSnapshots.during)
+      assert.deepEqual(resumeAttempts, { file: 0, sql: 0 })
+      await writeFile(path.join(evidence, 'final-seal.json'), JSON.stringify({
+        sqlGateHeld: true, fileGateHeld: true, resumeAttempts, rolesAtShutdown,
+        snapshotsUnchanged: true, unknownLoginRejectedWithoutRoleChangesOrPublication: true,
+      }, null, 2))
+      console.log('PASS audit SQL seal held through connection shutdown')
+      return
+    }
     const cutMono = performance.now(); const cutoff = new Date().toISOString()
     const sourceRows = JSON.parse(JSON.stringify(await reportRows(stateAdmin)))
-    const identity = { fixtureVersion: 1, expected, inventory: inventory(sourceRows), projectId: project.id, taskId: task.id, agentId: agent.id, receipt: saved.effect_receipt, proof: captureReportTarget(reports), systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier }
+    const identity = { fixtureVersion: 1, expected, inventory: inventory(sourceRows), projectId: project.id, taskId: task.id, agentId: agent.id, receipt: saved.effect_receipt, proof: preLossProof, systemIdentifier: (await admin.query('SELECT system_identifier FROM pg_control_system()')).rows[0].system_identifier }
     identity.rows = sourceRows
     identity.writerInventory = writerInventory
     identity.rolesAtSeal = roleSnapshots.during

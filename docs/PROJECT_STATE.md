@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-17
+Updated: 2026-11-18
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,14 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- `audit-reports` can use the existing NOLOGIN backup role under the disposable
+  SQL seal, with verified session/effective identities and read-only SQL. Invalid
+  role configuration fails closed; no grants, LOGIN or admission changes occur.
+  The opt-in `-AuditSqlSeal` rehearsal passed 13 cases with three reports and
+  receipts, unchanged per-database read-only snapshots, zero resume attempts
+  and source cleanup without a restore target. Independent QA and security/
+  functional reviews passed; remote restoration remains pending.
+  [SQL-sealed audit evidence](acceptance/coordinator/2026-11-18-audit-sql-seal/README.md)
 - `audit-reports <proof-file>` compares all projects in the original receiver
   against coordinator checkpoints using read-only SQL, with no Core/provider
   calls or admission tickets. Trusted pre-loss identity is mandatory; replaced
@@ -338,6 +346,8 @@ LATER:
 - A surviving report without either checkpoint requires operator reconciliation.
   Read-only auditing needs trusted pre-loss receiver proof and quiescent writers;
   it does not repair missing identity, verify a replacement or authorize dispatch.
+  The SQL-sealed audit uses the already trusted operator to assume the limited
+  NOLOGIN role; privileged administrators remain outside the seal boundary.
   If the report and both checkpoints are lost, the worker has no local evidence
   of the prior effect. Recover from a consistent backup before reconciling.
 - Native Node 24.15 worker/CLI exits intermittently failed with 0xC0000409 on
@@ -347,7 +357,7 @@ LATER:
 - A model catalog response does not certify inference or retrieval quality.
 - One local S3 SDK fixture process failed before PR creation; isolated and full
   reruns passed, as did 12 further isolated runs. Cause remains unestablished.
-- Existing rc.5 distribution is unsigned; current source changes are in PR #66.
+- Existing rc.5 distribution is unsigned.
 
 ## Constraints / Invariants
 
@@ -358,6 +368,8 @@ LATER:
 
 ## Recent Changes
 
+- Added opt-in report auditing under the SQL seal with the existing NOLOGIN
+  backup, unsafe-role rejection and a no-resume disposable acceptance mode.
 - Added bounded read-only receiver audit with mandatory original-identity proof,
   orphan detection after real rollback, drift checks and SELECT-only acceptance.
 - Added real two-database post-cut rollback regression with the original receiver,
@@ -377,7 +389,6 @@ LATER:
   project content; added clean loading/failure counts and catalog retry.
 - Redesigned Workbench with theme-aware surfaces and persisted light/dark/Auto
   preference, preserving FORGE colors and using official logo variants.
-- Stable checkout created in the current workspace; historical installation kept.
 
 ## Open Questions
 

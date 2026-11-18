@@ -23,15 +23,78 @@ type JobCheckpoint = {
 const scope = 'receiver' as const
 export const incompleteReportAudit = { scope, outcome: 'incomplete', error: 'REPORT_AUDIT_INCOMPLETE' } as const
 
-export async function auditReportReceiver(databaseUrl: string, root: string, proof: unknown) {
+type AuditOptions = { auditRole?: string }
+
+const roleContext = `SELECT current_user AS effective_role, session_user AS login_role,
+  pg_catalog.current_setting('transaction_read_only') AS read_only`
+
+async function assertRoleContext(client: pg.Client, effectiveRole: string) {
+  const { rows: [context] } = await client.query(roleContext)
+  if (!context || context.login_role !== client.user ||
+      context.effective_role !== effectiveRole || context.read_only !== 'on') throw new Error()
+}
+
+async function assumeAuditRole(client: pg.Client, role: string) {
+  // DSN startup options can override constructor settings and change current_user.
+  await client.query("SET LOCAL search_path = pg_catalog, pg_temp")
+  await client.query("SET LOCAL statement_timeout = '5s'")
+  await client.query("SET LOCAL lock_timeout = '5s'")
+  await client.query("SET LOCAL idle_in_transaction_session_timeout = '15s'")
+  if (!client.user) throw new Error()
+  await assertRoleContext(client, client.user)
+  const { rows } = await client.query(`
+    SELECT 1 FROM pg_catalog.pg_roles r
+    JOIN pg_catalog.pg_database d ON d.datname = pg_catalog.current_database()
+    WHERE r.rolname = $1 AND NOT (
+      r.rolcanlogin OR r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR
+      r.rolreplication OR r.rolbypassrls
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_shdepend s
+      WHERE s.refclassid = 'pg_catalog.pg_authid'::pg_catalog.regclass
+        AND s.refobjid = r.oid AND s.deptype = 'o'
+        AND (s.dbid = d.oid OR s.dbid = 0)
+    )
+    AND NOT pg_catalog.has_database_privilege(r.oid, d.oid, 'CREATE')
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_namespace n WHERE pg_catalog.has_schema_privilege(r.oid, n.oid, 'CREATE')
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_class c
+      -- UPDATE on pg_settings is a session setting change, not persistent DML.
+      WHERE c.oid <> 'pg_catalog.pg_settings'::pg_catalog.regclass
+      AND CASE
+        WHEN c.relkind IN ('r','p','v','m','f') THEN
+          pg_catalog.has_table_privilege(r.oid, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR
+          pg_catalog.has_any_column_privilege(r.oid, c.oid, 'INSERT,UPDATE,REFERENCES') OR
+          CASE WHEN pg_catalog.current_setting('server_version_num')::int >= 170000
+            THEN pg_catalog.has_table_privilege(r.oid, c.oid, 'MAINTAIN') ELSE false END
+        WHEN c.relkind = 'S' THEN pg_catalog.has_sequence_privilege(r.oid, c.oid, 'USAGE,UPDATE')
+        ELSE false
+      END
+    )
+    AND pg_catalog.has_schema_privilege(r.oid, 'forge_coordinator', 'USAGE')
+    AND pg_catalog.has_table_privilege(r.oid, 'forge_coordinator.jobs', 'SELECT')
+  `, [role])
+  if (rows.length !== 1) throw new Error()
+  await client.query('SET LOCAL ROLE ' + pg.escapeIdentifier(role))
+  await assertRoleContext(client, role)
+}
+
+export async function auditReportReceiver(databaseUrl: string, root: string, proof: unknown, { auditRole }: AuditOptions = {}) {
   try {
-    if (!databaseUrl) throw new Error()
+    if (!databaseUrl || (auditRole !== undefined && (typeof auditRole !== 'string' ||
+        !auditRole.trim() || auditRole.includes('\0') || Buffer.byteLength(auditRole) > 63))) throw new Error()
     return await compareReportReceiver(root, proof, async target => {
       const client = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 5000, statement_timeout: 5000 })
       client.on('error', () => { /* Pending queries and close handle connection loss. */ })
       try {
         await client.connect()
         await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+        if (auditRole !== undefined) await assumeAuditRole(client, auditRole)
         const { rows } = await client.query<JobCheckpoint>(
           "SELECT project_id, task_id, state,\n" +
           " CASE WHEN octet_length(artifact::text) <= 200000 THEN artifact END AS artifact,\n" +
