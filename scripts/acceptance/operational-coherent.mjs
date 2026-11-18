@@ -20,18 +20,22 @@ import { createWorkbenchServer } from '../../packages/workbench/dist/server.js'
 import { reportRows, inventory, validateReports, verifyReportFiles, captureReports } from './operational-report-fixture.mjs'
 
 import { auditUnderSeal, provisionSharedOwner } from './operational-audit-fixture.mjs'
+import { sealedOrphanRestore, sealedTargets, verifyFixtureConnection } from './sealed-orphan-restore.mjs'
 
 const script = fileURLToPath(import.meta.url)
 const workspace = path.resolve(path.dirname(script), '../..')
 const auditOnly = process.env.FORGE_COORDINATOR_TEST_AUDIT_SQL_SEAL === '1'
-const evidence = path.join(workspace, '.run/evidence', auditOnly ? 'audit-sql-seal' : 'operational-coherent')
+const orphanRestore = process.argv[2] === '--sealed-orphan-restore'
+const evidence = path.join(workspace, '.run/evidence', orphanRestore
+  ? path.join('sealed-orphan-restore', path.basename(process.env.FORGE_COORDINATOR_TEST_ROOT ?? ''))
+  : auditOnly ? 'audit-sql-seal' : 'operational-coherent')
 // An explicit fixture inventory is a coverage contract, not discovery or
 // certification of the production launcher and its out-of-process writers.
 const writerInventory = { scope: 'synthetic-fixture-only', launcherCertified: false, families: [
   'Gateway', 'MCP', 'Workbench', 'embeddings', 'enqueue', 'claim', 'heartbeat',
   'fenced', 'fail', 'recovery', 'report-publication', 'Coordinator.runOnce', 'reconcileReport' ] }
 let stage = 'preflight'
-setTimeout(() => { console.error('OPERATIONAL_ACCEPTANCE_DEADLINE'); process.exit(1) }, 120_000).unref()
+setTimeout(() => { console.error('OPERATIONAL_ACCEPTANCE_DEADLINE'); process.exit(1) }, orphanRestore ? 150_000 : 120_000).unref()
 function systemEnvironment() {
   return Object.fromEntries(['PATH', 'Path', 'PATHEXT', 'ComSpec', 'SystemRoot', 'WINDIR', 'USERPROFILE', 'TEMP', 'TMP'].filter(name => process.env[name] !== undefined).map(name => [name, process.env[name]]))
 }
@@ -213,9 +217,11 @@ async function main() {
     assert.equal(provision, path.join(root, 'provision-target.ps1'))
     assert.equal(createHash('sha256').update(await readFile(provision)).digest('hex'), process.env.FORGE_COORDINATOR_TEST_PROVISION_HASH)
   }
-  const adminUrl = process.env.FORGE_COORDINATOR_TEST_ADMIN_URL
-  const stateAdminUrl = process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN
-  const runtimeUrl = process.env.FORGE_DATABASE_URL
+  const sealed = orphanRestore ? sealedTargets(process.env.FORGE_COORDINATOR_TEST_ADMIN_URL,
+    process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN, process.env.FORGE_DATABASE_URL) : undefined
+  const adminUrl = sealed?.source.toString() ?? process.env.FORGE_COORDINATOR_TEST_ADMIN_URL
+  const stateAdminUrl = sealed?.sourceState.toString() ?? process.env.FORGE_COORDINATOR_TEST_STATE_ADMIN
+  const runtimeUrl = sealed?.runtimeUrl ?? process.env.FORGE_DATABASE_URL
   const sourceScope = new URL(adminUrl); const stateScope = new URL(stateAdminUrl)
   for (const [url, database] of [[sourceScope, 'forge_coordinator_pilot'], [stateScope, 'forge_coordinator_state']]) {
     assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.username, 'forge_pilot')
@@ -227,6 +233,10 @@ async function main() {
     await assert.rejects(client(denied.toString()), error => error.code === '28P01')
   }
   const admin = await client(adminUrl); const stateAdmin = await client(stateAdminUrl)
+  if (sealed) {
+    await verifyFixtureConnection(admin, sealed.source, root)
+    await verifyFixtureConnection(stateAdmin, sealed.sourceState, root)
+  }
   const roleNames = ['forge_runtime', 'operational_state', 'operational_migration', 'operational_backup', 'forge_pilot']
   const roleSnapshots = {}
   const inspectRoles = async (phase, sealed) => {
@@ -266,13 +276,21 @@ async function main() {
   await stateAdmin.query('CREATE SCHEMA forge_coordinator AUTHORIZATION operational_state')
   const stateUrl = new URL(stateAdminUrl); stateUrl.username = 'operational_state'; stateUrl.password = statePassword
   const setup = await client(stateUrl.toString())
-  await setup.query(await readFile(path.join(workspace, 'packages/coordinator/sql/setup.sql'), 'utf8')); await setup.end()
+  try {
+    if (sealed) await verifyFixtureConnection(setup, stateUrl)
+    await setup.query(await readFile(path.join(workspace, 'packages/coordinator/sql/setup.sql'), 'utf8'))
+  } finally { await setup.end() }
   for (const db of [admin, stateAdmin]) {
     const schema = db === admin ? 'forge' : 'forge_coordinator'
     await db.query(`GRANT USAGE ON SCHEMA ${schema} TO operational_backup`)
     await db.query(`GRANT SELECT ON ALL TABLES IN SCHEMA ${schema} TO operational_backup`)
     await db.query(`GRANT SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO operational_backup`)
     await db.query(`GRANT CREATE ON SCHEMA ${schema} TO operational_migration`)
+  }
+  if (orphanRestore) {
+    stage = 'sealed-orphan-restore'
+    return sealedOrphanRestore({ admin, stateAdmin, source, sourceState, runtimeUrl, stateUrl, reports, scratch,
+      proof: preLossProof, gate, bin, root, evidence, client, execute, env: systemEnvironment() })
   }
   const sharedOwner = auditOnly ? await provisionSharedOwner(admin, stateAdmin) : undefined
   let core = ForgePersistenceGateway.connect({ connectionString: runtimeUrl })
@@ -546,13 +564,18 @@ async function main() {
 }
 
 try {
-  assert.equal(process.argv.length, 2, 'No command-line restore configuration accepted')
+  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && orphanRestore && auditOnly && !process.send))
   if (process.send) {
     const config = await new Promise(resolve => process.once('message', resolve))
     await restore(config)
     process.disconnect()
   } else await main()
 } catch (error) {
+  if (orphanRestore) {
+    const line = error?.stack?.match(/sealed-orphan-restore\.mjs:(\d+)/)?.[1]
+    console.error(`SEALED_ORPHAN_RESTORE_FAILED [${stage}]: ${error?.code ?? error?.name ?? 'unknown'}${line ? ` line ${line}` : ''}`)
+    process.exit(1)
+  }
   // Never print child argv, connection configuration, key material or provider errors.
   console.error(`OPERATIONAL_COHERENT_FAILED [${stage}]: ${error instanceof assert.AssertionError ? error.message : error?.code ?? error?.name ?? 'unknown'}`)
   console.error((error?.stack ?? '').split('\n').slice(1).filter(line => line.includes('file:///') || line.includes('operational-coherent.mjs')).join('\n'))

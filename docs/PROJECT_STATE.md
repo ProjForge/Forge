@@ -59,6 +59,10 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- `-SealedOrphanRestore` passed a two-database local restore and two identical
+  sealed audits of a real post-cut orphan with zero resume attempts. The
+  acceptance fixture checks loopback scope and bounds its build and audit run.
+  [Sealed orphan restore evidence](acceptance/coordinator/2026-11-18-sealed-orphan-restore/README.md)
 - `audit-reports` can use the existing NOLOGIN backup role under the disposable
   SQL seal, with verified session/effective identities and read-only SQL. Invalid
   role configuration fails closed; no grants, LOGIN or admission changes occur.

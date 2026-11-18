@@ -1,0 +1,252 @@
+{
+  "sourceHead": "a965663b28826e118ed8ca3a330c48e6b6c819c0",
+  "suppliedBaselineTree": "d791f6c1193ccb16a68894677121d602e782b1fb",
+  "launcher": {
+    "windowsPowerShell": "5.1",
+    "hidden": true,
+    "retainedHandle": true,
+    "osExit": 0,
+    "cleanStderr": true,
+    "elapsedMs": 22814
+  },
+  "validation": {
+    "scopeTestsPassed": 3,
+    "launcherParsePassed": true,
+    "provisioningTimeouts": [
+      {
+        "step": "Core migrations",
+        "timeoutMs": 60000,
+        "elapsedMs": 68649,
+        "launcherExit": 1,
+        "timeoutConfirmed": true
+      },
+      {
+        "step": "Runtime role setup",
+        "timeoutMs": 60000,
+        "elapsedMs": 68637,
+        "launcherExit": 1,
+        "timeoutConfirmed": true
+      }
+    ],
+    "timeoutRunRecords": [
+      {
+        "wrapper": {
+          "status": "FAIL",
+          "checkedAt": "2026-11-18T20:48:03.4554742Z",
+          "errorCode": "COORDINATOR_PILOT_FAILED"
+        },
+        "cleanup": {
+          "checkedAt": "2026-11-18T20:48:04.806142Z",
+          "externalRootRemoved": true,
+          "sourceStopped": true,
+          "sourceRootRemoved": true,
+          "targetStarted": false,
+          "loopbackPortClosed": true
+        }
+      },
+      {
+        "wrapper": {
+          "status": "FAIL",
+          "checkedAt": "2026-11-18T20:48:03.564024Z",
+          "errorCode": "COORDINATOR_PILOT_FAILED"
+        },
+        "cleanup": {
+          "checkedAt": "2026-11-18T20:48:04.8046241Z",
+          "externalRootRemoved": true,
+          "sourceStopped": true,
+          "sourceRootRemoved": true,
+          "targetStarted": false,
+          "loopbackPortClosed": true
+        }
+      }
+    ]
+  },
+  "wrapper": {
+    "scope": "isolated sealed orphan restore",
+    "status": "PASS",
+    "checkedAt": "2026-11-18T20:46:16.1493198Z",
+    "sourceStopped": true,
+    "targetStarted": false
+  },
+  "result": {
+    "postgres": "18.4",
+    "node": "22.23.4",
+    "isolatedLoopbackIdentityVerified": true,
+    "archives": [
+      {
+        "database": "forge_coordinator_pilot",
+        "sha256": "039febd823b9493e6455095f0a8f2ed57ba28301024273b1075869087bc583bf",
+        "dumpExit": 0,
+        "restoreExit": 0
+      },
+      {
+        "database": "forge_coordinator_state",
+        "sha256": "86a066057d0606d68f4f5fc55ac6415d90befcd897348b206803b032fd19b863",
+        "dumpExit": 0,
+        "restoreExit": 0
+      }
+    ],
+    "freshDatabasesInOwnedCluster": true,
+    "quiescentCut": true,
+    "restoredReadOnlySnapshotsMatchCut": true,
+    "publisherExit": {
+      "code": null,
+      "signal": "SIGKILL"
+    },
+    "sourceGateClosedWithRetainedTickets": 1,
+    "postCut": {
+      "taskId": "0b9bcb85-868a-468d-b08d-b116276e8d1a",
+      "jobId": "dddeef12-63ee-4d5a-b63e-96756ee42fce",
+      "filename": "79a7c66d95856948c2e0b66664a47fafc177e73a7e731f0a95bbce68fa9710fc.report.md",
+      "sha256": "d29e8a8b019d21a2efc7c19417b4fcfdef3d4e72c6aa71f94a7e7842bbbdddb9",
+      "originalIdentityAndBytesRetained": true,
+      "taskJobReceiptAbsent": true
+    },
+    "confirmedSibling": {
+      "jobId": "36af228d-4d71-47e2-8950-4dd16385b2a0",
+      "filename": "af2127a389a3dcd2cc00f129345382077958f99fa24cc0bcdd790b6f69de331c.report.md",
+      "sha256": "82713692d15e864512dee0dbee7ed282e26d63510e91c99f87a4eae2590b5066"
+    },
+    "auditRuns": [
+      {
+        "code": 1,
+        "result": {
+          "scope": "receiver",
+          "outcome": "review_required",
+          "counts": {
+            "jobs": 1,
+            "entries": 2,
+            "confirmed": 1,
+            "pending": 0,
+            "invalidEntries": 0
+          },
+          "findings": [
+            {
+              "filename": "79a7c66d95856948c2e0b66664a47fafc177e73a7e731f0a95bbce68fa9710fc.report.md",
+              "class": "orphan"
+            }
+          ]
+        },
+        "counts": {
+          "connections": 1,
+          "core": 0,
+          "closes": 1,
+          "jobsReads": 1,
+          "commits": 1,
+          "switches": 1
+        },
+        "observed": {
+          "context": {
+            "effective_role": "operational_backup",
+            "login_role": "forge_pilot",
+            "read_only": "on"
+          },
+          "jobs": 1
+        },
+        "initial": {
+          "effective_role": "forge_pilot",
+          "login_role": "forge_pilot",
+          "read_only": "on"
+        }
+      },
+      {
+        "code": 1,
+        "result": {
+          "scope": "receiver",
+          "outcome": "review_required",
+          "counts": {
+            "jobs": 1,
+            "entries": 2,
+            "confirmed": 1,
+            "pending": 0,
+            "invalidEntries": 0
+          },
+          "findings": [
+            {
+              "filename": "79a7c66d95856948c2e0b66664a47fafc177e73a7e731f0a95bbce68fa9710fc.report.md",
+              "class": "orphan"
+            }
+          ]
+        },
+        "counts": {
+          "connections": 1,
+          "core": 0,
+          "closes": 1,
+          "jobsReads": 1,
+          "commits": 1,
+          "switches": 1
+        },
+        "observed": {
+          "context": {
+            "effective_role": "operational_backup",
+            "login_role": "forge_pilot",
+            "read_only": "on"
+          },
+          "jobs": 1
+        },
+        "initial": {
+          "effective_role": "forge_pilot",
+          "login_role": "forge_pilot",
+          "read_only": "on"
+        }
+      }
+    ],
+    "stableReadOnlySnapshot": {
+      "core": {
+        "context": {
+          "database": "forge_coordinator_pilot",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        "sha256": "f4ab8700fb4b5f1ca594b7ff4ab458073847736aecaf1a74c1dc3c2675ba945a"
+      },
+      "state": {
+        "context": {
+          "database": "forge_coordinator_state",
+          "login_role": "forge_pilot",
+          "effective_role": "forge_pilot",
+          "read_only": "on",
+          "isolation": "repeatable read"
+        },
+        "sha256": "7dcee86d83896be9a2f0262e35c69e26a88f48e9ab01981e0687ae7625094fac"
+      },
+      "reports": "a2adc17fe5039322fb551a88daf6281cf0e26f396b6112df62a1e385e8eb43e2",
+      "proof": "764f3234533f85efe9f9caae4b072bd0607fff074457219a951ef84122b383a3",
+      "gateAndTickets": "711a2c5d990adf33d301366a14a5187c1152b97cb071cca4ee5529eeee69a7e3"
+    },
+    "roles": [
+      {
+        "rolname": "forge_runtime",
+        "rolcanlogin": false
+      },
+      {
+        "rolname": "operational_backup",
+        "rolcanlogin": false
+      },
+      {
+        "rolname": "operational_migration",
+        "rolcanlogin": false
+      },
+      {
+        "rolname": "operational_state",
+        "rolcanlogin": false
+      }
+    ],
+    "resumeAttempts": 0,
+    "auditCalls": {
+      "core": 0,
+      "agent": 0,
+      "provider": 0
+    }
+  },
+  "cleanup": {
+    "checkedAt": "2026-11-18T20:46:14.091969Z",
+    "externalRootRemoved": true,
+    "sourceStopped": true,
+    "sourceRootRemoved": true,
+    "targetStarted": false,
+    "loopbackPortClosed": true
+  }
+}

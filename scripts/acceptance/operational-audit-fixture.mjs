@@ -72,7 +72,7 @@ if (process.send && process.argv[1] === script) {
   try { await observeCli() } catch { console.error('AUDIT_FIXTURE_OBSERVER_FAILED'); process.exit(1) }
 }
 
-async function runCli(config, env, seal) {
+export async function runCli(config, env, seal) {
   const child = fork(script, [], { env, execArgv: [], windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
   let stdout = ''
   let stderr = ''
@@ -128,7 +128,7 @@ export async function provisionSharedOwner(admin, stateAdmin) {
   return { role, ownership: rows[0] }
 }
 
-async function databaseSnapshot(db, schema) {
+export async function databaseSnapshot(db, schema) {
   await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
   try {
     const { rows: [context] } = await db.query(`
@@ -170,7 +170,7 @@ async function snapshotContents(db, schema) {
   }))
 }
 
-async function filesSnapshot(root) {
+export async function filesSnapshot(root) {
   const entries = []
   for (const entry of (await readdir(root, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
     const file = path.join(root, entry.name)
