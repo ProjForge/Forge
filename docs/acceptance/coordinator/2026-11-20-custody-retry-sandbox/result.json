@@ -1,0 +1,403 @@
+{
+  "sourceTree": "ded7ffcb8232397fbb9f2f599e6346ed51563bad",
+  "mainCommit": "5b85f3d6ae8eb6ae7fcf44d9cd13250514334c0a",
+  "scope": "three sequential offline Windows Sandbox guests on one physical host",
+  "harnessExit": 0,
+  "finalWindowsSandboxInventoryCount": 0,
+  "harnessSha256": {
+    "fresh.mjs": "999dfc5ac2a86add54f0537ab3b3250703d3a6151b9d9f16f93e613902eed17d",
+    "handoff.mjs": "e71d10d106f1218e4f6141cb471296d642b3a410708a5ba215e4045a99c9c2d0",
+    "Invoke-Destination.ps1": "44b0ee7f350e6de0eb6e15c6d28fed5699b25492f0243368d658a322f7c82a2c",
+    "inside.ps1": "491a79406639f6e65175a97466ba1efcba6e27d3ea5ebc61a1410513d820e937"
+  },
+  "runId": "b4def58a-7508-41e6-ac3f-09249532e49a",
+  "generation": "10e14869-3e6c-483c-b674-18036689affd",
+  "fixtureDigests": {
+    "databaseOriginal": "0009695f2f3d9a510a7c6ec2f63e136dcfff739a101bfe480d688bb5c22e003c",
+    "databaseFault": "35f2aae40ef1a4f19370cd5aa2ba5c5dcea17fe5987bf18c22539de203470951",
+    "probeOriginal": "c75dee6af4d20a42e3834ab3da921de34ed6afb02a21aeaafe0f9a598cbb49a9",
+    "probeFault": "46e7ad0572685c45fb5ceaa505fcf4e3b93dd6fe6acf532ceae0b0be48db285e"
+  },
+  "source": {
+    "sandboxClosed": true,
+    "originalsRemoved": true,
+    "accountsRemoved": true,
+    "database": {
+      "exits": [
+        {
+          "tool": "postgres.exe",
+          "code": 0
+        },
+        {
+          "tool": "initdb.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        },
+        {
+          "tool": "node.exe",
+          "code": 0
+        },
+        {
+          "tool": "node.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_dump.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_dump.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        }
+      ],
+      "postgresVersion": "postgres (PostgreSQL) 18.4",
+      "phase": "dump",
+      "preflight": {
+        "beforeDDL": true,
+        "pathOwned": true,
+        "loopback": true,
+        "systemIdentifierHash": "23edbadbebdc63617379bc275ea7f5f8bf1933cf784069fa17836435df2ac6c9",
+        "port": 49671
+      },
+      "vector": "synthetic pgvector [1,0,0]",
+      "sqlDenials": [
+        "42501",
+        "42501",
+        "42501",
+        "42501"
+      ],
+      "cutData": {
+        "projects": {
+          "count": 3,
+          "sha256": "e805c663cf5deed0809253575f0ac2bddf0eea800c07f67932d9a7186141ba28"
+        },
+        "memories": {
+          "count": 3,
+          "sha256": "ddda12928aad3a4136676d8705ca3151cbb99ef9e2dbf11a083fbe214a9b85b3"
+        },
+        "executions": {
+          "count": 3,
+          "sha256": "5e748daa322684f47c4cd1d8825332522add8cf97ff2fa367a9a29d731302044"
+        },
+        "tasks": {
+          "count": 3,
+          "sha256": "112b145dcfcd240a5bcba152380f992bb1c521165b5e43c823185c40116d73cc"
+        },
+        "embedding_profiles": {
+          "count": 1,
+          "sha256": "39c67d9efad8cfe409beb81016b173b7422d10c45ad1ab0967a51f41331ad6d2"
+        },
+        "embeddings": {
+          "count": 1,
+          "sha256": "ebb7adb248e73b94b717a24f63199ac1d065cc87d3b7585be1903c84f17737e3"
+        },
+        "jobs": {
+          "count": 3,
+          "sha256": "95a46ef1b194a02eea7023a19b2b6fbfa4c8ed43f5dae46b52b237537a9bf0f5"
+        }
+      },
+      "reports": [
+        {
+          "reportHash": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+          "receiptHash": "ab3794cd346a7784855bcea562a5a2b0423a3b7ec13792547945b9a5bad9a348",
+          "bytes": 55,
+          "state": "queued"
+        },
+        {
+          "reportHash": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd",
+          "receiptHash": "a6aff561f21c4f6744ef239705331b1e7441b147aac5c627ef0967655b774745",
+          "bytes": 42,
+          "state": "completed"
+        },
+        {
+          "reportHash": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b",
+          "receiptHash": "501175484e120e939ebbea5e4b474002e9cf38ae30d832d73402770af7c47868",
+          "bytes": 42,
+          "state": "completed"
+        }
+      ],
+      "reportsExpected": 3,
+      "reportsCaptured": 3,
+      "sourceRoleContract": true,
+      "receiptCommittedBeforeCoreMemory": true,
+      "postCutoffMarkerCreated": true,
+      "clusterStoppedAndRemoved": true,
+      "simulatedRpoMs": 1419,
+      "reportRemoved": true
+    }
+  },
+  "originalPin": {
+    "runId": "b4def58a-7508-41e6-ac3f-09249532e49a",
+    "recipientSha256": "8bfa14bd9b6e92362648c9d9e68b5ee1d02c5a314667a31ebe08f3caabd565f6",
+    "manifestSha256": "077ffbe6fff7482e175eccf966322c24308be40d968ea09a3156c4c179dae7a4"
+  },
+  "identicalEncryptedInventory": [
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/coordinator.enc",
+      "bytes": 5357,
+      "sha256": "a52366a569c3ff3ce7715fd36d19d6efd9047b7e8d38626f8cc8d2147e6e4ca4"
+    },
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/core.enc",
+      "bytes": 101020,
+      "sha256": "86ff5423fffcf01b4154c2beded4cf0df2bb69807eafa4bffbeb7930f30f8e82"
+    },
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/identity.enc",
+      "bytes": 6799,
+      "sha256": "c502b8cd16c73269fae47c068be5f2cfe8558a1da8aff70bea04f5154a660ec1"
+    },
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/inventory.enc",
+      "bytes": 1162,
+      "sha256": "388ad5fc270197a99fc622dedbd89811b15ea7552b8dde0954312b5023c29821"
+    },
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/ready.json",
+      "bytes": 270,
+      "sha256": "6106f2039e9ca66cba22eec41a784505b7eadad4b5bdb87f86d68132f274112b"
+    },
+    {
+      "path": "bundles/10e14869-3e6c-483c-b674-18036689affd/report.enc",
+      "bytes": 787,
+      "sha256": "bfe4a60dff6a1e6f9fed2edb20d357f04bcf247a32892dd755cf87921b6abfe5"
+    }
+  ],
+  "failed": {
+    "sandboxClosed": true,
+    "mode": "fault",
+    "destinationMode": "direct-vm",
+    "launcherExit": 1,
+    "nativeRestoreExit": 1,
+    "postgresRestoreExits": [
+      0,
+      1
+    ],
+    "sidHash": "eb88dde0587b1a71a394ac7fabb6cb714aa7c61d11040327cdd6151a36523365",
+    "recipientSha256": "1536a3a994a779ff73fdfa10a35e161576d8e78b7c400182877af4917e943a41",
+    "oldHandoffRejectedBeforeProvision": false,
+    "portClosed": true,
+    "defaultRoutes": 0,
+    "privateRemoved": true,
+    "guestTaskAndAccountsRemoved": true,
+    "distinctFromSource": true,
+    "clusterIdentifierHash": "c41a6f63028addd62a0805eca746d8f4d553c8871ac6caeecf5a10a822de4dc9",
+    "transfer": {
+      "runId": "b4def58a-7508-41e6-ac3f-09249532e49a",
+      "recipientSha256": "1536a3a994a779ff73fdfa10a35e161576d8e78b7c400182877af4917e943a41",
+      "generation": "10e14869-3e6c-483c-b674-18036689affd",
+      "manifestSha256": "ca14ee0103913b646688c4255b158cec09ffae8f10aa92d537be4ef3b04ee55f"
+    },
+    "fault": {
+      "originalBytes": 5357,
+      "truncatedBytes": 2678
+    },
+    "phase": "restore-both",
+    "database": {
+      "phase": "restore-both",
+      "exits": [
+        {
+          "tool": "initdb.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_restore.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_restore.exe",
+          "code": 1
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        }
+      ],
+      "preflight": {
+        "beforeDDL": true,
+        "pathOwned": true,
+        "loopback": true,
+        "systemIdentifierHash": "c41a6f63028addd62a0805eca746d8f4d553c8871ac6caeecf5a10a822de4dc9",
+        "port": 49671
+      },
+      "distinctTarget": true,
+      "partialObservation": {
+        "coreProjects": 3,
+        "coordinatorSchemaAbsent": true
+      },
+      "clusterStoppedAndRemoved": true
+    }
+  },
+  "retry": {
+    "sandboxClosed": true,
+    "mode": "retry",
+    "destinationMode": "direct-vm",
+    "launcherExit": 0,
+    "nativeRestoreExit": 0,
+    "postgresRestoreExits": [
+      0,
+      0
+    ],
+    "sidHash": "67b40ccd68d954c3940b80bc362451483445ac8bf90256e2b323d60badec63a3",
+    "recipientSha256": "a69de118e6732b7e540d065088b529eed9ffe607e285dd4f4325f333832d3773",
+    "oldHandoffRejectedBeforeProvision": true,
+    "portClosed": true,
+    "defaultRoutes": 0,
+    "privateRemoved": true,
+    "guestTaskAndAccountsRemoved": true,
+    "distinctFromSource": true,
+    "clusterIdentifierHash": "1949db2c4a92bfa176ab14bcc8d88b7751632995e332f9a96a866ab7829ce334",
+    "transfer": {
+      "runId": "b4def58a-7508-41e6-ac3f-09249532e49a",
+      "recipientSha256": "a69de118e6732b7e540d065088b529eed9ffe607e285dd4f4325f333832d3773",
+      "generation": "10e14869-3e6c-483c-b674-18036689affd",
+      "manifestSha256": "0f9b226c619eb88b4bafe2068452f8d8f5c8a90134521e85fc3e408002be425d"
+    },
+    "database": {
+      "phase": "reconcile",
+      "exits": [
+        {
+          "tool": "initdb.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_restore.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_restore.exe",
+          "code": 0
+        },
+        {
+          "tool": "node.exe",
+          "code": 0
+        },
+        {
+          "tool": "node.exe",
+          "code": 0
+        },
+        {
+          "tool": "pg_ctl.exe",
+          "code": 0
+        }
+      ],
+      "preflight": {
+        "beforeDDL": true,
+        "pathOwned": true,
+        "loopback": true,
+        "systemIdentifierHash": "1949db2c4a92bfa176ab14bcc8d88b7751632995e332f9a96a866ab7829ce334",
+        "port": 49671
+      },
+      "distinctTarget": true,
+      "cutData": {
+        "projects": {
+          "count": 3,
+          "sha256": "e805c663cf5deed0809253575f0ac2bddf0eea800c07f67932d9a7186141ba28"
+        },
+        "memories": {
+          "count": 3,
+          "sha256": "ddda12928aad3a4136676d8705ca3151cbb99ef9e2dbf11a083fbe214a9b85b3"
+        },
+        "executions": {
+          "count": 3,
+          "sha256": "5e748daa322684f47c4cd1d8825332522add8cf97ff2fa367a9a29d731302044"
+        },
+        "tasks": {
+          "count": 3,
+          "sha256": "112b145dcfcd240a5bcba152380f992bb1c521165b5e43c823185c40116d73cc"
+        },
+        "embedding_profiles": {
+          "count": 1,
+          "sha256": "39c67d9efad8cfe409beb81016b173b7422d10c45ad1ab0967a51f41331ad6d2"
+        },
+        "embeddings": {
+          "count": 1,
+          "sha256": "ebb7adb248e73b94b717a24f63199ac1d065cc87d3b7585be1903c84f17737e3"
+        },
+        "jobs": {
+          "count": 3,
+          "sha256": "95a46ef1b194a02eea7023a19b2b6fbfa4c8ed43f5dae46b52b237537a9bf0f5"
+        }
+      },
+      "exactCutData": true,
+      "vectorRestored": true,
+      "targetRoleContracts": true,
+      "sameCanonicalReportPath": true,
+      "probes": [
+        {
+          "reportHash": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+          "before": "queued",
+          "first": "completed",
+          "replay": "idle",
+          "after": "completed",
+          "attempts": 2
+        },
+        {
+          "reportHash": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd",
+          "before": "completed",
+          "first": "idle",
+          "replay": "idle",
+          "after": "completed",
+          "attempts": 1
+        },
+        {
+          "reportHash": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b",
+          "before": "completed",
+          "first": "idle",
+          "replay": "idle",
+          "after": "completed",
+          "attempts": 1
+        }
+      ],
+      "reconciliation": 1,
+      "handlerReplay": 0,
+      "providerReplay": 0,
+      "providerConfigured": false,
+      "replacementReportIdentityVerified": true,
+      "executions": 3,
+      "taskMemories": 3,
+      "taskDone": true,
+      "reports": [
+        {
+          "reportHash": "958da2b409c293ff45ab865c13036aeab621d71cd826b503ea6146b534a1b666",
+          "receiptHash": "ab3794cd346a7784855bcea562a5a2b0423a3b7ec13792547945b9a5bad9a348",
+          "bytes": 55,
+          "state": "queued"
+        },
+        {
+          "reportHash": "94f7d627c9524ed81bb607218a61e1ac99cfc34d1d97b175f35bdfc3fbd271bd",
+          "receiptHash": "a6aff561f21c4f6744ef239705331b1e7441b147aac5c627ef0967655b774745",
+          "bytes": 42,
+          "state": "completed"
+        },
+        {
+          "reportHash": "970dc5255d0c834e2172bcd4ef7d03fefdeb263050d6423a7ff02765f26ba57b",
+          "receiptHash": "501175484e120e939ebbea5e4b474002e9cf38ae30d832d73402770af7c47868",
+          "bytes": 42,
+          "state": "completed"
+        }
+      ],
+      "reportsRestored": 3,
+      "exactRowsReceiptsAndBytes": true,
+      "completedNoopAndReplay": true,
+      "reportFilesNotRewritten": true,
+      "postCutoffAbsent": true,
+      "clusterStoppedAndRemoved": true
+    }
+  }
+}

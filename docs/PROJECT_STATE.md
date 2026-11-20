@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-19
+Updated: 2026-11-20
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,11 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Two offline Windows Sandbox destinations verified partial-restore rejection
+  and recovery of the same encrypted generation under a new custody identity.
+  Both databases and three reports and receipts matched. Remote restoration
+  remains pending.
+  [Fresh custody retry evidence](acceptance/coordinator/2026-11-20-custody-retry-sandbox/README.md)
 - Same-host Windows rehearsal verified that the kit discards a partially restored
   target after the second native restore fails. A fresh PostgreSQL cluster
   restored the same authenticated replica with zero handler or provider replay.
