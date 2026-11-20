@@ -327,8 +327,8 @@ try {
         if (-not $ConnectionOnly -and -not $NoShortcuts) {
             $shell = New-Object -ComObject WScript.Shell
             $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'FORGE Workbench.lnk'))
-            $shortcut.TargetPath = (Join-Path $env:WINDIR 'System32\wscript.exe')
-            $shortcut.Arguments = '//nologo "' + (Join-Path $InstallRoot 'Launch-FORGE-Workbench.vbs') + '"'
+            $shortcut.TargetPath = Join-Path $InstallRoot 'FORGE-Setup.exe'
+            $shortcut.Arguments = '--open-workbench'
             $shortcut.WorkingDirectory = $InstallRoot
             $shortcut.Description = 'Open FORGE Workbench'
             $shortcut.Save()
@@ -363,7 +363,9 @@ try {
     else { Write-Output "FORGE Workbench $incomingVersion $operation in $InstallRoot" }
     if (-not $writeConfiguration) { Write-Output 'Existing configuration and CurrentUser DPAPI credential were preserved.' }
     else { Write-Output "Configuration stored in $ConfigRoot (password protected by CurrentUser DPAPI)" }
-    if (-not $NoLaunch) { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList '//nologo', ('"' + (Join-Path $InstallRoot 'Launch-FORGE-Workbench.vbs') + '"') -WindowStyle Hidden }
+    if (-not $NoLaunch) {
+        Start-Process -FilePath (Join-Path $InstallRoot 'FORGE-Setup.exe') -ArgumentList '--open-workbench' -WindowStyle Hidden
+    }
 } finally {
     if ($locked) { $mutex.ReleaseMutex() }
     $mutex.Dispose()

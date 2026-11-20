@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Management.Automation;
+using System.Net;
 using System.Reflection;
 using System.Security;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Forms;
 
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
@@ -35,11 +39,79 @@ internal sealed class ForgeSetup : Form
     private bool busy;
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+        if (args.Length == 1 && args[0] == "--open-workbench")
+        {
+            OpenWorkbench();
+            return;
+        }
         Application.Run(new ForgeSetup());
+    }
+
+    private static Process FindWorkbench(string executable)
+    {
+        Process match = null;
+        foreach (var candidate in Process.GetProcessesByName("FORGE-Workbench"))
+        {
+            try
+            {
+                if (match == null && String.Equals(candidate.MainModule.FileName, executable, StringComparison.OrdinalIgnoreCase))
+                {
+                    match = candidate;
+                    continue;
+                }
+            }
+            catch (Win32Exception) { }
+            catch (InvalidOperationException) { }
+            candidate.Dispose();
+        }
+        return match;
+    }
+
+    private static void OpenWorkbench()
+    {
+        try
+        {
+            var url = new Uri(File.ReadAllText(Path.Combine(Distribution, "workbench.url")).Trim(), UriKind.Absolute);
+            if (url.Scheme != "http" || url.Host != "127.0.0.1" || url.UserInfo != "" || url.PathAndQuery != "/" || url.Fragment != "")
+                throw new InvalidOperationException("La dirección local de Forge no es válida.");
+
+            var executable = Path.Combine(Distribution, "FORGE-Workbench.exe");
+            using (var process = FindWorkbench(executable) ?? Process.Start(new ProcessStartInfo(executable) {
+                WorkingDirectory = Distribution, UseShellExecute = false, CreateNoWindow = true
+            }))
+            {
+                var deadline = Stopwatch.StartNew();
+                while (deadline.Elapsed < TimeSpan.FromSeconds(20) && !process.HasExited)
+                {
+                    try
+                    {
+                        var request = (HttpWebRequest)WebRequest.Create(new Uri(url, "api/bootstrap"));
+                        request.Proxy = null;
+                        request.AllowAutoRedirect = false;
+                        request.Timeout = 500;
+                        using (var response = (HttpWebResponse)request.GetResponse())
+                        {
+                            if (response.StatusCode == HttpStatusCode.OK && response.ContentType.StartsWith("application/json"))
+                            {
+                                Process.Start(new ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true });
+                                return;
+                            }
+                        }
+                    }
+                    catch (WebException error) { if (error.Response != null) error.Response.Dispose(); }
+                    Thread.Sleep(150);
+                }
+            }
+            throw new InvalidOperationException("Forge no pudo iniciar. Comprueba PostgreSQL y el puerto local con el asistente.");
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(error.Message, "FORGE Workbench", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private ForgeSetup()
