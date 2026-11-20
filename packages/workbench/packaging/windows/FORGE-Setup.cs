@@ -73,6 +73,7 @@ internal sealed class ForgeSetup : Form
         layout.Controls.Add(status);
         layout.Controls.Add(new Label { Text = "LM Studio es opcional para buscar en la memoria del proyecto.", AutoSize = true });
         reconfigure.Click += delegate {
+            if (busy || !verified) return;
             changingConnection = !changingConnection;
             password.Clear();
             status.Text = changingConnection ? "Introduce y prueba la nueva conexión." : "Se conservará la conexión actual.";
@@ -125,7 +126,7 @@ internal sealed class ForgeSetup : Form
                 shell.AddParameter(parameter.Key, parameter.Value);
 
             var output = shell.Invoke();
-            if (shell.HadErrors)
+            if (shell.Streams.Error.Count != 0)
                 throw new InvalidOperationException(shell.Streams.Error[0].Exception.Message);
             return output;
         }
@@ -162,6 +163,7 @@ internal sealed class ForgeSetup : Form
 
     private async Task Run(bool checkOnly)
     {
+        if (busy || !verified) return;
         bool enter = !existing || changingConnection;
         if (enter && password.TextLength == 0)
         {
