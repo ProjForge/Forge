@@ -140,16 +140,16 @@ internal sealed class ForgeSetup : Form
         {
             var output = await Task.Run(() => Execute(new Dictionary<string, object> { { "Inspect", true } }));
             var config = output[0].Properties;
-            existing = (bool)config["Existing"].Value;
-            installed = (bool)config["Installed"].Value;
-            host.Text = (string)config["DatabaseHost"].Value;
-            databasePort.Value = (int)config["DatabasePort"].Value;
-            database.Text = (string)config["DatabaseName"].Value;
-            user.Text = (string)config["DatabaseUser"].Value;
-            workbenchPort.Value = (int)config["WorkbenchPort"].Value;
+            existing = LanguagePrimitives.ConvertTo<bool>(config["Existing"].Value);
+            installed = LanguagePrimitives.ConvertTo<bool>(config["Installed"].Value);
+            host.Text = LanguagePrimitives.ConvertTo<string>(config["DatabaseHost"].Value);
+            databasePort.Value = LanguagePrimitives.ConvertTo<int>(config["DatabasePort"].Value);
+            database.Text = LanguagePrimitives.ConvertTo<string>(config["DatabaseName"].Value);
+            user.Text = LanguagePrimitives.ConvertTo<string>(config["DatabaseUser"].Value);
+            workbenchPort.Value = LanguagePrimitives.ConvertTo<int>(config["WorkbenchPort"].Value);
             verified = true;
             summary.Text = "FORGE Workbench " + config["Version"].Value + " · " +
-                ((bool)config["Signed"].Value ? "Firmado" : "Sin firma");
+                (LanguagePrimitives.ConvertTo<bool>(config["Signed"].Value) ? "Firmado" : "Sin firma");
             status.Text = existing ? "Hay una conexión guardada." : "Conecta Forge con una base PostgreSQL preparada.";
         }
         catch (Exception error)
