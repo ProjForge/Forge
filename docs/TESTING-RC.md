@@ -5,12 +5,14 @@ not signed general-user releases.
 
 ## Before installing
 
-- Use Windows 10/11 x64 with PostgreSQL 14+ and Node.js 20+/npm 10+.
+- Use Windows 10/11 x64 with .NET Framework 4.8 or later and access to a
+  prepared PostgreSQL 14+ database with the FORGE 0.1.3 schema and the runtime
+  role. Node.js 20+/npm 10+ are required for the source bootstrap only.
 - Keep production databases and irreplaceable project data out of the test.
 - Download `SHA256SUMS.txt` with the archives and verify the selected file:
 
 ```powershell
-Get-FileHash .\FORGE-Workbench-0.2.0-rc.5-Windows-x64.zip -Algorithm SHA256
+Get-FileHash .\FORGE-Workbench-0.2.0-rc.6-Windows-x64.zip -Algorithm SHA256
 ```
 
 The result must equal the corresponding value in `SHA256SUMS.txt`. Stop if it
@@ -21,14 +23,12 @@ does not. An unsigned candidate may show an unknown-publisher warning.
 For a complete new setup, extract the source archive and follow
 [`INSTALL-WINDOWS.md`](INSTALL-WINDOWS.md), starting with `-PlanOnly`.
 
-For an existing compatible FORGE database, extract the Workbench archive and
-run:
+1. Extract the entire Workbench ZIP and double-click `FORGE-Setup.exe`.
+2. Enter the prepared PostgreSQL connection and select **Probar conexión**.
+3. Select **Instalar** with **Abrir Forge al terminar** checked. Reopen it later
+   from **FORGE Workbench** in Windows Start.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-FORGE-Workbench.ps1
-```
-
-## Update from rc.4
+## Update from rc.5
 
 Before updating, record hashes of the shared configuration and encrypted
 credential. Do not copy or publish either file:
@@ -40,17 +40,18 @@ Get-FileHash (Join-Path $forgeConfigRoot 'workbench.json') -Algorithm SHA256
 Get-FileHash (Join-Path $forgeConfigRoot ([string]$forgeConfig.database.credentialFile)) -Algorithm SHA256
 ```
 
-Run the rc.5 installer normally, without database parameters. It must identify
-the existing installation as an update, must not request the PostgreSQL
-password, and both hashes must remain unchanged. `RELEASE.json` under the
-installed application must report `0.2.0-rc.5`.
+Extract rc.6 into a new folder and select **Actualizar** in its setup.
+Both hashes must remain unchanged. `RELEASE.json` under the installed application
+must report `0.2.0-rc.6`. To change database settings, use **Cambiar conexión**,
+test the new connection and select **Guardar conexión**.
 
 ## Smoke test
 
 1. Launch FORGE Workbench and confirm it opens only on `127.0.0.1`.
-2. Create or select a disposable project.
-3. From Inicio, follow the recommended next action; create a task, assign an
-   agent and change its status under Trabajo.
+2. From Inicio, find a project and task by name or key. Open a task, follow its
+   local link in another tab and return to the filtered results.
+3. In Proyectos, create a disposable project. Create a task, assign an agent
+   and change its status from the task detail.
 4. Add a memory and a decision; verify both remain project-scoped.
 5. Restart PostgreSQL and Workbench; confirm the project data persists.
 6. Inspect Recuperación. Missing recovery configuration must appear unavailable,

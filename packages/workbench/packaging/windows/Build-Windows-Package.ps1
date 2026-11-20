@@ -2,7 +2,8 @@
 param(
     [string]$OutputRoot,
     [string]$SigningCertificateThumbprint,
-    [string]$TimestampUrl
+    [string]$TimestampUrl,
+    [switch]$UseInstalledDependencies
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,8 +60,10 @@ function Invoke-Npm([string[]]$Arguments) {
 
 Push-Location $repositoryRoot
 try {
-    Invoke-Npm -Arguments @('ci')
-    if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+    if (-not $UseInstalledDependencies) {
+        Invoke-Npm -Arguments @('ci')
+        if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+    }
     Invoke-Npm -Arguments @('run', 'build')
     if ($LASTEXITCODE -ne 0) { throw 'Monorepo build failed' }
     if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
@@ -114,16 +117,22 @@ try {
 }
 
 $executable = Join-Path $stage 'FORGE-Workbench.exe'
+$setup = Join-Path $stage 'FORGE-Setup.exe'
+$compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+$automation = Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation\v4.0_3.0.0.0__31bf3856ad364e35\System.Management.Automation.dll'
+function Sign-Binary([string]$Binary) {
+    & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $Binary
+    if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed: $Binary" }
+    & $signTool verify /pa /all $Binary
+    if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed: $Binary" }
+}
 $signed = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
 if ($signed) {
     if ([string]::IsNullOrWhiteSpace($TimestampUrl)) {
         throw 'TimestampUrl is required when signing a release.'
     }
     $signTool = Get-SignTool
-    & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $executable
-    if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
-    & $signTool verify /pa /all $executable
-    if ($LASTEXITCODE -ne 0) { throw 'Authenticode verification failed' }
+    Sign-Binary $executable
 }
 
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Uninstall-FORGE-Workbench.ps1'), (Join-Path $PSScriptRoot 'Export-FORGE-Diagnostics.ps1'), (Join-Path $PSScriptRoot 'Launch-FORGE-Workbench.vbs'), (Join-Path $PSScriptRoot 'README-Windows.md') -Destination $stage -Force
@@ -155,10 +164,31 @@ if ($null -ne $git) {
     sourceState = $sourceState
     authenticodeSigned = $signed
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'RELEASE.json') -Encoding utf8
-$checksums = Get-ChildItem -LiteralPath $stage -File -Recurse | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | Sort-Object FullName | ForEach-Object {
+$checksums = @(Get-ChildItem -LiteralPath $stage -File -Recurse | Sort-Object FullName | ForEach-Object {
     $relative = $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
     '{0}  {1}' -f (Get-Sha256 $_.FullName), $relative
+})
+$buildToken = [Guid]::NewGuid().ToString('N')
+$setupVersion = Join-Path $OutputRoot "setup-version-$buildToken.cs"
+$trustedManifest = Join-Path $OutputRoot "setup-manifest-$buildToken.txt"
+try {
+    "[assembly: System.Reflection.AssemblyVersion(""$windowsVersion"")]" | Set-Content -LiteralPath $setupVersion -Encoding ascii
+    "[assembly: System.Reflection.AssemblyFileVersion(""$windowsVersion"")]" | Add-Content -LiteralPath $setupVersion -Encoding ascii
+    $checksums | Set-Content -LiteralPath $trustedManifest -Encoding ascii
+    $compilerArgs = @(
+        '/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', ("/out:" + $setup), ("/reference:" + $automation),
+        '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
+        ("/resource:" + (Join-Path $PSScriptRoot 'Install-FORGE-Workbench.ps1') + ',FORGE.Install'),
+        ("/resource:" + $trustedManifest + ',FORGE.Manifest'),
+        (Join-Path $PSScriptRoot 'FORGE-Setup.cs'), $setupVersion
+    )
+    & $compiler @compilerArgs
+    if ($LASTEXITCODE -ne 0) { throw 'FORGE Setup compilation failed.' }
+    if ($signed) { Sign-Binary $setup }
+} finally {
+    Remove-Item -LiteralPath $setupVersion, $trustedManifest -Force -ErrorAction SilentlyContinue
 }
+$checksums += '{0}  FORGE-Setup.exe' -f (Get-Sha256 $setup)
 $checksums | Set-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt') -Encoding ascii
 $zip = Join-Path $OutputRoot ($stageName + '.zip')
 Compress-Archive -LiteralPath $stage -DestinationPath $zip -CompressionLevel Optimal -Force

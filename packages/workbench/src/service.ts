@@ -8,6 +8,10 @@ import type {
   CreateTaskInput,
   Decision,
   DecisionCatalogItem,
+  DiscoveryInput,
+  DiscoveryProject,
+  DiscoveryTask,
+  DiscoverTasksInput,
   Execution,
   ExecutionStatus,
   Memory,
@@ -40,6 +44,10 @@ import {
 export interface WorkbenchGateway {
   assertReady(): Promise<{ serverVersion: string; schemaVersion: string; vectorVersion: string | null }>
   listProjects(input?: { limit?: number }): Promise<CatalogPage<Project>>
+  discoverProjects(input: DiscoveryInput): Promise<CatalogPage<DiscoveryProject>>
+  discoverTasks(input: DiscoverTasksInput): Promise<CatalogPage<DiscoveryTask>>
+  getProjectById(id: string): Promise<Project>
+  getTaskById(projectId: string, id: string): Promise<Task>
   listMemories(input: { projectId: string; limit?: number }): Promise<CatalogPage<MemoryCatalogItem>>
   listDecisions(input: { projectId: string; limit?: number }): Promise<CatalogPage<DecisionCatalogItem>>
   listTasks(input: { projectId: string; limit?: number }): Promise<CatalogPage<Task>>
@@ -92,6 +100,17 @@ export class ForgeWorkbenchService {
 
   async projects(): Promise<Project[]> {
     return (await this.gateway.listProjects({ limit: 100 })).items
+  }
+
+  discoverProjects(input: DiscoveryInput) { return this.gateway.discoverProjects(input) }
+  discoverTasks(input: DiscoverTasksInput) { return this.gateway.discoverTasks(input) }
+  async project(id: string) {
+    const { projectKey, name, description, status } = await this.gateway.getProjectById(id)
+    return { id, projectKey, name, description, status }
+  }
+  async task(projectId: string, id: string) {
+    const { taskKey, title, objective, status, priority, assignedAgentId, version } = await this.gateway.getTaskById(projectId, id)
+    return { id, projectId, taskKey, title, objective, status, priority, assignedAgentId, version }
   }
 
   async catalog(projectId: string): Promise<{

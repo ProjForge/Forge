@@ -44,7 +44,7 @@ function workspace() {
       requests.push({ url, options, reply: (result, ok = true) => resolve({ ok, json: async () => ok ? { result } : { error: { message: result } } }) })
     }),
   }
-  runInNewContext(source, context, { filename: 'app.js' })
+  runInNewContext(source.replace('void boot()', ''), context, { filename: 'app.js' })
   return {
     node, requests,
     select: (project) => context.selectProject(project),

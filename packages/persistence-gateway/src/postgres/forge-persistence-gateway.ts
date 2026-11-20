@@ -18,6 +18,10 @@ import type {
   CreateTaskInput,
   Decision,
   DecisionCatalogItem,
+  DiscoveryInput,
+  DiscoveryProject,
+  DiscoveryTask,
+  DiscoverTasksInput,
   EmbeddingCandidate,
   EmbeddingCandidatePage,
   EmbeddingDistanceMetric,
@@ -79,6 +83,8 @@ import {
 const { Pool } = pg
 const DEFAULT_CATALOG_LIMIT = 20
 const MAX_CATALOG_LIMIT = 100
+// Preserve PostgreSQL's microseconds in the cursor, including timestamp ties within one millisecond.
+const discoveryTimestamp = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`
 const DEFAULT_SEMANTIC_LIMIT = 10
 const MAX_SEMANTIC_LIMIT = 50
 const MAX_EMBEDDING_DIMENSIONS = 4_096
@@ -325,6 +331,32 @@ export class ForgePersistenceGateway {
       ],
     )
     return catalogPage(result.rows, limit, mapProject)
+  }
+
+  async getProjectById(id: string): Promise<Project> {
+    const result = await this.pool.query<DatabaseRow>('SELECT * FROM forge.projects WHERE id = $1', [id])
+    if (result.rowCount === 0) throw new NotFoundError('Project', id)
+    return mapProject(firstRow(result.rows, 'project'))
+  }
+
+  async discoverProjects(input: DiscoveryInput = {}): Promise<CatalogPage<DiscoveryProject>> {
+    const limit = catalogLimit(input.limit ?? 30)
+    const result = await this.pool.query<DatabaseRow>(
+      `SELECT id, project_key, name, status, to_char(created_at AT TIME ZONE 'UTC', ${discoveryTimestamp}) AS created_at
+         FROM forge.projects
+        WHERE (strpos(lower(name), lower($1)) > 0 OR strpos(lower(project_key), lower($1)) > 0)
+          AND ($2::timestamptz IS NULL OR (forge.projects.created_at, id) < ($2::timestamptz, $3::uuid))
+        ORDER BY forge.projects.created_at DESC, id DESC
+        LIMIT $4`,
+      [input.query?.trim() ?? '', input.cursor?.createdAt ?? null, input.cursor?.id ?? null, limit + 1],
+    )
+    return catalogPage(result.rows, limit, (row) => ({
+      id: row.id as string,
+      projectKey: row.project_key as string,
+      name: row.name as string,
+      status: row.status as Project['status'],
+      createdAt: row.created_at as string,
+    }))
   }
 
   async exportPortableProject(projectId: string): Promise<PortableProjectPayloadV1> {
@@ -881,6 +913,48 @@ export class ForgePersistenceGateway {
       ],
     )
     return catalogPage(result.rows, limit, mapTask)
+  }
+
+  async getTaskById(projectId: string, id: string): Promise<Task> {
+    const result = await this.pool.query<DatabaseRow>(
+      'SELECT * FROM forge.tasks WHERE project_id = $1 AND id = $2 AND deleted_at IS NULL',
+      [projectId, id],
+    )
+    if (result.rowCount === 0) throw new NotFoundError('Task', id)
+    return mapTask(firstRow(result.rows, 'task'))
+  }
+
+  async discoverTasks(input: DiscoverTasksInput = {}): Promise<CatalogPage<DiscoveryTask>> {
+    const limit = catalogLimit(input.limit ?? 30)
+    const result = await this.pool.query<DatabaseRow>(
+      `SELECT task.id, task.project_id, project.name AS project_name, task.task_key, task.title,
+              task.status, task.priority, agent.name AS assigned_agent_name,
+              to_char(task.created_at AT TIME ZONE 'UTC', ${discoveryTimestamp}) AS created_at
+         FROM forge.tasks AS task
+         JOIN forge.projects AS project ON project.id = task.project_id
+         LEFT JOIN forge.agents AS agent ON agent.id = task.assigned_agent_id
+        WHERE task.deleted_at IS NULL
+          AND (strpos(lower(task.title), lower($1)) > 0 OR strpos(lower(task.task_key), lower($1)) > 0)
+          AND ($2::uuid IS NULL OR task.project_id = $2)
+          AND ($3::text = 'all' OR ($3 = 'active' AND task.status NOT IN ('done', 'cancelled')) OR task.status = $3)
+          AND ($4::text IS NULL OR task.priority = $4)
+          AND ($5::timestamptz IS NULL OR (task.created_at, task.id) < ($5::timestamptz, $6::uuid))
+        ORDER BY task.created_at DESC, task.id DESC
+        LIMIT $7`,
+      [input.query?.trim() ?? '', input.projectId ?? null, input.status ?? 'active', input.priority ?? null,
+        input.cursor?.createdAt ?? null, input.cursor?.id ?? null, limit + 1],
+    )
+    return catalogPage(result.rows, limit, (row) => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      projectName: row.project_name as string,
+      taskKey: row.task_key as string,
+      title: row.title as string,
+      status: row.status as TaskStatus,
+      priority: row.priority as Task['priority'],
+      assignedAgentName: row.assigned_agent_name as string | null,
+      createdAt: row.created_at as string,
+    }))
   }
 
   async updateTaskStatus(input: {

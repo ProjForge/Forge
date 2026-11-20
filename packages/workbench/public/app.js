@@ -1,8 +1,9 @@
-const state = { token: '', projects: [], project: null, agents: [], tasks: [], executions: [], contextPackages: [], view: 'overview' }
+const state = { token: '', project: null, agents: [], tasks: [], executions: [], contextPackages: [], view: 'overview' }
 const $ = (selector) => document.querySelector(selector)
 let projectRevision = 0
 let searchRevision = 0
 let contextRevision = 0
+let navigation
 const catalogSections = ['tasks', 'executions', 'memories', 'decisions', 'agents', 'context-packages']
 const catalogCounts = ['task', 'execution', 'memory', 'decision', 'agent', 'context']
 const catalogMetrics = ['open-tasks', 'running-executions', 'knowledge']
@@ -39,8 +40,8 @@ async function api(path, options = {}) {
     headers: { 'content-type': 'application/json', 'x-forge-token': state.token, ...(options.headers || {}) },
   })
   const payload = await response.json()
-  if (!response.ok) throw new Error(payload.error?.message || 'La operación ha fallado')
-  return payload.result
+  if (!response.ok) throw Object.assign(new Error(payload.error?.message || 'La operación ha fallado'), { status: response.status })
+  return Object.hasOwn(payload, 'result') ? payload.result : payload
 }
 
 function item(tagName, className, text) {
@@ -49,29 +50,6 @@ function item(tagName, className, text) {
   node.textContent = text
   return node
 }
-
-function renderProjects() {
-  const container = $('#projects')
-  container.replaceChildren()
-  const filter = $('#project-filter').value.trim().toLocaleLowerCase()
-  const projects = filter
-    ? state.projects.filter((project) => `${project.name} ${project.projectKey}`.toLocaleLowerCase().includes(filter))
-    : state.projects
-  if (!projects.length) {
-    const message = item('p', 'project-empty', filter ? 'No hay coincidencias.' : 'Aún no hay proyectos.')
-    container.append(message)
-    return
-  }
-  for (const project of [...projects].sort((a, b) => Number(b.id === state.project?.id) - Number(a.id === state.project?.id))) {
-    const button = item('button', `project-button${state.project?.id === project.id ? ' active' : ''}`, '')
-    button.type = 'button'
-    button.append(item('strong', '', project.name), item('span', '', project.projectKey))
-    button.addEventListener('click', () => selectProject(project))
-    container.append(button)
-  }
-}
-
-$('#project-filter').addEventListener('input', renderProjects)
 
 function renderCatalog(target, records, kind) {
   const container = $(target)
@@ -91,14 +69,27 @@ function renderCatalog(target, records, kind) {
 
 const taskStatusLabels = { proposed: 'Propuesta', ready: 'Lista', in_progress: 'En curso', blocked: 'Bloqueada', done: 'Terminada', cancelled: 'Cancelada' }
 
-function renderTasks(tasks) {
-  const container = $('#tasks')
+function renderTasks(tasks, container = $('#tasks'), detail = false) {
   container.replaceChildren()
   container.classList.toggle('empty', tasks.length === 0)
   if (!tasks.length) { container.textContent = 'No hay tareas todavía.'; return }
+  const project = state.project
+  const revision = projectRevision
+  const refresh = async () => {
+    if (revision !== projectRevision) return
+    if (detail) await navigation.refresh()
+    else await selectProject(project)
+  }
+  const reportError = (error) => { if (revision === projectRevision) showMessage(error.message, true) }
   for (const task of tasks) {
     const card = item('article', 'catalog-item task-item', '')
-    card.append(item('strong', '', task.title))
+    if (!detail) {
+      const link = item('a', 'discovery-link', task.title)
+      link.href = `#proyectos/${project.id}/tareas/${task.id}`
+      link.id = `result-${task.id}`
+      link.dataset.result = 'true'
+      card.append(link)
+    }
     if (task.objective) card.append(item('p', '', task.objective))
     const controls = item('div', 'task-controls', '')
     const meta = item('div', 'meta', '')
@@ -109,9 +100,10 @@ function renderTasks(tasks) {
     statusSelect.addEventListener('change', async () => {
       statusSelect.disabled = true
       try {
-        await api(`/api/projects/${state.project.id}/tasks/${task.id}/status`, { method: 'PATCH', body: JSON.stringify({ expectedVersion: task.version, status: statusSelect.value }) })
-        await selectProject(state.project)
-      } catch (error) { showMessage(error.message, true); statusSelect.value = task.status }
+        const updated = await api(`/api/projects/${project.id}/tasks/${task.id}/status`, { method: 'PATCH', body: JSON.stringify({ expectedVersion: task.version, status: statusSelect.value }) })
+        navigation?.updateTask(updated)
+        await refresh()
+      } catch (error) { reportError(error); statusSelect.value = task.status }
       finally { statusSelect.disabled = false }
     })
     const agentSelect = document.createElement('select')
@@ -121,12 +113,13 @@ function renderTasks(tasks) {
     agentSelect.addEventListener('change', async () => {
       agentSelect.disabled = true
       try {
-        await api(`/api/projects/${state.project.id}/tasks/${task.id}/assignment`, {
+        const updated = await api(`/api/projects/${project.id}/tasks/${task.id}/assignment`, {
           method: 'PATCH',
           body: JSON.stringify({ expectedVersion: task.version, assignedAgentId: agentSelect.value || null }),
         })
-        await selectProject(state.project)
-      } catch (error) { showMessage(error.message, true); agentSelect.value = task.assignedAgentId || '' }
+        navigation?.updateTask(updated, state.agents.find((agent) => agent.id === updated.assignedAgentId)?.name ?? null)
+        await refresh()
+      } catch (error) { reportError(error); agentSelect.value = task.assignedAgentId || '' }
       finally { agentSelect.disabled = false }
     })
     controls.append(meta, agentSelect, statusSelect)
@@ -141,7 +134,7 @@ function renderTasks(tasks) {
         start.disabled = true
         try {
           const requestId = crypto.randomUUID()
-          await api(`/api/projects/${state.project.id}/tasks/${task.id}/executions`, {
+          await api(`/api/projects/${project.id}/tasks/${task.id}/executions`, {
             method: 'POST',
             body: JSON.stringify({
               agentId: task.assignedAgentId,
@@ -150,8 +143,8 @@ function renderTasks(tasks) {
               idempotencyKey: requestId,
             }),
           })
-          await selectProject(state.project)
-        } catch (error) { showMessage(error.message, true); start.disabled = false }
+          await refresh()
+        } catch (error) { reportError(error); start.disabled = false }
       })
       card.append(start)
     }
@@ -279,7 +272,14 @@ function renderExecutions(executions) {
   }
 }
 
-async function selectProject(project) {
+function leaveProject() {
+  state.project = null
+  ++projectRevision
+  ++searchRevision
+  ++contextRevision
+}
+
+async function selectProject(project, { signal, task } = {}) {
   // Identity alone cannot distinguish an old response after A -> B -> A.
   const revision = ++projectRevision
   ++searchRevision
@@ -293,7 +293,6 @@ async function selectProject(project) {
   showSearchMessage('')
   setView(state.view)
   showMessage('')
-  renderProjects()
   $('#project-name').textContent = project.name
   $('#project-description').textContent = project.description || project.projectKey
   for (const selector of ['#export-project', '#add-agent', '#add-task', '#add-memory', '#add-decision', '#query', '#search-button']) $(selector).disabled = false
@@ -305,7 +304,7 @@ async function selectProject(project) {
   $('#next-step-action').hidden = true
   $('#next-step-secondary').hidden = true
   try {
-    const catalog = await api(`/api/projects/${project.id}/catalog`)
+    const catalog = await api(`/api/projects/${project.id}/catalog`, { signal })
     if (revision !== projectRevision) return
     $('#task-count').textContent = String(catalog.tasks.length)
     $('#execution-count').textContent = String(catalog.executions.length)
@@ -317,6 +316,10 @@ async function selectProject(project) {
     state.tasks = catalog.tasks
     state.executions = catalog.executions
     state.contextPackages = catalog.contextPackages
+    if (task) {
+      renderTasks([task], $('#task-detail-controls'), true)
+      return
+    }
     $('#metric-open-tasks').textContent = String(catalog.tasks.filter((task) => !['done', 'cancelled'].includes(task.status)).length)
     $('#metric-running-executions').textContent = String(catalog.executions.filter((execution) => execution.status === 'running').length)
     $('#metric-knowledge').textContent = String(catalog.memories.length + catalog.decisions.length)
@@ -330,6 +333,7 @@ async function selectProject(project) {
     renderNextStep()
   } catch (error) {
     if (revision !== projectRevision) return
+    if (task) throw error
     for (const section of catalogSections) $(`#${section}`).textContent = 'No se pudo cargar el contenido.'
     for (const count of catalogCounts) $(`#${count}-count`).textContent = '—'
     for (const metric of catalogMetrics) $(`#metric-${metric}`).textContent = '—'
@@ -623,11 +627,10 @@ $('#import-form').addEventListener('submit', async (event) => {
         }),
       })
     }
-    state.projects = await api('/api/projects')
     form.reset()
     updateImportSource()
     form.closest('dialog').close()
-    await selectProject(result.project)
+    await navigation.openProject(result.project)
     showMessage(`Importación completa: ${result.imported.memories} memorias, ${result.imported.decisions} decisiones y ${result.imported.tasks} tareas.`)
   } catch (cause) { error.textContent = cause.message }
   finally { submit.disabled = false }
@@ -641,7 +644,8 @@ function bindForm(formSelector, submit) {
     const error = form.querySelector('.form-error')
     error.textContent = ''
     try {
-      await submit(Object.fromEntries(new FormData(form)))
+      const fields = [...new FormData(form)].filter(([, value]) => typeof value !== 'string' || value.trim() !== '')
+      await submit(Object.fromEntries(fields))
       form.reset(); form.closest('dialog').close()
     } catch (cause) { error.textContent = cause.message }
   })
@@ -649,7 +653,7 @@ function bindForm(formSelector, submit) {
 
 bindForm('#project-form', async (data) => {
   const project = await api('/api/projects', { method: 'POST', body: JSON.stringify(data) })
-  state.projects.unshift(project); await selectProject(project)
+  await navigation.openProject(project)
 })
 bindForm('#memory-form', async (data) => {
   await api(`/api/projects/${state.project.id}/memories`, { method: 'POST', body: JSON.stringify({ ...data, idempotencyKey: crypto.randomUUID() }) })
@@ -678,7 +682,7 @@ function renderOperationalHealth(status) {
     card.append(heading, item('p', '', health.summary))
     if (health.updatedAt) card.append(item('small', '', new Date(health.updatedAt).toLocaleString()))
     if (health.projectId) {
-      const project = state.projects.find((project) => project.id === health.projectId)
+      const project = state.project?.id === health.projectId ? state.project : null
       card.append(item('p', '', `Proyecto indexado: ${project ? project.name : health.projectId}`))
     }
     $('#recovery-health').append(card)
@@ -687,17 +691,21 @@ function renderOperationalHealth(status) {
 
 async function boot() {
   try {
+    const { createDiscoveryNavigation } = await import('./discovery.js')
+    navigation = createDiscoveryNavigation({
+      api, leaveProject,
+      openProject: (project, signal, resetView) => {
+        if (resetView) setView('overview')
+        return selectProject(project, { signal })
+      },
+      openTask: (project, task, signal) => {
+        $('#task-detail-controls').textContent = 'Cargando acciones…'
+        return selectProject(project, { signal, task })
+      },
+    })
     state.token = (await (await fetch('/api/bootstrap')).json()).token
-    const [status, projects] = await Promise.all([api('/api/status'), api('/api/projects')])
-    state.projects = projects
-    renderRecoveryHealth(status.recovery)
-    renderOperationalHealth(status)
-    $('#health-dot').classList.add('good')
-    $('#health').textContent = `PostgreSQL ${status.serverVersion} · Schema ${status.schemaVersion}`
-    renderProjects()
-    const initial = projects.find((project) => project.projectKey === 'forge-core') || projects[0]
-    if (initial) await selectProject(initial)
-    else renderNextStep()
+    void navigation.start()
+    await refreshHealth()
   } catch (error) {
     $('#health').textContent = 'FORGE no disponible'
     showMessage(error.message, true)
@@ -706,14 +714,19 @@ async function boot() {
 
 void boot()
 
-setInterval(async () => {
-  if (document.hidden || !state.token) return
+async function refreshHealth() {
   try {
     const status = await api('/api/status')
     renderRecoveryHealth(status.recovery)
     renderOperationalHealth(status)
+    $('#health-dot').classList.add('good')
+    $('#health').textContent = `PostgreSQL ${status.serverVersion} · Esquema ${status.schemaVersion}`
   } catch {
     $('#health').textContent = 'No se pudo actualizar el estado de FORGE'
     $('#health-dot').classList.remove('good')
   }
+}
+
+setInterval(() => {
+  if (!document.hidden && state.token) void refreshHealth()
 }, 30000)

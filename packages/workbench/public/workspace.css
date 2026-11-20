@@ -1,12 +1,52 @@
-.project-filter { display: block; margin: 0 7px 10px; }
-.rail-actions { display: flex; align-items: center; gap: 6px; }
-.project-filter input {
-  width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 9px;
-  outline: 0; background: var(--surface); color: var(--text); font-size: 11px;
+.shell { display: block; max-width: 76rem; margin-inline: auto; }
+.app-footer { margin: 0; padding: 14px 24px; }
+.discovery-nav a,.detail-links a {
+  padding: 10px 14px; border: 1px solid transparent; border-radius: 10px;
+  color: var(--text); text-decoration: none; font-size: 14px;
 }
-.project-filter input:focus { border-color: var(--accent-bright); box-shadow: 0 0 0 3px var(--amber-soft); }
-.shell,.rail,main { min-width: 0; }
-.projects { overflow-y: auto; overflow-x: hidden; }
+.discovery-nav a:hover,.detail-links a:hover { background: var(--hover); }
+.discovery-nav [aria-current="page"] { background: var(--surface-raised); border-color: var(--line); font-weight: 650; }
+.discovery-heading,.detail-links { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.detail-links { justify-content: flex-start; }
+.detail-links a { background: var(--surface); overflow-wrap: anywhere; }
+.discovery-search { display: grid; gap: 8px; margin-bottom: 18px; }
+.discovery-search label { font-size: 13px; font-weight: 650; }
+.discovery-search input,.discovery-filters select {
+  min-width: 0; width: 100%; min-height: 42px; padding: 10px 12px;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-raised); color: var(--text);
+}
+.discovery-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.discovery-filters > div { display: grid; gap: 4px; flex: 0 1 10rem; min-width: 0; }
+#project-picker-open { max-width: min(100%, 20rem); overflow-wrap: anywhere; }
+.discovery-groups { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); align-items: start; }
+.discovery-panel {
+  min-width: 0; padding: clamp(12px, 2.5vw, 22px); border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+}
+.discovery-panel > p { margin: 4px 0 8px; font-size: 13px; }
+.discovery-list { list-style: none; padding: 0; margin: 0; }
+.discovery-result { padding: 11px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.discovery-link { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.discovery-result .discovery-link { display: inline-block; padding-block: 3px; font-size: 15px; font-weight: 650; }
+.discovery-result .secondary { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.result-key { display: block; margin-top: 3px; color: var(--subtle); font-size: 12px; }
+.result-details { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 12px; margin-top: 7px; color: var(--muted); font-size: 12px; }
+.result-status { color: var(--text); border-radius: 6px; padding: 2px 6px; background: var(--surface-soft); }
+.discovery-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; }
+.discovery-controls:not(:empty) { margin-top: 10px; }
+.project-tabs { justify-content: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
+#project-all-tasks { display: inline-block; margin-top: 10px; font-size: 13px; }
+#project-picker-results { margin-top: 10px; }
+#detail-feedback:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+
+@media (max-width: 900px) {
+  .discovery-nav { grid-area: 2 / 1 / auto / -1; justify-content: flex-start; flex-wrap: wrap; }
+}
+@media (max-width: 400px) {
+  .app-header { position: static; }
+  .discovery-nav a { padding-inline: 10px; }
+  .top-actions { flex-wrap: wrap; }
+}
 
 .task-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; }
 .task-controls select,.execution-actions select {
@@ -28,8 +68,5 @@
 .execution-actions .workflow-button { margin-top: 0; }
 
 @media (max-width: 900px) {
-  .project-filter { max-width: 360px; }
-  .projects { width: 100%; max-width: 100%; overflow-x: auto; }
-  .project-button { width: 180px; min-width: 180px; }
   .task-controls select { flex: 1 1 9rem; max-width: none; }
 }

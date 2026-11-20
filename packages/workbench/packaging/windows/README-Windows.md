@@ -1,4 +1,4 @@
-# FORGE Workbench 0.2.0-rc.5 — Windows x64
+# FORGE Workbench 0.2.0-rc.6 — Windows x64
 
 This is a FORGE technical release candidate. PostgreSQL with the compatible
 FORGE schema must already be available. LM Studio is optional for catalog and
@@ -7,25 +7,21 @@ the release notes for this package's signing status.
 
 ## Install
 
-Open PowerShell in this folder and run:
+Extract the entire ZIP, then open `FORGE-Setup.exe` from the extracted folder.
+Setup verifies the internal SHA-256 manifest and checks PostgreSQL credentials,
+schema and runtime permissions before installing. It can test the connection
+separately. The database check uses a read-only session.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-FORGE-Workbench.ps1
-```
+Setup installs under `%LOCALAPPDATA%` for the current user and adds a Start Menu
+shortcut. No administrator permission is required. **Actualizar** preserves the
+saved settings and CurrentUser DPAPI credential byte for byte. **Cambiar
+conexión** checks and saves the new connection independently of application
+updates. Setup rejects accidental downgrades.
 
-The installer asks for the PostgreSQL runtime password without echoing it,
-encrypts it with Windows CurrentUser DPAPI, installs under `%LOCALAPPDATA%`,
-and creates a per-user Start Menu shortcut. No administrator permission is
-required.
-
-The package verifies its complete internal SHA-256 manifest before changing
-the installation. Running a newer package performs a transactional update and
-preserves the existing JSON configuration and DPAPI credential without asking
-for the database password again. Accidental downgrades are rejected.
-
-To deliberately change the database identity or Workbench port during an
-update, pass `-Reconfigure` together with the new values. This requires the
-runtime password and atomically replaces the encrypted credential.
+For console use, run `.\Install-FORGE-Workbench.ps1` from a Windows PowerShell
+session where script execution is permitted. Pass `-Reconfigure` to change the
+connection or Workbench port, or `-CheckOnly` to test without installing.
+The console prompts for the password securely when needed.
 
 Configuration lives at `%APPDATA%\FORGE\workbench.json`. The password is kept
 separately in `%APPDATA%\FORGE\workbench.dpapi` and can only be decrypted by

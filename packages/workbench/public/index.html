@@ -14,16 +14,15 @@
 <body>
   <div class="app-frame">
     <header class="app-header">
-      <a class="brand" href="/" aria-label="FORGE Workbench">
+      <a class="brand" href="#inicio" aria-label="FORGE Workbench">
         <img class="brand-mark brand-mark-dark" src="/brand/forge-mark-color.svg" alt="">
         <img class="brand-mark brand-mark-light" src="/brand/forge-mark-mono-dark.svg" alt="">
         <span><strong>FORGE</strong><small>Workbench</small></span>
       </a>
-      <nav class="workspace-tabs" aria-label="Secciones del proyecto" data-project-required>
-        <button type="button" class="view-tab active" data-view="overview" aria-label="Inicio" aria-current="page"><strong>Inicio</strong><small>Qué requiere atención</small></button>
-        <button type="button" class="view-tab" data-view="operation" aria-label="Trabajo"><strong>Trabajo</strong><small>Tareas y agentes</small></button>
-        <button type="button" class="view-tab" data-view="knowledge" aria-label="Memoria"><strong>Memoria</strong><small>Buscar y registrar</small></button>
-        <button type="button" class="view-tab" data-view="continuity" aria-label="Recuperación"><strong>Recuperación</strong><small>Continuidad y copias</small></button>
+      <nav class="workspace-tabs discovery-nav" aria-label="Navegación principal">
+        <a href="#inicio" aria-current="page">Inicio</a>
+        <a href="#proyectos">Proyectos</a>
+        <a href="#tareas">Tareas</a>
       </nav>
       <div class="header-tools">
         <div class="theme-switch" role="group" aria-label="Tema de la interfaz">
@@ -34,21 +33,52 @@
       </div>
     </header>
   <div class="shell">
-    <aside class="rail">
-      <div class="rail-heading"><span>Proyectos</span><div class="rail-actions"><button id="import-project" class="icon-button" title="Importar proyecto" aria-label="Importar proyecto">⇩</button><button id="new-project" class="icon-button" title="Crear proyecto" aria-label="Crear proyecto">+</button></div></div>
-      <label class="project-filter"><span class="sr-only">Filtrar proyectos</span><input id="project-filter" placeholder="Filtrar proyectos…" autocomplete="off"></label>
-      <nav id="projects" class="projects" aria-label="Proyectos"></nav>
-      <div class="rail-footer">
-        <span id="health-dot" class="health-dot"></span>
-        <span id="health">Conectando…</span>
-      </div>
-    </aside>
-
     <main>
+      <div id="workspace-message" class="workspace-message" role="status" hidden></div>
+      <section id="discovery" aria-labelledby="discovery-title">
+        <header class="discovery-heading">
+          <h1 id="discovery-title" tabindex="-1">Inicio</h1>
+          <div id="project-entry-actions" class="top-actions">
+            <button id="import-project" type="button" class="secondary">Importar proyecto</button>
+            <button id="new-project" type="button" class="primary">Crear proyecto</button>
+          </div>
+        </header>
+        <form id="discovery-search" class="discovery-search" role="search" aria-labelledby="discovery-label">
+          <label for="discovery-query" id="discovery-label">Buscar proyectos o tareas</label>
+          <input id="discovery-query" type="search" maxlength="200" autocomplete="off">
+          <div id="task-filters" class="discovery-filters" hidden>
+            <button type="button" id="project-picker-open" class="secondary">Todos los proyectos</button>
+            <div><label for="discovery-status">Estado</label>
+              <select id="discovery-status">
+                <option value="active">Activas</option><option value="all">Todos los estados</option>
+                <option value="proposed">Propuestas</option><option value="ready">Listas</option>
+                <option value="in_progress">En curso</option><option value="blocked">Bloqueadas</option>
+                <option value="done">Completadas</option><option value="cancelled">Canceladas</option>
+              </select>
+            </div>
+            <div><label for="discovery-priority">Prioridad</label>
+              <select id="discovery-priority">
+                <option value="">Todas</option><option value="low">Baja</option><option value="normal">Normal</option>
+                <option value="high">Alta</option><option value="critical">Crítica</option>
+              </select>
+            </div>
+          </div>
+        </form>
+        <div id="discovery-groups" class="discovery-groups"></div>
+      </section>
+      <nav id="detail-links" class="detail-links" aria-label="Navegación del detalle" hidden>
+        <a id="detail-back" href="#proyectos">Volver a proyectos</a>
+        <a id="detail-project" href="#proyectos" hidden></a>
+      </nav>
+      <section id="detail-feedback" role="status" hidden></section>
+      <section id="task-detail" aria-labelledby="task-detail-title" hidden>
+        <header class="discovery-heading"><h1 id="task-detail-title" tabindex="-1"></h1></header>
+        <div id="task-detail-controls" class="catalog-list"></div>
+      </section>
+      <div id="project-workspace" hidden>
       <header class="topbar">
         <div class="project-heading">
-          <p class="eyebrow">Memoria operativa</p>
-          <h1 id="project-name">Selecciona un proyecto</h1>
+          <h1 id="project-name" tabindex="-1">Selecciona un proyecto</h1>
           <p id="project-description" class="muted">Explora decisiones y conocimiento persistente.</p>
         </div>
         <div class="top-actions" data-project-required>
@@ -59,10 +89,12 @@
           <button id="add-decision" class="secondary" data-action-views="knowledge" disabled>Nueva decisión</button>
         </div>
       </header>
-
-
-
-      <div id="workspace-message" class="workspace-message" role="status" aria-live="polite" hidden></div>
+      <nav class="workspace-tabs project-tabs" aria-label="Secciones del proyecto" data-project-required>
+        <button type="button" class="view-tab active" data-view="overview" aria-current="page"><strong>Resumen</strong></button>
+        <button type="button" class="view-tab" data-view="operation"><strong>Trabajo</strong></button>
+        <button type="button" class="view-tab" data-view="knowledge"><strong>Memoria</strong></button>
+        <button type="button" class="view-tab" data-view="continuity"><strong>Recuperación</strong></button>
+      </nav>
 
       <section class="project-stats" aria-label="Resumen del proyecto" data-project-required>
         <button type="button" class="stat-card" data-target-view="operation"><span>Trabajo pendiente</span><strong id="metric-open-tasks">—</strong><small>Ver tareas activas</small></button>
@@ -83,7 +115,7 @@
         </div>
       </section>
 
-      <section class="search-panel workspace-view" data-views="overview knowledge" data-project-required aria-labelledby="search-title">
+      <section class="search-panel workspace-view" data-views="knowledge" data-project-required aria-labelledby="search-title">
         <div class="search-copy">
           <p class="eyebrow">Recuperación semántica</p>
           <h2 id="search-title">Pregunta a la memoria del proyecto</h2>
@@ -109,9 +141,10 @@
         <div id="recovery-health" class="recovery-grid" aria-live="polite"></div>
       </section>
 
-      <section class="catalog-grid workspace-view" data-views="operation knowledge continuity">
-        <article class="catalog-panel workspace-view" data-views="operation">
+      <section class="catalog-grid workspace-view" data-views="overview operation knowledge continuity">
+        <article class="catalog-panel workspace-view" data-views="overview operation">
           <div class="section-heading"><div><p class="eyebrow">Operación</p><h2>Tareas</h2></div><span id="task-count" class="count">0</span></div>
+          <a id="project-all-tasks" class="discovery-link" href="#tareas">Buscar todas las tareas del proyecto</a>
           <div id="tasks" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
         <article class="catalog-panel workspace-view" data-views="operation">
@@ -135,10 +168,24 @@
           <div id="context-packages" class="catalog-list empty">Selecciona un proyecto.</div>
         </article>
       </section>
+      </div>
     </main>
   </div>
+    <footer class="rail-footer app-footer">
+      <span id="health-dot" class="health-dot" aria-hidden="true"></span>
+      <span id="health">Conectando…</span>
+    </footer>
 
   </div>
+
+  <dialog id="project-picker" aria-labelledby="project-picker-title">
+    <form method="dialog">
+      <header><h2 id="project-picker-title">Filtrar por proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header>
+      <label>Nombre o clave<input id="project-picker-query" type="search" maxlength="200" autocomplete="off" autofocus></label>
+      <button id="clear-project-filter" type="button" class="secondary">Todos los proyectos</button>
+      <div id="project-picker-results"></div>
+    </form>
+  </dialog>
 
   <dialog id="project-dialog"><form id="project-form" method="dialog"><header><h2>Nuevo proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Clave estable<input name="projectKey" maxlength="200" placeholder="mi-proyecto" required></label><label>Nombre<input name="name" maxlength="500" required></label><label>Descripción<textarea name="description" maxlength="4000" rows="3"></textarea></label><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Crear proyecto</button></footer><p class="form-error" role="alert"></p></form></dialog>
   <dialog id="import-dialog" class="import-dialog"><form id="import-form" method="dialog"><header><h2>Importar proyecto</h2><button class="close" value="cancel" aria-label="Cerrar">×</button></header><label>Origen<select name="sourceType" id="import-source"><option value="repository">Carpeta de proyecto existente</option><option value="bundle">Paquete .forge-project</option></select></label><div data-import-source="repository"><label>Carpeta<input id="repository-files" name="repositoryFiles" type="file" webkitdirectory multiple></label><p class="field-help">Solo se leerán README, AGENTS, manifiestos y documentación. Se excluyen código, dependencias, binarios y posibles secretos.</p></div><div data-import-source="bundle" hidden><label>Paquete FORGE<input id="bundle-file" name="bundleFile" type="file" accept=".forge-project,application/json"></label><label>Modo<select name="mode"><option value="create">Crear proyecto nuevo</option><option value="merge">Fusionar sin sobrescribir</option></select></label></div><label>Clave estable<input name="projectKey" maxlength="200" placeholder="mi-proyecto" required></label><label>Nombre<input name="name" maxlength="500" required></label><label>Descripción<textarea name="description" maxlength="4000" rows="3"></textarea></label><div id="import-preview" class="import-preview" role="status">Selecciona una carpeta o paquete para previsualizarlo.</div><footer><button value="cancel" class="secondary">Cancelar</button><button value="default" class="primary">Importar</button></footer><p class="form-error" role="alert"></p></form></dialog>

@@ -15,6 +15,66 @@ import {
 
 const connectionString = process.env.FORGE_DATABASE_URL
 
+test('discovers all projects and tasks with a paged, literal search under the runtime role', {
+  skip: !connectionString, timeout: 30_000,
+}, async () => {
+  const gateway = ForgePersistenceGateway.connect({ connectionString: connectionString! })
+  const fixture = new pg.Pool({ connectionString })
+  const key = `discovery-${randomUUID()}`
+  try {
+    await fixture.query(`
+      INSERT INTO forge.projects (project_key, name, created_at)
+      SELECT $1 || '-' || n, 'Discovery ' || n,
+             '2026-08-01 00:00:00.000001Z'::timestamptz + (n / 2) * interval '1 microsecond'
+      FROM generate_series(1, 101) AS n`, [key])
+    await fixture.query(`
+      INSERT INTO forge.tasks (project_id, task_key, title, status, priority, created_at, deleted_at)
+      SELECT p.id, $1 || '-' || n, CASE n WHEN 1 THEN 'Find %_ literally' ELSE 'Fixture ' || n END,
+             CASE n WHEN 2 THEN 'done' WHEN 3 THEN 'cancelled' ELSE 'ready' END,
+             CASE n WHEN 1 THEN 'high' ELSE 'normal' END,
+             '2026-08-01 00:00:00.000001Z'::timestamptz + (n / 2) * interval '1 microsecond',
+             CASE n WHEN 4 THEN now() END
+      FROM forge.projects AS p CROSS JOIN generate_series(1, 54) AS n
+      WHERE strpos(p.project_key, $1) = 1`, [key])
+    const projects = new Set<string>()
+    let cursor = undefined as { createdAt: string; id: string } | undefined
+    do {
+      const page = await gateway.discoverProjects({ query: key.toUpperCase(), ...(cursor && { cursor }) })
+      assert.ok(page.items.length <= 30)
+      for (const project of page.items) {
+        assert.ok(!projects.has(project.id))
+        projects.add(project.id)
+      }
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    assert.equal(projects.size, 101)
+    const old = await gateway.getProjectByKey(`${key}-1`)
+    const other = await gateway.getProjectByKey(`${key}-2`)
+    assert.equal((await gateway.getProjectById(old.id)).id, old.id)
+    const tasks = new Set<string>()
+    do {
+      const page = await gateway.discoverTasks({ projectId: old.id, ...(cursor && { cursor }) })
+      for (const task of page.items) {
+        assert.ok(!tasks.has(task.id))
+        tasks.add(task.id)
+      }
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    assert.equal(tasks.size, 51)
+    const { items } = await gateway.discoverTasks({ projectId: old.id, query: 'FIND %_', status: 'ready', priority: 'high' })
+    assert.equal(items.length, 1)
+    const target = items[0]!
+    assert.equal(target.projectName, old.name)
+    assert.equal((await gateway.getTaskById(old.id, target.id)).title, target.title)
+    await assert.rejects(gateway.getTaskById(other.id, target.id), NotFoundError)
+    assert.equal((await gateway.discoverTasks({ projectId: old.id, query: `${key}-4`, status: 'all' })).items.some((task) => task.taskKey === `${key}-4`), false)
+    assert.equal((await gateway.discoverTasks({ projectId: old.id, status: 'done' })).items.length, 1)
+    assert.equal((await gateway.discoverTasks({ projectId: old.id, status: 'cancelled' })).items.length, 1)
+  } finally {
+    await Promise.all([fixture.end(), gateway.close()])
+  }
+})
+
 test('persists and reconstructs a complete task continuation flow', {
   skip: connectionString ? false : 'FORGE_DATABASE_URL is not configured',
   timeout: 30_000,

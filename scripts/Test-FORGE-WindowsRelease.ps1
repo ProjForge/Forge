@@ -21,11 +21,16 @@ $sourceZip = Join-Path $OutputRoot $sourceZipName
 $releaseManifest = Join-Path $OutputRoot 'SHA256SUMS.txt'
 $evidencePath = Join-Path $OutputRoot 'release-verification.json'
 
+function Get-StreamSha256([IO.Stream]$Stream) {
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($algorithm.ComputeHash($Stream)).Replace('-', '') }
+    finally { $algorithm.Dispose() }
+}
+
 function Get-Sha256([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
-    $algorithm = [Security.Cryptography.SHA256]::Create()
-    try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '') }
-    finally { $algorithm.Dispose(); $stream.Dispose() }
+    try { return Get-StreamSha256 $stream }
+    finally { $stream.Dispose() }
 }
 
 function Read-ChecksumManifest([string]$Path) {
@@ -44,7 +49,7 @@ function Read-ChecksumManifest([string]$Path) {
 foreach ($required in @($stage, $workbenchZip, $workbenchManifest, $sourceZip, $releaseManifest)) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Required release path is missing: $required" }
 }
-foreach ($requiredName in @('Install-FORGE-Workbench.ps1', 'Uninstall-FORGE-Workbench.ps1', 'Export-FORGE-Diagnostics.ps1', 'RELEASE.json')) {
+foreach ($requiredName in @('FORGE-Setup.exe', 'Install-FORGE-Workbench.ps1', 'Uninstall-FORGE-Workbench.ps1', 'Export-FORGE-Diagnostics.ps1', 'RELEASE.json')) {
     if (-not (Test-Path -LiteralPath (Join-Path $stage $requiredName) -PathType Leaf)) { throw "Required Windows lifecycle file is missing: $requiredName" }
 }
 
@@ -60,6 +65,7 @@ if ($release.product -ne 'FORGE Workbench' -or
 
 $internalEntries = @(Read-ChecksumManifest (Join-Path $stage 'SHA256SUMS.txt'))
 $stagePrefix = $stage + [IO.Path]::DirectorySeparatorChar
+$verifiedFiles = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($entry in $internalEntries) {
     if ([IO.Path]::IsPathRooted($entry.Name) -or $entry.Name -match '(^|[\\/])\.\.([\\/]|$)') {
         throw "Unsafe internal checksum path: $($entry.Name)"
@@ -70,6 +76,7 @@ foreach ($entry in $internalEntries) {
         throw "Internal checksum target is missing or outside the package: $($entry.Name)"
     }
     if ((Get-Sha256 $target) -ne $entry.Hash) { throw "Internal checksum mismatch: $($entry.Name)" }
+    $verifiedFiles.Add($target.Substring($stagePrefix.Length).Replace('\', '/'), $entry.Hash)
 }
 $packagedFiles = @(Get-ChildItem -LiteralPath $stage -File -Recurse | Where-Object { $_.Name -ne 'SHA256SUMS.txt' })
 if ($packagedFiles.Count -ne $internalEntries.Count) {
@@ -94,6 +101,25 @@ foreach ($entry in $outerEntries) {
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$verifiedFiles.Add('SHA256SUMS.txt', (Get-Sha256 (Join-Path $stage 'SHA256SUMS.txt')))
+$windowsArchive = [IO.Compression.ZipFile]::OpenRead($workbenchZip)
+try {
+    foreach ($entry in $windowsArchive.Entries) {
+        $entryName = $entry.FullName.Replace('\', '/')
+        $prefix = $stageName + '/'
+        if (-not $entryName.StartsWith($prefix, [StringComparison]::Ordinal)) { throw 'The Windows ZIP has an unexpected root.' }
+        if (-not $entry.Name) { continue }
+        $name = $entryName.Substring($prefix.Length)
+        if (-not $verifiedFiles.ContainsKey($name)) { throw "Unexpected or duplicate Windows ZIP entry: $name" }
+        $stream = $entry.Open()
+        try {
+            if ((Get-StreamSha256 $stream) -ne $verifiedFiles[$name]) { throw "Windows ZIP bytes differ from the verified file: $name" }
+        } finally { $stream.Dispose() }
+        $null = $verifiedFiles.Remove($name)
+    }
+    if ($verifiedFiles.Count) { throw 'The Windows ZIP is missing one or more verified files.' }
+} finally { $windowsArchive.Dispose() }
+
 $sourceArchive = [IO.Compression.ZipFile]::OpenRead($sourceZip)
 try {
     $prefix = 'FORGE-{0}/' -f $ExpectedVersion
@@ -129,6 +155,13 @@ if ([bool]$release.authenticodeSigned -ne $isSigned) {
     throw 'RELEASE.json signing provenance does not match the executable.'
 }
 
+$setupSignature = Get-AuthenticodeSignature -LiteralPath (Join-Path $stage 'FORGE-Setup.exe')
+if ($setupSignature.Status -ne $signature.Status -or
+    ($isSigned -and ($null -eq $setupSignature.TimeStamperCertificate -or
+         $setupSignature.SignerCertificate.Thumbprint -ne $signature.SignerCertificate.Thumbprint))) {
+    throw 'FORGE Setup does not match the Workbench Authenticode signing policy.'
+}
+
 $evidence = [ordered]@{
     verified = $true
     product = 'FORGE Workbench'
@@ -136,6 +169,7 @@ $evidence = [ordered]@{
     sourceCommit = $ExpectedCommit
     sourceDirty = $false
     authenticodeStatus = [string]$signature.Status
+    setupAuthenticodeStatus = [string]$setupSignature.Status
     timestamped = $null -ne $signature.TimeStamperCertificate
     sourceSha256 = Get-Sha256 $sourceZip
     workbenchSha256 = Get-Sha256 $workbenchZip

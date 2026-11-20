@@ -35,6 +35,11 @@ physical WAL/PITR are separate recovery layers.
 
 - Workbench uses the FORGE palette in light/dark themes; Auto follows the OS.
   Only the browser theme preference is persisted; project storage is unchanged.
+- Inicio, Proyectos and Tareas use paginated PostgreSQL discovery and local
+  detail links. Semantic retrieval is available in project memory.
+- The Windows x64 tester ZIP includes a per-user WinForms setup with a shared
+  PowerShell engine. Updating preserves configuration and the DPAPI credential.
+  Connection changes validate PostgreSQL before storing the new credential.
 - Workbench applies only the latest catalog/search/continuation response; changing
   project clears prior content, counts and agent choices before loading.
 - Preserve independent Windows/Linux databases and the existing vector profile.

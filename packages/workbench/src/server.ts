@@ -4,12 +4,13 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import type { ForgeWorkbenchService } from './service.js'
+import type { DiscoveryInput } from 'forge-semantic-bridge/workbench'
 
 const jsonLimit = 64 * 1024
 const portableJsonLimit = 5 * 1024 * 1024
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const publicFiles = new Set([
-  '/index.html', '/app.js', '/theme.js', '/brand/forge-mark-mono-dark.svg', '/styles.css', '/workspace.css', '/brand.css',
+  '/index.html', '/app.js', '/discovery.js', '/theme.js', '/brand/forge-mark-mono-dark.svg', '/styles.css', '/workspace.css', '/brand.css',
   '/brand/forge-favicon.svg', '/brand/forge-favicon-256.png', '/brand/forge-mark-color.svg',
 ])
 
@@ -98,6 +99,25 @@ function positiveInteger(input: Record<string, unknown>, key: string): number {
   return Number(value)
 }
 
+function discoveryInput(params: URLSearchParams): DiscoveryInput {
+  const query = params.get('q')?.trim() ?? ''
+  const rawLimit = params.get('limit') ?? '30'
+  const limit = Number(rawLimit)
+  const createdAt = params.get('cursorAt')
+  const id = params.get('cursorId')
+  if (query.length > 200 || query.includes('\0')) throw new TypeError('q must contain at most 200 text characters')
+  if (!/^\d+$/.test(rawLimit) || limit < 1 || limit > 100) throw new TypeError('limit must be between 1 and 100')
+  if (createdAt !== null || id !== null) {
+    const date = createdAt === null ? NaN : Date.parse(createdAt)
+    if (!createdAt || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z$/.test(createdAt)
+      || !Number.isFinite(date) || new Date(date).toISOString().slice(0, 23) !== createdAt.slice(0, 23)) {
+      throw new TypeError('cursorAt must be an ISO UTC timestamp')
+    }
+    return { query, limit, cursor: { createdAt, id: entityId(id ?? undefined, 'cursorId') } }
+  }
+  return { query, limit }
+}
+
 function knownError(error: unknown): { status: number; code: string; message: string } {
   if (error instanceof SyntaxError || error instanceof TypeError) {
     return { status: 400, code: 'INVALID_REQUEST', message: error.message }
@@ -162,6 +182,31 @@ export function createWorkbenchServer(service: ForgeWorkbenchService, options: W
 
       if (request.method === 'GET' && url.pathname === '/api/status') { json(response, 200, { result: await service.status() }); return }
       if (request.method === 'GET' && url.pathname === '/api/projects') { json(response, 200, { result: await service.projects() }); return }
+      if (request.method === 'GET' && url.pathname === '/api/discovery/projects') {
+        json(response, 200, await service.discoverProjects(discoveryInput(url.searchParams)))
+        return
+      }
+      if (request.method === 'GET' && url.pathname === '/api/discovery/tasks') {
+        const params = Object.fromEntries(url.searchParams)
+        const input = discoveryInput(url.searchParams)
+        const status = choice(params, 'status', ['active', 'all', 'proposed', 'ready', 'in_progress', 'blocked', 'done', 'cancelled'], 'active')
+        json(response, 200, await service.discoverTasks({
+          ...input, status,
+          ...(params.projectId === undefined ? {} : { projectId: projectId(params.projectId) }),
+          ...(params.priority === undefined ? {} : { priority: choice(params, 'priority', ['low', 'normal', 'high', 'critical']) }),
+        }))
+        return
+      }
+      const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/)
+      if (request.method === 'GET' && projectMatch) {
+        json(response, 200, { result: await service.project(projectId(projectMatch[1])) })
+        return
+      }
+      const taskDetailMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/)
+      if (request.method === 'GET' && taskDetailMatch) {
+        json(response, 200, { result: await service.task(projectId(taskDetailMatch[1]), entityId(taskDetailMatch[2], 'taskId')) })
+        return
+      }
       const exportMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/export$/)
       if (request.method === 'GET' && exportMatch) {
         const bundle = await service.exportProject(projectId(exportMatch[1]))

@@ -5,8 +5,43 @@ import path from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createWorkbenchServer } from '../src/server.js'
 import type { ForgeWorkbenchService } from '../src/service.js'
+import { NotFoundError } from 'forge-semantic-bridge/workbench'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
+
+test('discovery and direct links use the authenticated local API and validate paging and filters', async (context) => {
+  const page = { items: [], nextCursor: null }
+  const calls: unknown[] = []
+  const taskId = '22222222-2222-4222-8222-222222222222'
+  const service = {
+    discoverProjects: async (input: unknown) => { calls.push(input); return page },
+    discoverTasks: async (input: unknown) => { calls.push(input); return page },
+    project: async (id: string) => ({ id, name: 'Fixture' }),
+    task: async (project: string, id: string) => {
+      if (project !== projectId) throw new NotFoundError('Task', id)
+      return { id, projectId: project }
+    },
+  } as unknown as ForgeWorkbenchService
+  const server = createWorkbenchServer(service, { publicDir: path.resolve('public'), token: 'discovery-test' })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  context.after(() => new Promise<void>((resolve) => server.close(() => resolve())))
+  const root = 'http://127.0.0.1:' + (server.address() as AddressInfo).port
+  const get = (resource: string) => fetch(root + resource, { headers: { 'x-forge-token': 'discovery-test' } })
+  assert.equal((await fetch(root + '/api/discovery/projects')).status, 401)
+  assert.deepEqual(await (await get('/api/discovery/projects?q=%25_')).json(), page)
+  assert.deepEqual(calls.pop(), { query: '%_', limit: 30 })
+  const createdAt = '2026-11-20T12:00:00.123456Z'
+  const params = new URLSearchParams({ projectId, status: 'done', priority: 'high', cursorAt: createdAt, cursorId: taskId })
+  assert.deepEqual(await (await get('/api/discovery/tasks?' + params)).json(), page)
+  assert.deepEqual(calls.pop(), { query: '', limit: 30, projectId, status: 'done', priority: 'high', cursor: { createdAt, id: taskId } })
+  for (const invalid of ['limit=101', 'limit=0', 'status=wrong', 'priority=wrong', 'projectId=wrong', 'cursorAt=bad', 'cursorId=' + taskId, 'q=%00']) {
+    assert.equal((await get('/api/discovery/tasks?' + invalid)).status, 400, invalid)
+  }
+  assert.equal(calls.length, 0)
+  assert.equal((await get('/api/projects/' + projectId)).status, 200)
+  assert.equal((await get(`/api/projects/${projectId}/tasks/${taskId}`)).status, 200)
+  assert.equal((await get(`/api/projects/${taskId}/tasks/${taskId}`)).status, 404)
+})
 
 test('validates actual Host before bootstrap, static files and privileged routes', async (context) => {
   let calls = 0
@@ -112,14 +147,14 @@ test('serves the loopback API with token and origin protections', async (context
   assert.equal(unapproved.status, 404)
 
   const index = await (await fetch(base)).text()
-  assert.match(index, /class="workspace-tabs"/)
+  assert.match(index, /class="workspace-tabs discovery-nav"/)
   assert.match(index, /data-view="overview"/)
   assert.match(index, /Siguiente paso recomendado/)
   assert.match(index, /id="next-step-secondary"/)
   assert.match(index, /class="top-actions" data-project-required/)
-  assert.match(index, /class="workspace-tabs"[^>]+data-project-required/)
+  assert.match(index, /class="workspace-tabs project-tabs"[^>]+data-project-required/)
   assert.match(index, /class="project-stats"[^>]+data-project-required/)
-  assert.match(index, /data-views="overview knowledge" data-project-required/)
+  assert.match(index, /data-views="knowledge" data-project-required/)
   assert.match(index, /data-action-views="overview operation"/)
   assert.match(index, /id="workspace-message"/)
   assert.match(index, />Trabajo<\/strong><small>Tareas y agentes/)

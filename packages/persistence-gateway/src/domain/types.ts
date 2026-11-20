@@ -261,6 +261,23 @@ interface CatalogPaginationInput {
   cursor?: CatalogCursor
 }
 
+export interface DiscoveryInput extends CatalogPaginationInput {
+  query?: string
+}
+
+export interface DiscoverTasksInput extends DiscoveryInput {
+  projectId?: string
+  status?: TaskStatus | 'active' | 'all'
+  priority?: TaskPriority
+}
+
+export type DiscoveryProject = Pick<Project, 'id' | 'projectKey' | 'name' | 'status' | 'createdAt'>
+
+export interface DiscoveryTask extends Pick<Task, 'id' | 'projectId' | 'taskKey' | 'title' | 'status' | 'priority' | 'createdAt'> {
+  projectName: string
+  assignedAgentName: string | null
+}
+
 export interface ListProjectsInput extends CatalogPaginationInput {
   status?: ProjectStatus
 }

@@ -37,6 +37,9 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedTag)) {
     if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $commit) { throw 'Release tag does not resolve exactly to the checked-out commit.' }
 }
 
+if ($RequireSigned -and [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)) {
+    throw 'A signing certificate reference is required for a signed Windows release.'
+}
 $packagerArgs = @{ OutputRoot = $OutputRoot }
 if (-not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)) {
     $packagerArgs.SigningCertificateThumbprint = $SigningCertificateThumbprint

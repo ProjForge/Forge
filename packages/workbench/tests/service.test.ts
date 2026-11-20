@@ -6,6 +6,12 @@ const project = {
   id: '11111111-1111-4111-8111-111111111111', projectKey: 'forge', name: 'FORGE', description: null,
   status: 'active' as const, metadata: {}, version: 1, createdAt: '2026-08-11T00:00:00Z', updatedAt: '2026-08-11T00:00:00Z',
 }
+const unusedDiscovery = {
+  discoverProjects: async () => ({ items: [], nextCursor: null }),
+  discoverTasks: async () => ({ items: [], nextCursor: null }),
+  getProjectById: async () => project,
+  getTaskById: async () => { throw new Error('unused') },
+}
 
 test('composes database and recovery health without exposing the filesystem reader', async () => {
   const gateway = { assertReady: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2' }) } as unknown as WorkbenchGateway
@@ -17,6 +23,7 @@ test('composes database and recovery health without exposing the filesystem read
 test('composes bounded project catalogs without bypassing the gateway', async () => {
   const calls: string[] = []
   const gateway = {
+    ...unusedDiscovery,
     assertReady: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2' }),
     listProjects: async () => ({ items: [project], nextCursor: null }),
     listMemories: async (input) => { calls.push(`memories:${input.projectId}:${input.limit}`); return { items: [], nextCursor: null } },
@@ -66,6 +73,7 @@ test('adds semantic and indexing state while keeping database status available d
 test('forwards precision mode to the semantic bridge unchanged', async () => {
   let observed: unknown
   const gateway = {
+    ...unusedDiscovery,
     assertReady: async () => ({ serverVersion: '18.4', schemaVersion: '0.1.3', vectorVersion: '0.8.2' }),
     listProjects: async () => ({ items: [], nextCursor: null }),
     listMemories: async () => ({ items: [], nextCursor: null }),
