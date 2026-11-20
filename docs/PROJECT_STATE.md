@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-18
+Updated: 2026-11-19
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -59,6 +59,11 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- Same-host Windows rehearsal verified that the kit discards a partially restored
+  target after the second native restore fails. A fresh PostgreSQL cluster
+  restored the same authenticated replica with zero handler or provider replay.
+  Remote restoration remains pending.
+  [Partial restore and retry evidence](acceptance/coordinator/2026-11-19-remote-coherent-partial-restore/README.md)
 - `-SealedOrphanRestore` passed a two-database local restore and two identical
   sealed audits of a real post-cut orphan with zero resume attempts. The
   acceptance fixture checks loopback scope and bounds its build and audit run.
