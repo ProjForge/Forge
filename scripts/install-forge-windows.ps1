@@ -164,7 +164,8 @@ try {
         & (Join-Path $repositoryRoot 'packages/workbench/packaging/windows/Build-Windows-Package.ps1') -OutputRoot $output
         $installer=Get-ChildItem -LiteralPath $output -Filter 'Install-FORGE-Workbench.ps1' -File -Recurse | Select-Object -First 1
         if(-not $installer){throw 'Workbench installer was not produced.'}
-        & $installer.FullName -ConfigRoot $ConfigRoot -DatabaseHost $DatabaseHost -DatabasePort $DatabasePort -DatabaseName $DatabaseName -DatabaseUser $RuntimeUser -CredentialFile $credentialFile -WorkbenchPort $WorkbenchPort -DatabasePassword $RuntimePassword -NoLaunch
+        & $installer.FullName -ConfigRoot $ConfigRoot -CheckOnly
+        & $installer.FullName -ConfigRoot $ConfigRoot -NoLaunch
     }}
     if($ConfigureLogicalRecovery){Invoke-Phase 'logical-recovery' {
         & (Join-Path $repositoryRoot 'packages/resilience/scripts/setup-backup-role.ps1') -HostName $DatabaseHost -Port $DatabasePort -Database $DatabaseName -AdminRole $AdminUser -PostgresBin $PostgresBin -AdminPassword $AdminPassword
