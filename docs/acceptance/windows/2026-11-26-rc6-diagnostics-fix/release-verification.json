@@ -1,0 +1,13 @@
+﻿{
+    "verified":  true,
+    "product":  "FORGE Workbench",
+    "version":  "0.2.0-rc.6",
+    "sourceCommit":  "a0b85f1e829da7f1cd39595ec5b8fb15704b2af4",
+    "sourceDirty":  false,
+    "authenticodeStatus":  "NotSigned",
+    "setupAuthenticodeStatus":  "NotSigned",
+    "timestamped":  false,
+    "sourceSha256":  "6168BBCCB567145223DA16AE7853A0310CAB1CC3B0B835E4463AB30D1BC5B99C",
+    "workbenchSha256":  "459FA992870CEDF796B2E9686E5D0CA30A7F34C784161E3E5D3CA73D22149CFE",
+    "internalFilesVerified":  22
+}

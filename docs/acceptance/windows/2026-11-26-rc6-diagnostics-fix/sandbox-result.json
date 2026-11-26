@@ -1,0 +1,44 @@
+﻿{
+    "passed":  true,
+    "mode":  "wizard-diagnostics-fixed-standard-account",
+    "account":  "ForgeSetupTester",
+    "session":  1,
+    "installedVersion":  "0.2.0-rc.6",
+    "sha256":  "459FA992870CEDF796B2E9686E5D0CA30A7F34C784161E3E5D3CA73D22149CFE",
+    "sourceCommit":  "a0b85f1e829da7f1cd39595ec5b8fb15704b2af4",
+    "serverUnavailableMessage":  "PostgreSQL is unavailable or the connection check failed.",
+    "insufficientPermissionsMessage":  "The database role lacks required FORGE runtime permissions.",
+    "diagnosticsExporterExit":  0,
+    "diagnosticsMemberCount":  2,
+    "diagnosticExport":  {
+                             "exitCode":  0,
+                             "zipExists":  true,
+                             "stdoutCount":  1,
+                             "pathMatches":  true,
+                             "stderrCount":  0,
+                             "errorCategory":  null,
+                             "scriptLine":  null,
+                             "uiCulture":  "es-ES",
+                             "resourceCultures":  [
+
+                                                  ],
+                             "moduleProbeExit":  0
+                         },
+    "checks":  {
+                   "standardToken":  true,
+                   "disposablePostgres":  true,
+                   "exactArchiveVerified":  true,
+                   "wizardOwnedByStandardAccount":  true,
+                   "unreachableServerRejectedWithoutWrites":  true,
+                   "insufficientPermissionsRejectedWithoutWrites":  true,
+                   "sameExactZipInstalledWithValidRole":  true,
+                   "credentialProtectedByCurrentUser":  true,
+                   "diagnosticsExporterMatchesExactPackage":  true,
+                   "diagnosticsPlainExportSucceeded":  true,
+                   "diagnosticsArchiveModuleAbsent":  true,
+                   "diagnosticsHasOnlyAllowedFilesAndFields":  true,
+                   "diagnosticsOmitsSecretsAndPaths":  true,
+                   "diagnosticsRetainsSafeHealth":  true,
+                   "diagnosticsPreservedInputs":  true
+               }
+}

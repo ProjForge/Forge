@@ -1,0 +1,10 @@
+{
+  "hostRunnerExit": 0,
+  "standardTesterExit": 0,
+  "interactive": true,
+  "session": 1,
+  "offline": true,
+  "ownedSandboxClosed": true,
+  "sandboxResultSha256": "D3566F41996C3E50D76D07B0008C6CAE6B21F3E575D48237C0642B05CD561775",
+  "releaseVerificationSha256": "32CB10AB50FC64B639631ABF5996677B52A07B1E0297107E59D51A8E418D80C1"
+}

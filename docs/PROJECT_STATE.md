@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Updated: 2026-11-20
+Updated: 2026-11-26
 Status: real local review-agent pilot implemented; production coordinator inactive
 
 ## Objective
@@ -64,6 +64,11 @@ physical WAL/PITR are separate recovery layers.
 ## Current Work
 
 NOW:
+- The rebuilt unsigned RC 6 ZIP passed a standard-user Windows Sandbox run
+  with Windows PowerShell 5.1 and `es-ES`. Diagnostics exported without
+  loading the archive module, excluded seeded secrets and preserved fixture
+  configuration, DPAPI bytes and PostgreSQL data.
+  [Corrected ZIP evidence](acceptance/windows/2026-11-26-rc6-diagnostics-fix/README.md)
 - Two offline Windows Sandbox destinations verified partial-restore rejection
   and recovery of the same encrypted generation under a new custody identity.
   Both databases and three reports and receipts matched. Remote restoration
