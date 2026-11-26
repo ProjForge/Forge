@@ -146,18 +146,42 @@ $diagnostics = [ordered]@{
     scheduledTasks = $tasks
 }
 
-$temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('forge-diagnostics-' + [Guid]::NewGuid().ToString('N'))
+$outputParent = Split-Path -Parent $OutputPath
+[IO.Directory]::CreateDirectory($outputParent) | Out-Null
+Add-Type -AssemblyName System.IO.Compression
+$temporaryPath = Join-Path $outputParent ('.forge-diagnostics-' + [Guid]::NewGuid().ToString('N') + '.zip')
+$temporaryCreated = $false
 try {
-    New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
-    [IO.File]::WriteAllText((Join-Path $temporaryRoot 'diagnostics.json'), ($diagnostics | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
-    @(
-        'FORGE diagnostics support bundle'
-        'This archive is generated from an explicit allowlist.'
-        'It contains no raw logs, configuration files, DPAPI material, database content, usernames or hostnames.'
-    ) | Set-Content -LiteralPath (Join-Path $temporaryRoot 'README.txt') -Encoding ascii
-    $outputParent = Split-Path -Parent $OutputPath
-    if (-not [string]::IsNullOrWhiteSpace($outputParent)) { New-Item -ItemType Directory -Path $outputParent -Force | Out-Null }
-    Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
-    Compress-Archive -Path (Join-Path $temporaryRoot '*') -DestinationPath $OutputPath -CompressionLevel Optimal
-} finally { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    $stream = [IO.File]::Open($temporaryPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $temporaryCreated = $true
+    try {
+        $zip = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            $entries = @(
+                @{ Name = 'diagnostics.json'; Bytes = [Text.UTF8Encoding]::new($false).GetBytes(($diagnostics | ConvertTo-Json -Depth 8)) }
+                @{ Name = 'README.txt'; Bytes = [Text.Encoding]::ASCII.GetBytes((@(
+                    'FORGE diagnostics support bundle'
+                    'This archive is generated from an explicit allowlist.'
+                    'It contains no raw logs, configuration files, DPAPI material, database content, usernames or hostnames.'
+                    ''
+                ) -join [Environment]::NewLine)) }
+            )
+            foreach ($entry in $entries) {
+                $member = $zip.CreateEntry($entry.Name, [IO.Compression.CompressionLevel]::Optimal).Open()
+                try { $member.Write($entry.Bytes, 0, $entry.Bytes.Length) }
+                finally { $member.Dispose() }
+            }
+        } finally { $zip.Dispose() }
+    } finally { $stream.Dispose() }
+
+    if ($Force -and [IO.File]::Exists($OutputPath)) {
+        # PowerShell converts a null string argument to an empty string on .NET Framework.
+        [IO.File]::Replace($temporaryPath, $OutputPath, [NullString]::Value)
+    } else {
+        [IO.File]::Move($temporaryPath, $OutputPath)
+    }
+    $temporaryCreated = $false
+} finally {
+    if ($temporaryCreated) { [IO.File]::Delete($temporaryPath) }
+}
 Write-Output $OutputPath
